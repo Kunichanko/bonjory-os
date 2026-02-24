@@ -142,6 +142,11 @@ export default function AdminSubmissionsPage() {
                   課題管理
                 </button>
               </a>
+              <a href="/admin/points">
+                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                  ポイント設定
+                </button>
+              </a>
               <button
                 className="game-button"
                 style={{ width: 'auto', padding: '8px 20px', fontSize: 15, background: '#888', borderColor: '#555' }}

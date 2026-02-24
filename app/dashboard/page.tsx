@@ -35,7 +35,6 @@ const MILESTONES = [
   { key: 'final',   phase: 'final',   day: '日', label: '最終提出',  desc: '日曜日：動画・画像・自己評価をタイムラインに投稿しましょう。' },
 ]
 
-// ビューIDはここに追加するだけで拡張できる
 type ViewId = 'tasks' | 'history' | 'timeline'
 
 const NAV_ITEMS: { id: ViewId; icon: string; label: string }[] = [
@@ -89,6 +88,23 @@ interface TimelineItem {
   } | null
 }
 
+interface RankSetting {
+  id: string
+  name: string
+  min_points: number
+  color: string
+  rank_order: number
+}
+
+interface Comment {
+  id: string
+  assignment_id: string
+  user_id: string
+  content: string
+  created_at: string
+  profile: { username: string | null } | null
+}
+
 // ─── コンポーネント ────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -98,6 +114,11 @@ export default function DashboardPage() {
   const [stage, setStage]             = useState<string | null>(null)
   const [assignments, setAssignments] = useState<AssignmentRecord[]>([])
   const [loading, setLoading]         = useState(true)
+
+  // ポイント・ランク
+  const [totalPoints, setTotalPoints] = useState(0)
+  const [coolPoints, setCoolPoints]   = useState(0)
+  const [rankSettings, setRankSettings] = useState<RankSetting[]>([])
 
   // サイドバー
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -133,6 +154,12 @@ export default function DashboardPage() {
   const [timelineLoading, setTimelineLoading] = useState(false)
   const [selectedPost, setSelectedPost]       = useState<TimelineItem | null>(null)
 
+  // コメント
+  const [comments, setComments]             = useState<Record<string, Comment[]>>({})
+  const [loadingComments, setLoadingComments] = useState(false)
+  const [commentInputs, setCommentInputs]   = useState<Record<string, string>>({})
+  const [postingComment, setPostingComment] = useState<Record<string, boolean>>({})
+
   const router = useRouter()
   const today      = new Date().getDay()
   const todayPhase = getWeekPhase(today)
@@ -150,29 +177,37 @@ export default function DashboardPage() {
         const uid = data.user.id
         if (mounted) setUserId(uid)
 
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('username, course, stage')
-          .eq('id', uid)
-          .single()
+        const [profileRes, assignmentRes, ranksRes] = await Promise.all([
+          supabase.from('profiles')
+            .select('username, course, stage, total_points, cool_points')
+            .eq('id', uid)
+            .single(),
+          supabase.from('task_assignments')
+            .select(`
+              id, status, plan_text, midterm_progress, midterm_correction,
+              media_url, self_evaluation, retrospective, submitted_at,
+              is_anonymous, thumbnail_url,
+              task:tasks(id, title, description, target_course, target_stage)
+            `)
+            .eq('user_id', uid),
+          supabase.from('rank_settings')
+            .select('id, name, min_points, color, rank_order')
+            .order('rank_order'),
+        ])
 
-        if (mounted) {
-          setUsername(profile?.username ?? null)
-          setCourse(profile?.course ?? null)
-          setStage(profile?.stage ?? null)
-        }
+        if (!mounted) return
 
-        const { data: assignmentData } = await supabase
-          .from('task_assignments')
-          .select(`
-            id, status, plan_text, midterm_progress, midterm_correction,
-            media_url, self_evaluation, retrospective, submitted_at,
-            is_anonymous, thumbnail_url,
-            task:tasks(id, title, description, target_course, target_stage)
-          `)
-          .eq('user_id', uid)
+        const profile = profileRes.data
+        setUsername(profile?.username ?? null)
+        setCourse(profile?.course ?? null)
+        setStage(profile?.stage ?? null)
+        setTotalPoints(profile?.total_points ?? 0)
+        setCoolPoints(profile?.cool_points ?? 0)
 
-        if (mounted && assignmentData) {
+        setRankSettings(ranksRes.data ?? [])
+
+        const assignmentData = assignmentRes.data
+        if (assignmentData) {
           setAssignments(assignmentData as unknown as AssignmentRecord[])
           const plans: Record<string, string>   = {}
           const midProg: Record<string, string> = {}
@@ -218,7 +253,6 @@ export default function DashboardPage() {
 
     async function fetchTimeline() {
       try {
-        // task_assignments と tasks を join（profiles は別途取得）
         const { data: tlData, error: tlError } = await supabase
           .from('task_assignments')
           .select(`
@@ -235,7 +269,6 @@ export default function DashboardPage() {
           return
         }
 
-        // profiles を別クエリで取得してマージ
         const { data: profilesData } = await supabase
           .from('profiles')
           .select('id, username, course, stage')
@@ -286,18 +319,35 @@ export default function DashboardPage() {
   }
 
   async function saveMidterm(assignmentId: string) {
+    const wasEmpty = !assignments.find(a => a.id === assignmentId)?.midterm_progress
+    const newProgress = midtermProgress[assignmentId] ?? ''
+
     setSavingMidterm(prev => ({ ...prev, [assignmentId]: true }))
     setMidtermSuccess(prev => ({ ...prev, [assignmentId]: false }))
     const { error } = await supabase.from('task_assignments').update({
-      midterm_progress:   midtermProgress[assignmentId]   ?? '',
+      midterm_progress:   newProgress,
       midterm_correction: midtermCorrection[assignmentId] ?? '',
       updated_at: new Date().toISOString(),
     }).eq('id', assignmentId)
     setSavingMidterm(prev => ({ ...prev, [assignmentId]: false }))
-    if (!error) setMidtermSuccess(prev => ({ ...prev, [assignmentId]: true }))
+    if (!error) {
+      setMidtermSuccess(prev => ({ ...prev, [assignmentId]: true }))
+      // 初回記入のみポイント付与
+      if (wasEmpty && newProgress && userId) {
+        const { data: pts } = await supabase.rpc('award_points', {
+          p_user_id: userId, p_action_key: 'midterm_report',
+        })
+        if (typeof pts === 'number' && pts > 0) {
+          setTotalPoints(p => p + pts)
+          setCoolPoints(p => p + pts)
+        }
+      }
+    }
   }
 
   async function submitWork(assignmentId: string) {
+    const wasSubmitted = assignments.find(a => a.id === assignmentId)?.status === 'submitted'
+
     setSubmitting(prev => ({ ...prev, [assignmentId]: true }))
     setSubmitSuccess(prev => ({ ...prev, [assignmentId]: false }))
 
@@ -341,6 +391,16 @@ export default function DashboardPage() {
               thumbnail_url: thumbUrl }
           : a
       ))
+      // 初回提出のみポイント付与
+      if (!wasSubmitted && userId) {
+        const { data: pts } = await supabase.rpc('award_points', {
+          p_user_id: userId, p_action_key: 'submission',
+        })
+        if (typeof pts === 'number' && pts > 0) {
+          setTotalPoints(p => p + pts)
+          setCoolPoints(p => p + pts)
+        }
+      }
     }
   }
 
@@ -352,6 +412,56 @@ export default function DashboardPage() {
     } else {
       setThumbPreviews(prev => ({ ...prev, [assignmentId]: '' }))
     }
+  }
+
+  async function loadComments(assignmentId: string) {
+    setLoadingComments(true)
+    const { data, error } = await supabase
+      .from('timeline_comments')
+      .select('id, assignment_id, user_id, content, created_at')
+      .eq('assignment_id', assignmentId)
+      .order('created_at', { ascending: true })
+
+    if (!error && data) {
+      const userIds = [...new Set(data.map(c => c.user_id))]
+      const { data: profilesData } = await supabase
+        .from('profiles').select('id, username').in('id', userIds)
+      const profileMap: Record<string, string | null> = {}
+      for (const p of profilesData ?? []) profileMap[p.id] = p.username
+
+      const enriched: Comment[] = data.map(c => ({
+        ...c,
+        profile: { username: profileMap[c.user_id] ?? null },
+      }))
+      setComments(prev => ({ ...prev, [assignmentId]: enriched }))
+    }
+    setLoadingComments(false)
+  }
+
+  async function postComment(assignmentId: string, postOwnerId: string) {
+    const content = (commentInputs[assignmentId] ?? '').trim()
+    if (!content || !userId) return
+
+    setPostingComment(prev => ({ ...prev, [assignmentId]: true }))
+    const { error } = await supabase
+      .from('timeline_comments')
+      .insert({ assignment_id: assignmentId, user_id: userId, content })
+
+    if (!error) {
+      setCommentInputs(prev => ({ ...prev, [assignmentId]: '' }))
+      await loadComments(assignmentId)
+      // 他人の投稿へのコメントのみポイント付与
+      if (userId !== postOwnerId) {
+        const { data: pts } = await supabase.rpc('award_points', {
+          p_user_id: userId, p_action_key: 'comment',
+        })
+        if (typeof pts === 'number' && pts > 0) {
+          setTotalPoints(p => p + pts)
+          setCoolPoints(p => p + pts)
+        }
+      }
+    }
+    setPostingComment(prev => ({ ...prev, [assignmentId]: false }))
   }
 
   function navigate(viewId: ViewId) {
@@ -372,6 +482,13 @@ export default function DashboardPage() {
   const currentMilestone     = MILESTONES.find(m => m.phase === todayPhase)!
   const activeAssignments    = assignments.filter(a => a.status !== 'submitted')
   const submittedAssignments = assignments.filter(a => a.status === 'submitted')
+
+  // ランク計算
+  const sortedRanks = [...rankSettings].sort((a, b) => a.rank_order - b.rank_order)
+  const currentRank = [...sortedRanks].reverse().find(r => coolPoints >= r.min_points) ?? sortedRanks[0] ?? null
+  const nextRank    = currentRank
+    ? sortedRanks.find(r => r.rank_order > currentRank.rank_order) ?? null
+    : null
 
   // ─── レンダリング ──────────────────────────────────────
 
@@ -435,6 +552,7 @@ export default function DashboardPage() {
 
       {/* ── メインコンテンツ ─────────────────────────────── */}
       <div style={{ padding: '24px 24px 40px' }}>
+        {/* ハンバーガーボタン */}
         <button onClick={() => setSidebarOpen(true)} style={{
           position: 'fixed', top: 16, left: 16, zIndex: 99,
           background: '#1a3a00', border: '2px solid #3d6e00',
@@ -443,6 +561,35 @@ export default function DashboardPage() {
         }}>
           ☰
         </button>
+
+        {/* ── ランクウィジェット ─────────────────────────── */}
+        {currentRank && (
+          <div style={{
+            position: 'fixed', top: 60, left: 8, zIndex: 98,
+            background: '#1a3a00',
+            border: `2px solid ${currentRank.color}`,
+            borderRadius: 10, padding: '8px 12px',
+            textAlign: 'center', minWidth: 90,
+          }}>
+            <p style={{ color: currentRank.color, fontWeight: 'bold', fontSize: 20, lineHeight: 1, marginBottom: 2 }}>
+              {currentRank.name}
+            </p>
+            <p style={{ color: currentRank.color, fontSize: 10, marginBottom: 4 }}>ランク</p>
+            <p style={{ color: '#a8d870', fontSize: 10, marginBottom: 4 }}>
+              累計 <span style={{ fontWeight: 'bold' }}>{totalPoints}</span> pt
+            </p>
+            {nextRank ? (
+              <p style={{ color: '#a8d870', fontSize: 10, lineHeight: 1.4 }}>
+                次まで<br/>
+                <span style={{ fontWeight: 'bold', fontSize: 12 }}>
+                  {nextRank.min_points - coolPoints}
+                </span> pt
+              </p>
+            ) : (
+              <p style={{ color: '#f0a000', fontSize: 10 }}>最高ランク！</p>
+            )}
+          </div>
+        )}
 
         <div style={{ maxWidth: 560, margin: '0 auto', paddingTop: 48, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -489,7 +636,6 @@ export default function DashboardPage() {
           {/* ══ VIEW: 今週の課題 ════════════════════════════ */}
           {currentView === 'tasks' && (
             <>
-              {/* 週間サイクルカード */}
               <div className="game-card" style={{ padding: '28px 32px' }}>
                 <h2 className="game-title" style={{ fontSize: 20, marginBottom: 24 }}>今週のサイクル</h2>
                 <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 20 }}>
@@ -530,7 +676,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* アサイン済み課題カード */}
               {activeAssignments.length === 0 && assignments.length === 0 ? (
                 <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
                   <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
@@ -545,7 +690,6 @@ export default function DashboardPage() {
                 const si = STATUS_INFO[assignment.status]
                 return (
                   <div key={assignment.id} className="game-card" style={{ padding: '28px 32px' }}>
-                    {/* 課題ヘッダー */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 22 }}>📋</span>
@@ -584,8 +728,7 @@ export default function DashboardPage() {
                     <div style={{ marginBottom: 20 }}>
                       <label className="game-label">📝 今週の制作計画</label>
                       <textarea
-                        className="game-input"
-                        rows={3}
+                        className="game-input" rows={3}
                         placeholder="今週どこまで作るか、どんな手順で進めるかを書こう..."
                         value={planTexts[assignment.id] ?? ''}
                         onChange={e => setPlanTexts(prev => ({ ...prev, [assignment.id]: e.target.value }))}
@@ -612,25 +755,19 @@ export default function DashboardPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         <div>
                           <label className="game-label" style={{ fontSize: 13 }}>現在の進捗状況</label>
-                          <textarea
-                            className="game-input"
-                            rows={3}
+                          <textarea className="game-input" rows={3}
                             placeholder="どこまで進んだか、詰まっている箇所はあるか..."
                             value={midtermProgress[assignment.id] ?? ''}
                             onChange={e => setMidtermProgress(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                            style={{ resize: 'vertical' }}
-                          />
+                            style={{ resize: 'vertical' }} />
                         </div>
                         <div>
                           <label className="game-label" style={{ fontSize: 13 }}>日曜までの修正計画</label>
-                          <textarea
-                            className="game-input"
-                            rows={3}
+                          <textarea className="game-input" rows={3}
                             placeholder="残りの期間でどこまで仕上げるか、何を変更するか..."
                             value={midtermCorrection[assignment.id] ?? ''}
                             onChange={e => setMidtermCorrection(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                            style={{ resize: 'vertical' }}
-                          />
+                            style={{ resize: 'vertical' }} />
                         </div>
                         <button className="game-button" disabled={savingMidterm[assignment.id]} onClick={() => saveMidterm(assignment.id)}>
                           {savingMidterm[assignment.id] ? '保存中…' : '中間報告を保存'}
@@ -654,58 +791,38 @@ export default function DashboardPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                         <div>
                           <label className="game-label">動画 / 画像URL</label>
-                          <input
-                            className="game-input"
-                            type="url"
+                          <input className="game-input" type="url"
                             placeholder="https://youtube.com/... または画像URL"
                             value={mediaUrls[assignment.id] ?? ''}
-                            onChange={e => setMediaUrls(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                          />
+                            onChange={e => setMediaUrls(prev => ({ ...prev, [assignment.id]: e.target.value }))} />
                         </div>
                         <div>
                           <label className="game-label">自己評価</label>
-                          <textarea
-                            className="game-input"
-                            rows={3}
+                          <textarea className="game-input" rows={3}
                             placeholder="今週の制作を振り返って、自分で評価してみよう..."
                             value={selfEvals[assignment.id] ?? ''}
                             onChange={e => setSelfEvals(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                            style={{ resize: 'vertical' }}
-                          />
+                            style={{ resize: 'vertical' }} />
                         </div>
                         <div>
                           <label className="game-label">計画の振り返り</label>
-                          <textarea
-                            className="game-input"
-                            rows={3}
+                          <textarea className="game-input" rows={3}
                             placeholder="月曜に立てた計画と、実際の進捗の差を振り返ろう..."
                             value={retros[assignment.id] ?? ''}
                             onChange={e => setRetros(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                            style={{ resize: 'vertical' }}
-                          />
+                            style={{ resize: 'vertical' }} />
                         </div>
 
-                        {/* サムネイル画像 */}
+                        {/* サムネイル */}
                         <div>
                           <label className="game-label">サムネイル画像（任意）</label>
-                          <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>
-                            タイムラインのカードに表示されるサムネイルです
-                          </p>
-                          <input
-                            type="file"
-                            accept="image/*"
+                          <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>タイムラインのカードに表示されるサムネイルです</p>
+                          <input type="file" accept="image/*"
                             onChange={e => handleThumbnailChange(assignment.id, e.target.files?.[0] ?? null)}
-                            style={{ display: 'block', fontSize: 13, color: '#3d6e00' }}
-                          />
+                            style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
                           {thumbPreviews[assignment.id] && (
-                            <img
-                              src={thumbPreviews[assignment.id]}
-                              alt="preview"
-                              style={{
-                                marginTop: 8, width: '100%', maxHeight: 160,
-                                objectFit: 'cover', borderRadius: 8, border: '2px solid #c8e89a',
-                              }}
-                            />
+                            <img src={thumbPreviews[assignment.id]} alt="preview"
+                              style={{ marginTop: 8, width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '2px solid #c8e89a' }} />
                           )}
                           {uploadingThumb[assignment.id] && (
                             <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>アップロード中...</p>
@@ -715,8 +832,7 @@ export default function DashboardPage() {
                         {/* 匿名設定 */}
                         <div>
                           <label className="game-label">投稿設定</label>
-                          <button
-                            type="button"
+                          <button type="button"
                             onClick={() => setIsAnonymous(prev => ({ ...prev, [assignment.id]: !prev[assignment.id] }))}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 10,
@@ -726,8 +842,7 @@ export default function DashboardPage() {
                               cursor: 'pointer', fontSize: 14, fontWeight: 'bold',
                               color: isAnonymous[assignment.id] ? '#fff' : '#3d6e00',
                               transition: 'all 0.15s',
-                            }}
-                          >
+                            }}>
                             <span>{isAnonymous[assignment.id] ? '🙈' : '👤'}</span>
                             {isAnonymous[assignment.id] ? '匿名投稿' : '実名投稿（公開）'}
                           </button>
@@ -738,11 +853,7 @@ export default function DashboardPage() {
                           </p>
                         </div>
 
-                        <button
-                          className="game-button"
-                          disabled={submitting[assignment.id]}
-                          onClick={() => submitWork(assignment.id)}
-                        >
+                        <button className="game-button" disabled={submitting[assignment.id]} onClick={() => submitWork(assignment.id)}>
                           {submitting[assignment.id] ? '提出中…' : '🚀 提出する'}
                         </button>
                         {submitSuccess[assignment.id] && (
@@ -779,8 +890,7 @@ export default function DashboardPage() {
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         width: '100%', background: 'none', border: 'none', cursor: 'pointer',
                         padding: 0, textAlign: 'left',
-                      }}
-                    >
+                      }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
                           {a.task.target_course && (
@@ -811,19 +921,16 @@ export default function DashboardPage() {
                     {isOpen && (
                       <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                         <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '4px 0' }} />
-
                         {a.thumbnail_url && (
                           <img src={a.thumbnail_url} alt={a.task.title}
                             style={{ width: '100%', borderRadius: 8, maxHeight: 180, objectFit: 'cover' }} />
                         )}
-
                         {a.plan_text && (
                           <div>
                             <p className="game-label" style={{ marginBottom: 4 }}>📝 制作計画</p>
                             <p style={textBlockStyle}>{a.plan_text}</p>
                           </div>
                         )}
-
                         {(a.midterm_progress || a.midterm_correction) && (
                           <div>
                             <p className="game-label" style={{ marginBottom: 4 }}>🔍 中間報告</p>
@@ -841,7 +948,6 @@ export default function DashboardPage() {
                             )}
                           </div>
                         )}
-
                         {a.media_url && (
                           <div>
                             <p className="game-label" style={{ marginBottom: 4 }}>🎬 提出URL</p>
@@ -851,21 +957,18 @@ export default function DashboardPage() {
                             </a>
                           </div>
                         )}
-
                         {a.self_evaluation && (
                           <div>
                             <p className="game-label" style={{ marginBottom: 4 }}>⭐ 自己評価</p>
                             <p style={textBlockStyle}>{a.self_evaluation}</p>
                           </div>
                         )}
-
                         {a.retrospective && (
                           <div>
                             <p className="game-label" style={{ marginBottom: 4 }}>🔄 計画の振り返り</p>
                             <p style={textBlockStyle}>{a.retrospective}</p>
                           </div>
                         )}
-
                         <p style={{ color: a.is_anonymous ? '#888' : '#6aac14', fontSize: 12 }}>
                           {a.is_anonymous ? '🙈 匿名投稿' : '👤 実名投稿'}
                         </p>
@@ -897,12 +1000,10 @@ export default function DashboardPage() {
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   {timeline.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => setSelectedPost(item)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
-                    >
-                      <div className="game-card" style={{ padding: 0, overflow: 'hidden', transition: 'transform 0.1s', height: '100%' }}>
+                    <button key={item.id}
+                      onClick={() => { setSelectedPost(item); loadComments(item.id) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
+                      <div className="game-card" style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
                         {item.thumbnail_url ? (
                           <img src={item.thumbnail_url} alt={item.task.title}
                             style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
@@ -942,10 +1043,8 @@ export default function DashboardPage() {
       {/* ── タイムライン詳細モーダル ─────────────────────── */}
       {selectedPost && (
         <>
-          <div
-            onClick={() => setSelectedPost(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 200 }}
-          />
+          <div onClick={() => setSelectedPost(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 200 }} />
           <div style={{
             position: 'fixed', top: '50%', left: '50%',
             transform: 'translate(-50%, -50%)',
@@ -953,23 +1052,15 @@ export default function DashboardPage() {
             overflowY: 'auto', borderRadius: 16,
           }}>
             <div className="game-card" style={{ padding: '24px 28px', position: 'relative' }}>
-              <button
-                onClick={() => setSelectedPost(null)}
-                style={{
-                  position: 'absolute', top: 12, right: 12,
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#6aac14', fontSize: 26, lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
+              <button onClick={() => setSelectedPost(null)} style={{
+                position: 'absolute', top: 12, right: 12,
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#6aac14', fontSize: 26, lineHeight: 1,
+              }}>×</button>
 
               {selectedPost.thumbnail_url && (
-                <img
-                  src={selectedPost.thumbnail_url}
-                  alt={selectedPost.task.title}
-                  style={{ width: '100%', borderRadius: 8, marginBottom: 16, maxHeight: 200, objectFit: 'cover' }}
-                />
+                <img src={selectedPost.thumbnail_url} alt={selectedPost.task.title}
+                  style={{ width: '100%', borderRadius: 8, marginBottom: 16, maxHeight: 200, objectFit: 'cover' }} />
               )}
 
               <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
@@ -1002,12 +1093,8 @@ export default function DashboardPage() {
               {selectedPost.media_url && (
                 <div style={{ marginBottom: 14 }}>
                   <p className="game-label" style={{ marginBottom: 4 }}>🎬 提出URL</p>
-                  <a
-                    href={selectedPost.media_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ color: '#3d6e00', fontSize: 14, wordBreak: 'break-all' }}
-                  >
+                  <a href={selectedPost.media_url} target="_blank" rel="noopener noreferrer"
+                    style={{ color: '#3d6e00', fontSize: 14, wordBreak: 'break-all' }}>
                     {selectedPost.media_url}
                   </a>
                 </div>
@@ -1021,11 +1108,65 @@ export default function DashboardPage() {
               )}
 
               {selectedPost.retrospective && (
-                <div>
+                <div style={{ marginBottom: 16 }}>
                   <p className="game-label" style={{ marginBottom: 4 }}>🔄 計画の振り返り</p>
                   <p style={textBlockStyle}>{selectedPost.retrospective}</p>
                 </div>
               )}
+
+              {/* ── コメントセクション ──────────────────── */}
+              <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '12px 0' }} />
+              <p className="game-label" style={{ marginBottom: 10 }}>💬 コメント</p>
+
+              {loadingComments ? (
+                <p style={{ color: '#6aac14', fontSize: 13 }}>読み込み中...</p>
+              ) : (comments[selectedPost.id] ?? []).length === 0 ? (
+                <p style={{ color: '#aaa', fontSize: 13, marginBottom: 12 }}>まだコメントはありません</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                  {(comments[selectedPost.id] ?? []).map(c => (
+                    <div key={c.id} style={{
+                      background: '#f0fae0', borderRadius: 8, padding: '8px 12px',
+                      border: '1px solid #c8e89a',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 12 }}>
+                          👤 {c.profile?.username ?? '名無し'}
+                        </span>
+                        <span style={{ color: '#aaa', fontSize: 11 }}>
+                          {new Date(c.created_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p style={{ color: '#2d5500', fontSize: 13, lineHeight: 1.5 }}>{c.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* コメント入力 */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="game-input"
+                  placeholder="コメントを入力..."
+                  value={commentInputs[selectedPost.id] ?? ''}
+                  onChange={e => setCommentInputs(prev => ({ ...prev, [selectedPost!.id]: e.target.value }))}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      postComment(selectedPost!.id, selectedPost!.user_id)
+                    }
+                  }}
+                  style={{ flex: 1, marginBottom: 0 }}
+                />
+                <button
+                  className="game-button"
+                  disabled={postingComment[selectedPost.id] || !(commentInputs[selectedPost.id] ?? '').trim()}
+                  onClick={() => postComment(selectedPost!.id, selectedPost!.user_id)}
+                  style={{ width: 'auto', padding: '0 16px', marginBottom: 0, flexShrink: 0 }}
+                >
+                  {postingComment[selectedPost.id] ? '…' : '送信'}
+                </button>
+              </div>
             </div>
           </div>
         </>
