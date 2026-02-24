@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 
@@ -11,23 +11,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         setError(error.message)
         return
       }
-
-      // Successful login; navigate to dashboard
       router.push('/dashboard')
     } catch (err: any) {
       setError(err?.message ?? String(err))
@@ -37,37 +31,57 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-      <h1>ログイン</h1>
-      <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12, maxWidth: 420 }}>
-        <label>
-          メール
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, marginTop: 6 }}
-          />
-        </label>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    }}>
+      <div className="game-card" style={{ width: '100%', maxWidth: 400, padding: '40px 36px' }}>
+        <h1 className="game-title" style={{ fontSize: 36, textAlign: 'center', marginBottom: 32 }}>
+          ログイン
+        </h1>
 
-        <label>
-          パスワード
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, marginTop: 6 }}
-          />
-        </label>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <label className="game-label">メールアドレス</label>
+            <input
+              className="game-input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="example@email.com"
+            />
+          </div>
 
-        <button type="submit" disabled={loading} style={{ padding: '8px 12px' }}>
-          {loading ? '送信中…' : 'ログイン'}
-        </button>
+          <div>
+            <label className="game-label">パスワード</label>
+            <input
+              className="game-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="••••••••"
+            />
+          </div>
 
-        {error && <div style={{ color: 'crimson' }}>エラー: {error}</div>}
-      </form>
-    </main>
+          <button className="game-button" type="submit" disabled={loading} style={{ marginTop: 8 }}>
+            {loading ? '送信中…' : 'ログイン'}
+          </button>
+
+          {error && <div className="game-error">エラー: {error}</div>}
+        </form>
+
+        <p style={{ textAlign: 'center', marginTop: 24, color: '#3d6e00', fontSize: 14 }}>
+          アカウントをお持ちでない方は{' '}
+          <a href="/signup" style={{ color: '#6aac14', fontWeight: 'bold', textDecoration: 'underline' }}>
+            サインアップ
+          </a>
+        </p>
+      </div>
+    </div>
   )
 }
