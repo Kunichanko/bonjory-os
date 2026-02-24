@@ -24,6 +24,8 @@ interface AssignmentDetail {
   self_evaluation: string | null
   retrospective: string | null
   submitted_at: string | null
+  is_anonymous: boolean
+  thumbnail_url: string | null
   task: {
     id: string
     title: string
@@ -81,6 +83,7 @@ export default function AdminSubmissionsPage() {
             .select(`
               id, user_id, status, plan_text, midterm_progress, midterm_correction,
               media_url, self_evaluation, retrospective, submitted_at,
+              is_anonymous, thumbnail_url,
               task:tasks(id, title, target_course, target_stage)
             `)
             .order('created_at', { ascending: true }),
@@ -297,6 +300,32 @@ export default function AdminSubmissionsPage() {
                               {isTaskOpen && (
                                 <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                                   <hr style={{ border: 'none', borderTop: '1px dashed #c8e89a', margin: '0 0 4px' }} />
+
+                                  {/* サムネイルと投稿設定 */}
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                                    {a.thumbnail_url ? (
+                                      <img src={a.thumbnail_url} alt={a.task.title}
+                                        style={{ width: 100, height: 70, objectFit: 'cover', borderRadius: 6, border: '2px solid #c8e89a', flexShrink: 0 }} />
+                                    ) : (
+                                      <div style={{
+                                        width: 100, height: 70, borderRadius: 6, border: '2px dashed #c8e89a',
+                                        background: '#f0fae0', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        flexShrink: 0,
+                                      }}>
+                                        <span style={{ color: '#c8e89a', fontSize: 22 }}>🎮</span>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <span style={{
+                                        display: 'inline-block',
+                                        background: a.is_anonymous ? '#555' : '#6aac14',
+                                        color: 'white', borderRadius: 10, padding: '2px 10px',
+                                        fontSize: 12, fontWeight: 'bold',
+                                      }}>
+                                        {a.is_anonymous ? '🙈 匿名投稿' : '👤 実名投稿'}
+                                      </span>
+                                    </div>
+                                  </div>
 
                                   {a.plan_text ? (
                                     <DetailBlock icon="📝" label="制作計画" text={a.plan_text} />
