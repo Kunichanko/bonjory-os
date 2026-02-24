@@ -15,6 +15,12 @@ const COURSE_LABELS: Record<string, string> = {
   Blender: 'Blenderコース',
 }
 
+const STATUS_INFO: Record<string, { label: string; emoji: string; bg: string; color: string }> = {
+  assigned:    { label: 'アサイン済',  emoji: '📌', bg: '#e8e8e8', color: '#555' },
+  in_progress: { label: '取り組み中', emoji: '🔥', bg: '#d4f0a0', color: '#3d6e00' },
+  submitted:   { label: '提出済',     emoji: '✅', bg: '#c8f0c0', color: '#1a6e00' },
+}
+
 function getWeekPhase(day: number): 'task' | 'midterm' | 'final' {
   if (day === 0) return 'final'
   if (day >= 1 && day <= 3) return 'task'
@@ -27,7 +33,7 @@ const MILESTONES = [
   { key: 'final',   phase: 'final',   day: '日', label: '最終提出',  desc: '日曜日：動画・画像・自己評価をタイムラインに投稿しましょう。' },
 ]
 
-interface Task {
+interface AssignmentTask {
   id: string
   title: string
   description: string | null
@@ -35,18 +41,37 @@ interface Task {
   target_stage: string | null
 }
 
-export default function DashboardPage() {
-  const [username, setUsername] = useState<string | null>(null)
-  const [course, setCourse]     = useState<string | null>(null)
-  const [stage, setStage]       = useState<string | null>(null)
-  const [userId, setUserId]     = useState<string | null>(null)
-  const [tasks, setTasks]       = useState<Task[]>([])
-  const [planTexts, setPlanTexts] = useState<Record<string, string>>({})
-  const [savingPlan, setSavingPlan] = useState<Record<string, boolean>>({})
-  const [planSuccess, setPlanSuccess] = useState<Record<string, boolean>>({})
-  const [loading, setLoading]   = useState(true)
-  const router = useRouter()
+interface AssignmentRecord {
+  id: string
+  status: 'assigned' | 'in_progress' | 'submitted'
+  plan_text: string | null
+  media_url: string | null
+  self_evaluation: string | null
+  retrospective: string | null
+  submitted_at: string | null
+  task: AssignmentTask
+}
 
+export default function DashboardPage() {
+  const [username, setUsername]       = useState<string | null>(null)
+  const [course, setCourse]           = useState<string | null>(null)
+  const [stage, setStage]             = useState<string | null>(null)
+  const [assignments, setAssignments] = useState<AssignmentRecord[]>([])
+  const [loading, setLoading]         = useState(true)
+
+  // 制作計画の入力state: assignmentId → text
+  const [planTexts, setPlanTexts]       = useState<Record<string, string>>({})
+  const [savingPlan, setSavingPlan]     = useState<Record<string, boolean>>({})
+  const [planSuccess, setPlanSuccess]   = useState<Record<string, boolean>>({})
+
+  // 提出フォームの入力state
+  const [mediaUrls, setMediaUrls]       = useState<Record<string, string>>({})
+  const [selfEvals, setSelfEvals]       = useState<Record<string, string>>({})
+  const [retros, setRetros]             = useState<Record<string, string>>({})
+  const [submitting, setSubmitting]     = useState<Record<string, boolean>>({})
+  const [submitSuccess, setSubmitSuccess] = useState<Record<string, boolean>>({})
+
+  const router = useRouter()
   const today      = new Date().getDay()
   const todayPhase = getWeekPhase(today)
 
@@ -66,47 +91,38 @@ export default function DashboardPage() {
           .eq('id', uid)
           .single()
 
-        const userCourse = profile?.course ?? null
-        const userStage  = profile?.stage  ?? null
-
         if (mounted) {
           setUsername(profile?.username ?? null)
-          setCourse(userCourse)
-          setStage(userStage)
-          setUserId(uid)
+          setCourse(profile?.course ?? null)
+          setStage(profile?.stage ?? null)
         }
 
-        // アクティブな課題を取得（自分のコース・ステージに合うもの）
-        let query = supabase
-          .from('tasks')
-          .select('id, title, description, target_course, target_stage')
-          .eq('is_active', true)
+        // アサインされた課題を取得
+        const { data: assignmentData } = await supabase
+          .from('task_assignments')
+          .select(`
+            id, status, plan_text, media_url, self_evaluation, retrospective, submitted_at,
+            task:tasks(id, title, description, target_course, target_stage)
+          `)
+          .eq('user_id', uid)
 
-        const { data: taskList } = await query
-
-        // クライアント側でコース・ステージフィルタリング
-        const filtered = (taskList ?? []).filter(t => {
-          const courseMatch = t.target_course === null || t.target_course === userCourse
-          const stageMatch  = t.target_stage  === null || t.target_stage  === userStage
-          return courseMatch && stageMatch
-        })
-
-        if (mounted) setTasks(filtered)
-
-        // 各課題の既存プランを取得
-        if (filtered.length > 0) {
-          const taskIds = filtered.map(t => t.id)
-          const { data: existingPlans } = await supabase
-            .from('plans')
-            .select('task_id, plan_text')
-            .eq('user_id', uid)
-            .in('task_id', taskIds)
-
-          if (mounted && existingPlans) {
-            const planMap: Record<string, string> = {}
-            existingPlans.forEach(p => { planMap[p.task_id] = p.plan_text })
-            setPlanTexts(planMap)
-          }
+        if (mounted && assignmentData) {
+          setAssignments(assignmentData as unknown as AssignmentRecord[])
+          // 初期値をセット
+          const plans: Record<string, string> = {}
+          const medias: Record<string, string> = {}
+          const evals: Record<string, string>  = {}
+          const retro: Record<string, string>  = {}
+          assignmentData.forEach(a => {
+            plans[a.id]  = a.plan_text       ?? ''
+            medias[a.id] = a.media_url       ?? ''
+            evals[a.id]  = a.self_evaluation ?? ''
+            retro[a.id]  = a.retrospective   ?? ''
+          })
+          setPlanTexts(plans)
+          setMediaUrls(medias)
+          setSelfEvals(evals)
+          setRetros(retro)
         }
       } catch {
         router.replace('/login')
@@ -119,20 +135,44 @@ export default function DashboardPage() {
     return () => { mounted = false }
   }, [router])
 
-  async function savePlan(taskId: string) {
-    if (!userId) return
-    setSavingPlan(prev => ({ ...prev, [taskId]: true }))
-    setPlanSuccess(prev => ({ ...prev, [taskId]: false }))
+  async function savePlan(assignmentId: string) {
+    setSavingPlan(prev => ({ ...prev, [assignmentId]: true }))
+    setPlanSuccess(prev => ({ ...prev, [assignmentId]: false }))
 
-    const { error } = await supabase
-      .from('plans')
-      .upsert(
-        { task_id: taskId, user_id: userId, plan_text: planTexts[taskId] ?? '', updated_at: new Date().toISOString() },
-        { onConflict: 'task_id,user_id' }
-      )
+    const { error } = await supabase.from('task_assignments').update({
+      plan_text: planTexts[assignmentId] ?? '',
+      status: 'in_progress',
+      updated_at: new Date().toISOString(),
+    }).eq('id', assignmentId)
 
-    setSavingPlan(prev => ({ ...prev, [taskId]: false }))
-    if (!error) setPlanSuccess(prev => ({ ...prev, [taskId]: true }))
+    setSavingPlan(prev => ({ ...prev, [assignmentId]: false }))
+    if (!error) {
+      setPlanSuccess(prev => ({ ...prev, [assignmentId]: true }))
+      setAssignments(prev => prev.map(a => a.id === assignmentId ? { ...a, status: 'in_progress', plan_text: planTexts[assignmentId] } : a))
+    }
+  }
+
+  async function submitWork(assignmentId: string) {
+    setSubmitting(prev => ({ ...prev, [assignmentId]: true }))
+    setSubmitSuccess(prev => ({ ...prev, [assignmentId]: false }))
+
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('task_assignments').update({
+      media_url:       mediaUrls[assignmentId] ?? '',
+      self_evaluation: selfEvals[assignmentId] ?? '',
+      retrospective:   retros[assignmentId]    ?? '',
+      status:          'submitted',
+      submitted_at:    now,
+      updated_at:      now,
+    }).eq('id', assignmentId)
+
+    setSubmitting(prev => ({ ...prev, [assignmentId]: false }))
+    if (!error) {
+      setSubmitSuccess(prev => ({ ...prev, [assignmentId]: true }))
+      setAssignments(prev => prev.map(a =>
+        a.id === assignmentId ? { ...a, status: 'submitted', submitted_at: now } : a
+      ))
+    }
   }
 
   if (loading) {
@@ -147,7 +187,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ minHeight: '100vh', padding: '32px 24px' }}>
-      <div style={{ maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* ウェルカムカード */}
         <div className="game-card" style={{ padding: '36px 32px', textAlign: 'center' }}>
@@ -211,75 +251,141 @@ export default function DashboardPage() {
             })}
           </div>
           <div style={{ background: '#f0fae0', border: '2px solid #6aac14', borderRadius: 12, padding: '12px 16px' }}>
-            <p style={{ color: '#3d6e00', fontSize: 14, fontWeight: 'bold' }}>
-              {currentMilestone.desc}
-            </p>
+            <p style={{ color: '#3d6e00', fontSize: 14, fontWeight: 'bold' }}>{currentMilestone.desc}</p>
           </div>
         </div>
 
-        {/* 今週の課題カード */}
-        {tasks.length > 0 && tasks.map(task => (
-          <div key={task.id} className="game-card" style={{ padding: '28px 32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-              <span style={{ fontSize: 22 }}>📋</span>
-              <h2 className="game-title" style={{ fontSize: 20 }}>今週の課題</h2>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-              <span style={{
-                background: '#6aac14', color: 'white',
-                borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
-              }}>
-                {task.target_course ?? '全コース'}
-              </span>
-              <span style={{
-                background: '#3d6e00', color: 'white',
-                borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
-              }}>
-                {task.target_stage ?? '全ステージ'}
-              </span>
-            </div>
-
-            <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 18, marginBottom: 8 }}>
-              {task.title}
-            </p>
-            {task.description && (
-              <p style={{ color: '#3d6e00', fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
-                {task.description}
-              </p>
-            )}
-
-            <div style={{ marginTop: 12 }}>
-              <label className="game-label">今週の制作計画</label>
-              <textarea
-                className="game-input"
-                rows={4}
-                placeholder="今週どこまで作るか、どんな手順で進めるかを書いてみよう..."
-                value={planTexts[task.id] ?? ''}
-                onChange={e => setPlanTexts(prev => ({ ...prev, [task.id]: e.target.value }))}
-                style={{ resize: 'vertical', marginBottom: 10 }}
-              />
-              <button
-                className="game-button"
-                disabled={savingPlan[task.id]}
-                onClick={() => savePlan(task.id)}
-              >
-                {savingPlan[task.id] ? '保存中…' : '計画を保存'}
-              </button>
-              {planSuccess[task.id] && (
-                <div className="game-success" style={{ marginTop: 8 }}>保存しました！</div>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {/* 課題なし */}
-        {tasks.length === 0 && (
+        {/* アサイン済み課題カード */}
+        {assignments.length === 0 ? (
           <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
             <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
-            <p style={{ color: '#6aac14', fontSize: 16 }}>今週の課題はまだありません</p>
+            <p style={{ color: '#6aac14', fontSize: 16 }}>アサインされた課題はまだありません</p>
           </div>
-        )}
+        ) : assignments.map(assignment => {
+          const si = STATUS_INFO[assignment.status]
+          return (
+            <div key={assignment.id} className="game-card" style={{ padding: '28px 32px' }}>
+              {/* 課題ヘッダー */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 22 }}>📋</span>
+                  <h2 className="game-title" style={{ fontSize: 20 }}>課題</h2>
+                </div>
+                <span style={{
+                  background: si.bg, color: si.color, borderRadius: 12,
+                  padding: '4px 12px', fontSize: 13, fontWeight: 'bold',
+                }}>
+                  {si.emoji} {si.label}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                {assignment.task.target_course && (
+                  <span style={{ background: '#6aac14', color: 'white', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold' }}>
+                    {assignment.task.target_course}
+                  </span>
+                )}
+                {assignment.task.target_stage && (
+                  <span style={{ background: '#3d6e00', color: 'white', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold' }}>
+                    {assignment.task.target_stage}
+                  </span>
+                )}
+              </div>
+
+              <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 18, marginBottom: 8 }}>
+                {assignment.task.title}
+              </p>
+              {assignment.task.description && (
+                <p style={{ color: '#3d6e00', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}>
+                  {assignment.task.description}
+                </p>
+              )}
+
+              <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '16px 0' }} />
+
+              {/* 制作計画 */}
+              <div style={{ marginBottom: 20 }}>
+                <label className="game-label">📝 今週の制作計画</label>
+                <textarea
+                  className="game-input"
+                  rows={3}
+                  placeholder="今週どこまで作るか、どんな手順で進めるかを書こう..."
+                  value={planTexts[assignment.id] ?? ''}
+                  onChange={e => setPlanTexts(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                  style={{ resize: 'vertical', marginBottom: 10 }}
+                />
+                <button
+                  className="game-button"
+                  disabled={savingPlan[assignment.id]}
+                  onClick={() => savePlan(assignment.id)}
+                >
+                  {savingPlan[assignment.id] ? '保存中…' : '計画を保存'}
+                </button>
+                {planSuccess[assignment.id] && (
+                  <div className="game-success" style={{ marginTop: 8 }}>保存しました！ステータスを「取り組み中」に更新しました。</div>
+                )}
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '16px 0' }} />
+
+              {/* 提出フォーム */}
+              <div>
+                <p className="game-label" style={{ marginBottom: 12 }}>
+                  🎬 最終提出{assignment.submitted_at ? `（提出済: ${new Date(assignment.submitted_at).toLocaleDateString('ja-JP')}）` : ''}
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div>
+                    <label className="game-label">動画 / 画像URL</label>
+                    <input
+                      className="game-input"
+                      type="url"
+                      placeholder="https://youtube.com/... または画像URL"
+                      value={mediaUrls[assignment.id] ?? ''}
+                      onChange={e => setMediaUrls(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="game-label">自己評価</label>
+                    <textarea
+                      className="game-input"
+                      rows={3}
+                      placeholder="今週の制作を振り返って、自分で評価してみよう..."
+                      value={selfEvals[assignment.id] ?? ''}
+                      onChange={e => setSelfEvals(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="game-label">計画の振り返り</label>
+                    <textarea
+                      className="game-input"
+                      rows={3}
+                      placeholder="月曜に立てた計画と、実際の進捗の差を振り返ろう..."
+                      value={retros[assignment.id] ?? ''}
+                      onChange={e => setRetros(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                      style={{ resize: 'vertical' }}
+                    />
+                  </div>
+
+                  <button
+                    className="game-button"
+                    disabled={submitting[assignment.id]}
+                    onClick={() => submitWork(assignment.id)}
+                    style={{ background: assignment.status === 'submitted' ? '#3d6e00' : undefined }}
+                  >
+                    {submitting[assignment.id] ? '提出中…' : assignment.status === 'submitted' ? '✅ 再提出する' : '🚀 提出する'}
+                  </button>
+                  {submitSuccess[assignment.id] && (
+                    <div className="game-success">提出完了！お疲れさまでした 🎉</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
 
         {/* ログアウト */}
         <button
