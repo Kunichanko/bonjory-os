@@ -141,6 +141,11 @@ export default function AdminTasksPage() {
                   部員管理
                 </button>
               </a>
+              <a href="/admin/submissions">
+                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                  提出状況
+                </button>
+              </a>
               <button
                 className="game-button"
                 style={{ width: 'auto', padding: '8px 20px', fontSize: 15, background: '#888', borderColor: '#555' }}

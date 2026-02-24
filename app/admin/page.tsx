@@ -161,6 +161,11 @@ export default function AdminPage() {
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>部員数: {profiles.length} 名</p>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
+              <a href="/admin/submissions">
+                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                  提出状況
+                </button>
+              </a>
               <a href="/admin/tasks">
                 <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
                   課題管理
