@@ -1,37 +1,34 @@
 "use client"
 
-import { useState } from 'react'
+import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 
-export default function SignupPage() {
+export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [username, setUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
-  const handleSubmit = async (e: { preventDefault(): void }) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError(null)
-    setSuccess(null)
     setLoading(true)
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: {
-          data: { username },
-        },
       })
 
-      if (signUpError) {
-        setError(signUpError.message)
+      if (error) {
+        setError(error.message)
         return
       }
 
-      setSuccess('アカウントを作成しました！')
+      // Successful login; navigate to dashboard
+      router.push('/dashboard')
     } catch (err: any) {
       setError(err?.message ?? String(err))
     } finally {
@@ -41,21 +38,10 @@ export default function SignupPage() {
 
   return (
     <main style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>
-      <h1>サインアップ</h1>
+      <h1>ログイン</h1>
       <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12, maxWidth: 420 }}>
         <label>
-          ユーザー名
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, marginTop: 6 }}
-          />
-        </label>
-
-        <label>
-          メールアドレス
+          メール
           <input
             type="email"
             value={email}
@@ -77,11 +63,10 @@ export default function SignupPage() {
         </label>
 
         <button type="submit" disabled={loading} style={{ padding: '8px 12px' }}>
-          {loading ? '送信中…' : 'サインアップ'}
+          {loading ? '送信中…' : 'ログイン'}
         </button>
 
         {error && <div style={{ color: 'crimson' }}>エラー: {error}</div>}
-        {success && <div style={{ color: 'green' }}>{success}</div>}
       </form>
     </main>
   )
