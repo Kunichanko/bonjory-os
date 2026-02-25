@@ -73,7 +73,7 @@ export default function AdminPage() {
         const [profilesRes, tasksRes, assignmentsRes] = await Promise.all([
           supabase.from('profiles').select('id, username, email, course, stage').order('created_at', { ascending: true }),
           supabase.from('tasks').select('id, title, target_course').eq('is_active', true),
-          supabase.from('task_assignments').select('task_id, user_id, status, task:tasks(title)'),
+          supabase.from('task_assignments').select('task_id, user_id, status, task:tasks(title)').eq('is_assigned', true),
         ])
 
         if (!mounted) return
@@ -131,8 +131,10 @@ export default function AdminPage() {
   }
 
   async function removeAssignment(userId: string, taskId: string) {
+    // 提出済み記録をタイムライン・履歴に残すため、物理削除ではなく論理削除
     const { error } = await supabase.from('task_assignments')
-      .delete().eq('task_id', taskId).eq('user_id', userId)
+      .update({ is_assigned: false })
+      .eq('task_id', taskId).eq('user_id', userId)
     if (!error) {
       setAssignments(prev => ({
         ...prev,

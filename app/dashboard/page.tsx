@@ -116,9 +116,10 @@ export default function DashboardPage() {
   const [loading, setLoading]         = useState(true)
 
   // ポイント・ランク
-  const [totalPoints, setTotalPoints] = useState(0)
-  const [coolPoints, setCoolPoints]   = useState(0)
+  const [totalPoints, setTotalPoints]   = useState(0)
+  const [coolPoints, setCoolPoints]     = useState(0)
   const [rankSettings, setRankSettings] = useState<RankSetting[]>([])
+  const [userRole, setUserRole]         = useState<string | null>(null)
 
   // サイドバー
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -179,7 +180,7 @@ export default function DashboardPage() {
 
         const [profileRes, assignmentRes, ranksRes] = await Promise.all([
           supabase.from('profiles')
-            .select('username, course, stage, total_points, cool_points')
+            .select('username, course, stage, total_points, cool_points, role')
             .eq('id', uid)
             .single(),
           supabase.from('task_assignments')
@@ -189,7 +190,8 @@ export default function DashboardPage() {
               is_anonymous, thumbnail_url,
               task:tasks(id, title, description, target_course, target_stage)
             `)
-            .eq('user_id', uid),
+            .eq('user_id', uid)
+            .eq('is_assigned', true),
           supabase.from('rank_settings')
             .select('id, name, min_points, color, rank_order')
             .order('rank_order'),
@@ -203,6 +205,7 @@ export default function DashboardPage() {
         setStage(profile?.stage ?? null)
         setTotalPoints(profile?.total_points ?? 0)
         setCoolPoints(profile?.cool_points ?? 0)
+        setUserRole(profile?.role ?? null)
 
         setRankSettings(ranksRes.data ?? [])
 
@@ -483,11 +486,11 @@ export default function DashboardPage() {
   const activeAssignments    = assignments.filter(a => a.status !== 'submitted')
   const submittedAssignments = assignments.filter(a => a.status === 'submitted')
 
-  // ランク計算
-  const sortedRanks = [...rankSettings].sort((a, b) => a.rank_order - b.rank_order)
-  const currentRank = [...sortedRanks].reverse().find(r => coolPoints >= r.min_points) ?? sortedRanks[0] ?? null
-  const nextRank    = currentRank
-    ? sortedRanks.find(r => r.rank_order > currentRank.rank_order) ?? null
+  // ランク計算：rank_order ではなく min_points でソートして正確に判定
+  const sortedByPoints = [...rankSettings].sort((a, b) => a.min_points - b.min_points)
+  const currentRank    = [...sortedByPoints].reverse().find(r => coolPoints >= r.min_points) ?? sortedByPoints[0] ?? null
+  const nextRank       = currentRank
+    ? sortedByPoints.find(r => r.min_points > currentRank.min_points) ?? null
     : null
 
   // ─── レンダリング ──────────────────────────────────────
@@ -542,6 +545,21 @@ export default function DashboardPage() {
           ))}
         </nav>
 
+        {userRole === 'admin' && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #3d6e00' }}>
+            <a href="/admin" style={{ textDecoration: 'none' }}>
+              <button style={{
+                width: '100%', padding: '10px 0',
+                background: '#3d6e00', border: '2px solid #6aac14',
+                borderRadius: 8, color: '#fff',
+                fontSize: 14, cursor: 'pointer', fontWeight: 'bold',
+              }}>
+                ⚙ 管理画面
+              </button>
+            </a>
+          </div>
+        )}
+
         <div style={{ padding: '16px 20px', borderTop: '2px solid #3d6e00' }}>
           <button onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
             style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#a8d870', fontSize: 14, padding: 0 }}>
@@ -565,28 +583,28 @@ export default function DashboardPage() {
         {/* ── ランクウィジェット ─────────────────────────── */}
         {currentRank && (
           <div style={{
-            position: 'fixed', top: 60, left: 8, zIndex: 98,
+            position: 'fixed', top: 64, left: 8, zIndex: 98,
             background: '#1a3a00',
-            border: `2px solid ${currentRank.color}`,
-            borderRadius: 10, padding: '8px 12px',
-            textAlign: 'center', minWidth: 90,
+            border: `3px solid ${currentRank.color}`,
+            borderRadius: 12, padding: '12px 16px',
+            textAlign: 'center', minWidth: 130,
           }}>
-            <p style={{ color: currentRank.color, fontWeight: 'bold', fontSize: 20, lineHeight: 1, marginBottom: 2 }}>
+            <p style={{ color: currentRank.color, fontWeight: 'bold', fontSize: 32, lineHeight: 1, marginBottom: 2 }}>
               {currentRank.name}
             </p>
-            <p style={{ color: currentRank.color, fontSize: 10, marginBottom: 4 }}>ランク</p>
-            <p style={{ color: '#a8d870', fontSize: 10, marginBottom: 4 }}>
+            <p style={{ color: currentRank.color, fontSize: 12, marginBottom: 6 }}>ランク</p>
+            <p style={{ color: '#a8d870', fontSize: 12, marginBottom: 6 }}>
               累計 <span style={{ fontWeight: 'bold' }}>{totalPoints}</span> pt
             </p>
             {nextRank ? (
-              <p style={{ color: '#a8d870', fontSize: 10, lineHeight: 1.4 }}>
+              <p style={{ color: '#a8d870', fontSize: 12, lineHeight: 1.4 }}>
                 次まで<br/>
-                <span style={{ fontWeight: 'bold', fontSize: 12 }}>
+                <span style={{ fontWeight: 'bold', fontSize: 16 }}>
                   {nextRank.min_points - coolPoints}
                 </span> pt
               </p>
             ) : (
-              <p style={{ color: '#f0a000', fontSize: 10 }}>最高ランク！</p>
+              <p style={{ color: '#f0a000', fontSize: 12 }}>最高ランク！</p>
             )}
           </div>
         )}
