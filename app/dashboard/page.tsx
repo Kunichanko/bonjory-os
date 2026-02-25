@@ -105,6 +105,27 @@ interface Comment {
   profile: { username: string | null } | null
 }
 
+// ─── メディア判定ヘルパー ───────────────────────────────────
+
+function getYoutubeEmbedUrl(url: string): string | null {
+  const matchWatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/)
+  if (matchWatch) return `https://www.youtube.com/embed/${matchWatch[1]}`
+  const matchShort = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/)
+  if (matchShort) return `https://www.youtube.com/embed/${matchShort[1]}`
+  const matchEmbed = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/)
+  if (matchEmbed) return `https://www.youtube.com/embed/${matchEmbed[1]}`
+  return null
+}
+
+function detectMediaType(url: string): 'youtube' | 'video' | 'image' | 'link' {
+  if (!url) return 'link'
+  if (getYoutubeEmbedUrl(url)) return 'youtube'
+  if (/\.(mp4|webm|mov|avi)(\?|$)/i.test(url)) return 'video'
+  if (/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url)) return 'image'
+  if (url.includes('/storage/v1/object/public/media/')) return 'video'
+  return 'link'
+}
+
 // ─── コンポーネント ────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -140,15 +161,20 @@ export default function DashboardPage() {
   const [midtermSuccess, setMidtermSuccess]       = useState<Record<string, boolean>>({})
 
   // 最終提出
-  const [mediaUrls, setMediaUrls]           = useState<Record<string, string>>({})
-  const [selfEvals, setSelfEvals]           = useState<Record<string, string>>({})
-  const [retros, setRetros]                 = useState<Record<string, string>>({})
-  const [isAnonymous, setIsAnonymous]       = useState<Record<string, boolean>>({})
-  const [thumbnailFiles, setThumbnailFiles] = useState<Record<string, File | null>>({})
-  const [thumbPreviews, setThumbPreviews]   = useState<Record<string, string>>({})
-  const [uploadingThumb, setUploadingThumb] = useState<Record<string, boolean>>({})
-  const [submitting, setSubmitting]         = useState<Record<string, boolean>>({})
-  const [submitSuccess, setSubmitSuccess]   = useState<Record<string, boolean>>({})
+  const [mediaUrls, setMediaUrls]             = useState<Record<string, string>>({})
+  const [selfEvals, setSelfEvals]             = useState<Record<string, string>>({})
+  const [retros, setRetros]                   = useState<Record<string, string>>({})
+  const [isAnonymous, setIsAnonymous]         = useState<Record<string, boolean>>({})
+  const [thumbnailFiles, setThumbnailFiles]   = useState<Record<string, File | null>>({})
+  const [thumbPreviews, setThumbPreviews]     = useState<Record<string, string>>({})
+  const [uploadingThumb, setUploadingThumb]   = useState<Record<string, boolean>>({})
+  const [submitting, setSubmitting]           = useState<Record<string, boolean>>({})
+  const [submitSuccess, setSubmitSuccess]     = useState<Record<string, boolean>>({})
+  // 動画アップロード
+  const [mediaInputMode, setMediaInputMode]   = useState<Record<string, 'url' | 'file'>>({})
+  const [videoFiles, setVideoFiles]           = useState<Record<string, File | null>>({})
+  const [videoPreviews, setVideoPreviews]     = useState<Record<string, string>>({})
+  const [uploadingVideo, setUploadingVideo]   = useState<Record<string, boolean>>({})
 
   // タイムライン
   const [timeline, setTimeline]               = useState<TimelineItem[]>([])
@@ -373,8 +399,25 @@ export default function DashboardPage() {
       }
     }
 
+    // 動画ファイルアップロード（ファイルモードの場合）
+    let finalMediaUrl = mediaUrls[assignmentId] ?? ''
+    const videoFile = videoFiles[assignmentId]
+    if (videoFile && userId && mediaInputMode[assignmentId] === 'file') {
+      setUploadingVideo(prev => ({ ...prev, [assignmentId]: true }))
+      const ext = videoFile.name.split('.').pop() ?? 'mp4'
+      const vPath = `${userId}/${assignmentId}.${ext}`
+      const { data: vData, error: vErr } = await supabase.storage
+        .from('media')
+        .upload(vPath, videoFile, { upsert: true })
+      setUploadingVideo(prev => ({ ...prev, [assignmentId]: false }))
+      if (!vErr && vData) {
+        const { data: vUrlData } = supabase.storage.from('media').getPublicUrl(vData.path)
+        finalMediaUrl = vUrlData.publicUrl
+      }
+    }
+
     const { error } = await supabase.from('task_assignments').update({
-      media_url:       mediaUrls[assignmentId]   ?? '',
+      media_url:       finalMediaUrl,
       self_evaluation: selfEvals[assignmentId]   ?? '',
       retrospective:   retros[assignmentId]      ?? '',
       is_anonymous:    isAnonymous[assignmentId] ?? false,
@@ -808,11 +851,50 @@ export default function DashboardPage() {
                       </p>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                         <div>
-                          <label className="game-label">動画 / 画像URL</label>
-                          <input className="game-input" type="url"
-                            placeholder="https://youtube.com/... または画像URL"
-                            value={mediaUrls[assignment.id] ?? ''}
-                            onChange={e => setMediaUrls(prev => ({ ...prev, [assignment.id]: e.target.value }))} />
+                          <label className="game-label">動画 / 画像</label>
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                            {(['url', 'file'] as const).map(mode => (
+                              <button key={mode} type="button"
+                                onClick={() => setMediaInputMode(p => ({ ...p, [assignment.id]: mode }))}
+                                style={{
+                                  flex: 1, padding: '6px 0', borderRadius: 8,
+                                  background: (mediaInputMode[assignment.id] ?? 'url') === mode ? '#6aac14' : '#f0fae0',
+                                  border: '2px solid #6aac14',
+                                  color: (mediaInputMode[assignment.id] ?? 'url') === mode ? '#fff' : '#3d6e00',
+                                  cursor: 'pointer', fontWeight: 'bold', fontSize: 13,
+                                }}>
+                                {mode === 'url' ? '🔗 URL（YouTube等）' : '📁 ファイルアップロード'}
+                              </button>
+                            ))}
+                          </div>
+
+                          {(mediaInputMode[assignment.id] ?? 'url') === 'url' ? (
+                            <input className="game-input" type="url"
+                              placeholder="https://youtube.com/watch?v=... または画像URL"
+                              value={mediaUrls[assignment.id] ?? ''}
+                              onChange={e => setMediaUrls(prev => ({ ...prev, [assignment.id]: e.target.value }))} />
+                          ) : (
+                            <div>
+                              <input type="file" accept="video/*,image/*"
+                                onChange={e => {
+                                  const f = e.target.files?.[0] ?? null
+                                  setVideoFiles(prev => ({ ...prev, [assignment.id]: f }))
+                                  if (f) setVideoPreviews(prev => ({ ...prev, [assignment.id]: URL.createObjectURL(f) }))
+                                  else setVideoPreviews(prev => ({ ...prev, [assignment.id]: '' }))
+                                }}
+                                style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
+                              <p style={{ color: '#888', fontSize: 12, marginTop: 4 }}>
+                                ⚠️ 50 MB まで。長い動画は YouTube にアップして URL を使用推奨
+                              </p>
+                              {videoPreviews[assignment.id] && (
+                                <video src={videoPreviews[assignment.id]} controls
+                                  style={{ marginTop: 8, width: '100%', maxHeight: 160, borderRadius: 8 }} />
+                              )}
+                              {uploadingVideo[assignment.id] && (
+                                <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>動画アップロード中...</p>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div>
                           <label className="game-label">自己評価</label>
@@ -1108,15 +1190,34 @@ export default function DashboardPage() {
 
               <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '12px 0' }} />
 
-              {selectedPost.media_url && (
-                <div style={{ marginBottom: 14 }}>
-                  <p className="game-label" style={{ marginBottom: 4 }}>🎬 提出URL</p>
-                  <a href={selectedPost.media_url} target="_blank" rel="noopener noreferrer"
-                    style={{ color: '#3d6e00', fontSize: 14, wordBreak: 'break-all' }}>
-                    {selectedPost.media_url}
-                  </a>
-                </div>
-              )}
+              {selectedPost.media_url && (() => {
+                const mediaType = detectMediaType(selectedPost.media_url!)
+                const embedUrl  = getYoutubeEmbedUrl(selectedPost.media_url!)
+                return (
+                  <div style={{ marginBottom: 14 }}>
+                    <p className="game-label" style={{ marginBottom: 8 }}>🎬 提出作品</p>
+                    {mediaType === 'youtube' && embedUrl ? (
+                      <iframe
+                        src={embedUrl}
+                        style={{ width: '100%', height: 220, borderRadius: 8, border: 'none', display: 'block' }}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : mediaType === 'video' ? (
+                      <video src={selectedPost.media_url!} controls
+                        style={{ width: '100%', maxHeight: 220, borderRadius: 8, background: '#000', display: 'block' }} />
+                    ) : mediaType === 'image' ? (
+                      <img src={selectedPost.media_url!} alt="提出作品"
+                        style={{ width: '100%', maxHeight: 220, objectFit: 'contain', borderRadius: 8 }} />
+                    ) : (
+                      <a href={selectedPost.media_url!} target="_blank" rel="noopener noreferrer"
+                        style={{ color: '#3d6e00', fontSize: 14, wordBreak: 'break-all' }}>
+                        🔗 {selectedPost.media_url}
+                      </a>
+                    )}
+                  </div>
+                )
+              })()}
 
               {selectedPost.self_evaluation && (
                 <div style={{ marginBottom: 14 }}>
