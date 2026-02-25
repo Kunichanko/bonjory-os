@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
+import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
 
 // ─── 定数・型 ─────────────────────────────────────────────
 
@@ -142,6 +143,13 @@ export default function DashboardPage() {
   const [rankSettings, setRankSettings] = useState<RankSetting[]>([])
   const [userRole, setUserRole]         = useState<string | null>(null)
 
+  // 役職・権限
+  const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
+    course_management: false, task_management: false,
+    point_settings: false, submission_review: false, finance: false,
+  })
+  const [positionNames, setPositionNames] = useState<string[]>([])
+
   // サイドバー
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [currentView, setCurrentView] = useState<ViewId>('tasks')
@@ -232,6 +240,21 @@ export default function DashboardPage() {
         setTotalPoints(profile?.total_points ?? 0)
         setCoolPoints(profile?.cool_points ?? 0)
         setUserRole(profile?.role ?? null)
+
+        // 役職・有効権限を取得
+        const [perms, ppRes] = await Promise.all([
+          getEffectivePermissions(uid),
+          supabase.from('profile_positions').select('positions(name)').eq('profile_id', uid),
+        ])
+        if (mounted) {
+          setEffectivePerms(perms)
+          setPositionNames(
+            (ppRes.data ?? []).map(pp => {
+              const pos = (pp as unknown as { positions: { name: string } | null }).positions
+              return pos?.name ?? ''
+            }).filter(Boolean)
+          )
+        }
 
         setRankSettings(ranksRes.data ?? [])
 
@@ -588,18 +611,32 @@ export default function DashboardPage() {
           ))}
         </nav>
 
-        {userRole === 'admin' && (
-          <div style={{ padding: '12px 16px', borderTop: '1px solid #3d6e00' }}>
-            <a href="/admin" style={{ textDecoration: 'none' }}>
-              <button style={{
-                width: '100%', padding: '10px 0',
-                background: '#3d6e00', border: '2px solid #6aac14',
-                borderRadius: 8, color: '#fff',
-                fontSize: 14, cursor: 'pointer', fontWeight: 'bold',
-              }}>
-                ⚙ 管理画面
-              </button>
-            </a>
+        {(userRole === 'admin' || FEATURE_LIST.some(f => effectivePerms[f.id])) && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #3d6e00', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {userRole === 'admin' && (
+              <a href="/admin/positions" style={{ textDecoration: 'none' }}>
+                <button style={{
+                  width: '100%', padding: '8px 0',
+                  background: '#2d5500', border: '2px solid #6aac14',
+                  borderRadius: 8, color: '#a8d870',
+                  fontSize: 13, cursor: 'pointer', fontWeight: 'bold',
+                }}>
+                  🏷 役職管理
+                </button>
+              </a>
+            )}
+            {FEATURE_LIST.map(f => (userRole === 'admin' || effectivePerms[f.id]) && (
+              <a key={f.id} href={f.path} style={{ textDecoration: 'none' }}>
+                <button style={{
+                  width: '100%', padding: '8px 0',
+                  background: '#3d6e00', border: '2px solid #6aac14',
+                  borderRadius: 8, color: '#fff',
+                  fontSize: 13, cursor: 'pointer', fontWeight: 'bold',
+                }}>
+                  {f.icon} {f.label}
+                </button>
+              </a>
+            ))}
           </div>
         )}
 

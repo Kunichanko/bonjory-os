@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
+import { FEATURE_LIST, PermissionKey } from '../../lib/permissions'
 
 type Course = 'Unity' | 'Blender' | null
 type Stage  = 'Foundation' | 'Development' | 'Production' | null
@@ -28,6 +29,18 @@ interface Assignment {
   task: { title: string }
 }
 
+interface Position {
+  id: string
+  name: string
+  permissions: Record<PermissionKey, boolean>
+}
+
+interface ProfilePosition {
+  profile_id: string
+  position_id: string
+  position_name: string
+}
+
 const COURSE_OPTIONS: { label: string; value: Course }[] = [
   { label: '—', value: null },
   { label: 'Unity', value: 'Unity' },
@@ -49,14 +62,17 @@ const STATUS_LABELS: Record<string, { label: string; bg: string; color: string }
 
 export default function AdminPage() {
   const router = useRouter()
-  const [profiles, setProfiles]     = useState<Profile[]>([])
-  const [allTasks, setAllTasks]     = useState<Task[]>([])
-  const [assignments, setAssignments] = useState<Record<string, Assignment[]>>({})
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [addingTask, setAddingTask] = useState<Record<string, string>>({})
-  const [loading, setLoading]       = useState(true)
-  const [saving, setSaving]         = useState<Record<string, string>>({})
-  const [errors, setErrors]         = useState<Record<string, string>>({})
+  const [profiles, setProfiles]         = useState<Profile[]>([])
+  const [allTasks, setAllTasks]         = useState<Task[]>([])
+  const [assignments, setAssignments]   = useState<Record<string, Assignment[]>>({})
+  const [allPositions, setAllPositions] = useState<Position[]>([])
+  const [profilePositions, setProfilePositions] = useState<Record<string, ProfilePosition[]>>({})
+  const [addingPosition, setAddingPosition] = useState<Record<string, string>>({})
+  const [expandedId, setExpandedId]     = useState<string | null>(null)
+  const [addingTask, setAddingTask]     = useState<Record<string, string>>({})
+  const [loading, setLoading]           = useState(true)
+  const [saving, setSaving]             = useState<Record<string, string>>({})
+  const [errors, setErrors]             = useState<Record<string, string>>({})
 
   useEffect(() => {
     let mounted = true
@@ -70,15 +86,18 @@ export default function AdminPage() {
           .from('profiles').select('role').eq('id', authData.user.id).single()
         if (meError || !me || me.role !== 'admin') { router.replace('/dashboard'); return }
 
-        const [profilesRes, tasksRes, assignmentsRes] = await Promise.all([
+        const [profilesRes, tasksRes, assignmentsRes, positionsRes, ppRes] = await Promise.all([
           supabase.from('profiles').select('id, username, email, course, stage').order('created_at', { ascending: true }),
           supabase.from('tasks').select('id, title, target_course').eq('is_active', true),
           supabase.from('task_assignments').select('task_id, user_id, status, task:tasks(title)').eq('is_assigned', true),
+          supabase.from('positions').select('id, name, permissions').order('created_at', { ascending: true }),
+          supabase.from('profile_positions').select('profile_id, position_id, positions(name)'),
         ])
 
         if (!mounted) return
         setProfiles(profilesRes.data ?? [])
         setAllTasks(tasksRes.data ?? [])
+        setAllPositions((positionsRes.data ?? []) as Position[])
 
         // userId → Assignment[] のマップを構築
         const map: Record<string, Assignment[]> = {}
@@ -87,6 +106,19 @@ export default function AdminPage() {
           map[a.user_id].push(a as Assignment)
         }
         setAssignments(map)
+
+        // userId → ProfilePosition[] のマップを構築
+        const ppMap: Record<string, ProfilePosition[]> = {}
+        for (const pp of (ppRes.data ?? [])) {
+          const profileId = (pp as { profile_id: string; position_id: string; positions: { name: string } | null }).profile_id
+          if (!ppMap[profileId]) ppMap[profileId] = []
+          ppMap[profileId].push({
+            profile_id: profileId,
+            position_id: (pp as { position_id: string }).position_id,
+            position_name: (pp as { positions: { name: string } | null }).positions?.name ?? '',
+          })
+        }
+        setProfilePositions(ppMap)
       } catch (err) {
         console.error(err)
         if (mounted) router.replace('/dashboard')
@@ -130,6 +162,32 @@ export default function AdminPage() {
     }
   }
 
+  async function addPositionToUser(userId: string) {
+    const positionId = addingPosition[userId]
+    if (!positionId) return
+    const position = allPositions.find(p => p.id === positionId)
+    if (!position) return
+    const { error } = await supabase.from('profile_positions').insert({ profile_id: userId, position_id: positionId })
+    if (!error) {
+      setProfilePositions(prev => ({
+        ...prev,
+        [userId]: [...(prev[userId] ?? []), { profile_id: userId, position_id: positionId, position_name: position.name }],
+      }))
+      setAddingPosition(prev => { const next = { ...prev }; delete next[userId]; return next })
+    }
+  }
+
+  async function removePositionFromUser(userId: string, positionId: string) {
+    const { error } = await supabase.from('profile_positions')
+      .delete().eq('profile_id', userId).eq('position_id', positionId)
+    if (!error) {
+      setProfilePositions(prev => ({
+        ...prev,
+        [userId]: (prev[userId] ?? []).filter(pp => pp.position_id !== positionId),
+      }))
+    }
+  }
+
   async function removeAssignment(userId: string, taskId: string) {
     // 提出済み記録をタイムライン・履歴に残すため、物理削除ではなく論理削除
     const { error } = await supabase.from('task_assignments')
@@ -162,7 +220,7 @@ export default function AdminPage() {
               <h1 className="game-title" style={{ fontSize: 32 }}>部員管理</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>部員数: {profiles.length} 名</p>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <a href="/admin/submissions">
                 <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
                   提出状況
@@ -176,6 +234,11 @@ export default function AdminPage() {
               <a href="/admin/points">
                 <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
                   ポイント設定
+                </button>
+              </a>
+              <a href="/admin/positions">
+                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                  🏷 役職管理
                 </button>
               </a>
               <button
@@ -194,7 +257,7 @@ export default function AdminPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '3px solid #3d6e00' }}>
-                {['ユーザー名', 'コース', 'ステージ', '課題状況', 'アサイン'].map(h => (
+                {['ユーザー名', 'コース', 'ステージ', '役職', '課題状況', 'アサイン'].map(h => (
                   <th key={h} className="game-label" style={{ textAlign: 'left', padding: '8px 12px', fontSize: 13 }}>
                     {h}
                   </th>
@@ -204,7 +267,7 @@ export default function AdminPage() {
             <tbody>
               {profiles.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: 40, color: '#6aac14', fontSize: 16 }}>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: '#6aac14', fontSize: 16 }}>
                     部員が見つかりません
                   </td>
                 </tr>
@@ -268,6 +331,23 @@ export default function AdminPage() {
                         )}
                       </td>
 
+                      {/* 役職バッジ */}
+                      <td style={{ padding: '8px 12px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {(profilePositions[profile.id] ?? []).length === 0 ? (
+                            <span style={{ color: '#aaa', fontSize: 13 }}>—</span>
+                          ) : (profilePositions[profile.id] ?? []).map(pp => (
+                            <span key={pp.position_id} style={{
+                              background: '#d4f0a0', color: '#2d5500',
+                              borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 'bold',
+                              border: '1px solid #6aac14', whiteSpace: 'nowrap',
+                            }}>
+                              {pp.position_name}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+
                       {/* 課題状況バッジ */}
                       <td style={{ padding: '8px 12px' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -308,7 +388,7 @@ export default function AdminPage() {
                     {/* 展開パネル */}
                     {isExpanded && (
                       <tr key={`${profile.id}-expanded`} style={{ background: idx % 2 === 0 ? '#f0fae0' : '#f5fde8' }}>
-                        <td colSpan={5} style={{ padding: '12px 20px 16px', borderBottom: '1px solid #c8e89a' }}>
+                        <td colSpan={6} style={{ padding: '12px 20px 16px', borderBottom: '1px solid #c8e89a' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
                             {/* アサイン済み課題 */}
@@ -348,7 +428,68 @@ export default function AdminPage() {
                               )}
                             </div>
 
-                            {/* 課題を追加 */}
+                              {/* 役職割り当て */}
+                            <div>
+                              <p className="game-label" style={{ marginBottom: 8 }}>役職</p>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                                {(profilePositions[profile.id] ?? []).length === 0 ? (
+                                  <p style={{ color: '#aaa', fontSize: 13 }}>役職なし</p>
+                                ) : (profilePositions[profile.id] ?? []).map(pp => (
+                                  <div key={pp.position_id} style={{
+                                    display: 'flex', alignItems: 'center', gap: 6,
+                                    background: '#d4f0a0', borderRadius: 10, padding: '4px 10px',
+                                    border: '1px solid #6aac14',
+                                  }}>
+                                    <span style={{ fontSize: 13, color: '#2d5500', fontWeight: 'bold' }}>
+                                      {pp.position_name}
+                                    </span>
+                                    <button
+                                      onClick={() => removePositionFromUser(profile.id, pp.position_id)}
+                                      style={{
+                                        background: 'none', border: 'none', cursor: 'pointer',
+                                        color: '#c0392b', fontWeight: 'bold', fontSize: 14, padding: '0 2px',
+                                      }}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <select
+                                  className="game-input"
+                                  style={{ padding: '6px 10px', fontSize: 13, flex: 1, maxWidth: 260 }}
+                                  value={addingPosition[profile.id] ?? ''}
+                                  onChange={e => setAddingPosition(prev => ({ ...prev, [profile.id]: e.target.value }))}
+                                >
+                                  <option value="">
+                                    {allPositions.filter(p => !(profilePositions[profile.id] ?? []).some(pp => pp.position_id === p.id)).length === 0
+                                      ? '追加できる役職がありません'
+                                      : '役職を選択…'}
+                                  </option>
+                                  {allPositions
+                                    .filter(p => !(profilePositions[profile.id] ?? []).some(pp => pp.position_id === p.id))
+                                    .map(p => (
+                                      <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                                <button
+                                  onClick={() => addPositionToUser(profile.id)}
+                                  disabled={!addingPosition[profile.id]}
+                                  style={{
+                                    padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 'bold',
+                                    cursor: addingPosition[profile.id] ? 'pointer' : 'not-allowed',
+                                    border: '2px solid #3d6e00',
+                                    background: addingPosition[profile.id] ? '#6aac14' : '#ccc',
+                                    color: 'white',
+                                  }}
+                                >
+                                  割り当て
+                                </button>
+                              </div>
+                            </div>
+
+                          {/* 課題を追加 */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               <p className="game-label" style={{ margin: 0, whiteSpace: 'nowrap' }}>課題を追加:</p>
                               <select

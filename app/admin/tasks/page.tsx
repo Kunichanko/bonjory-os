@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
+import { getEffectivePermissions } from '../../../lib/permissions'
 
 interface Task {
   id: string
@@ -50,7 +51,11 @@ export default function AdminTasksPage() {
 
         const { data: me, error: meError } = await supabase
           .from('profiles').select('role').eq('id', authData.user.id).single()
-        if (meError || !me || me.role !== 'admin') { router.replace('/dashboard'); return }
+        if (meError || !me) { router.replace('/dashboard'); return }
+        if (me.role !== 'admin') {
+          const perms = await getEffectivePermissions(authData.user.id)
+          if (!perms.task_management) { router.replace('/dashboard'); return }
+        }
 
         const { data: taskList, error: listError } = await supabase
           .from('tasks')

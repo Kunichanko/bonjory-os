@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
+import { getEffectivePermissions } from '../../../lib/permissions'
 
 // ─── 型 ───────────────────────────────────────────────────
 
@@ -72,7 +73,11 @@ export default function AdminPointsPage() {
 
         const { data: me } = await supabase
           .from('profiles').select('role').eq('id', authData.user.id).single()
-        if (!me || me.role !== 'admin') { router.replace('/dashboard'); return }
+        if (!me) { router.replace('/dashboard'); return }
+        if (me.role !== 'admin') {
+          const perms = await getEffectivePermissions(authData.user.id)
+          if (!perms.point_settings) { router.replace('/dashboard'); return }
+        }
 
         await loadAll(mounted)
       } catch {
