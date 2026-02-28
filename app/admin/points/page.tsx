@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
-import { getEffectivePermissions } from '../../../lib/permissions'
+import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
 
 // ─── 型 ───────────────────────────────────────────────────
 
@@ -41,6 +41,11 @@ interface MemberPoints {
 export default function AdminPointsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [userRole, setUserRole]     = useState<string | null>(null)
+  const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
+    course_management: false, task_management: false,
+    point_settings: false, submission_review: false, finance: false,
+  })
 
   // ポイント設定
   const [pointSettings, setPointSettings]     = useState<PointSetting[]>([])
@@ -74,10 +79,9 @@ export default function AdminPointsPage() {
         const { data: me } = await supabase
           .from('profiles').select('role').eq('id', authData.user.id).single()
         if (!me) { router.replace('/dashboard'); return }
-        if (me.role !== 'admin') {
-          const perms = await getEffectivePermissions(authData.user.id)
-          if (!perms.point_settings) { router.replace('/dashboard'); return }
-        }
+        const perms = await getEffectivePermissions(authData.user.id)
+        if (me.role !== 'admin' && !perms.point_settings) { router.replace('/dashboard'); return }
+        if (mounted) { setUserRole(me.role); setEffectivePerms(perms) }
 
         await loadAll(mounted)
       } catch {
@@ -219,16 +223,27 @@ export default function AdminPointsPage() {
               <h1 className="game-title" style={{ fontSize: 28 }}>ポイント・ランク設定</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 13 }}>ポイント・倍率ウィーク・ランクを管理します</p>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <a href="/admin">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>部員管理</button>
-              </a>
-              <a href="/admin/tasks">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>課題管理</button>
-              </a>
-              <a href="/admin/submissions">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>提出状況</button>
-              </a>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {(userRole === 'admin' || effectivePerms.course_management) && (
+                <a href="/admin">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>部員管理</button>
+                </a>
+              )}
+              {(userRole === 'admin' || effectivePerms.task_management) && (
+                <a href="/admin/tasks">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>課題管理</button>
+                </a>
+              )}
+              {(userRole === 'admin' || effectivePerms.submission_review) && (
+                <a href="/admin/submissions">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>提出状況</button>
+                </a>
+              )}
+              {userRole === 'admin' && (
+                <a href="/admin/positions">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>🏷 役職管理</button>
+                </a>
+              )}
               <button className="game-button"
                 style={{ width: 'auto', padding: '8px 20px', fontSize: 15, background: '#888', borderColor: '#555' }}
                 onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}>

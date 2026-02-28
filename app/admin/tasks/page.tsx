@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
-import { getEffectivePermissions } from '../../../lib/permissions'
+import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
 
 interface Task {
   id: string
@@ -40,6 +40,11 @@ export default function AdminTasksPage() {
   const [description, setDescription]   = useState('')
   const [targetCourse, setTargetCourse] = useState('')
   const [targetStage, setTargetStage]   = useState('')
+  const [userRole, setUserRole]         = useState<string | null>(null)
+  const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
+    course_management: false, task_management: false,
+    point_settings: false, submission_review: false, finance: false,
+  })
 
   useEffect(() => {
     let mounted = true
@@ -52,10 +57,9 @@ export default function AdminTasksPage() {
         const { data: me, error: meError } = await supabase
           .from('profiles').select('role').eq('id', authData.user.id).single()
         if (meError || !me) { router.replace('/dashboard'); return }
-        if (me.role !== 'admin') {
-          const perms = await getEffectivePermissions(authData.user.id)
-          if (!perms.task_management) { router.replace('/dashboard'); return }
-        }
+        const perms = await getEffectivePermissions(authData.user.id)
+        if (me.role !== 'admin' && !perms.task_management) { router.replace('/dashboard'); return }
+        if (mounted) { setUserRole(me.role); setEffectivePerms(perms) }
 
         const { data: taskList, error: listError } = await supabase
           .from('tasks')
@@ -140,22 +144,35 @@ export default function AdminTasksPage() {
                 課題数: {tasks.length} 件
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <a href="/admin">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  部員管理
-                </button>
-              </a>
-              <a href="/admin/submissions">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  提出状況
-                </button>
-              </a>
-              <a href="/admin/points">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  ポイント設定
-                </button>
-              </a>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {(userRole === 'admin' || effectivePerms.course_management) && (
+                <a href="/admin">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    部員管理
+                  </button>
+                </a>
+              )}
+              {(userRole === 'admin' || effectivePerms.submission_review) && (
+                <a href="/admin/submissions">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    提出状況
+                  </button>
+                </a>
+              )}
+              {(userRole === 'admin' || effectivePerms.point_settings) && (
+                <a href="/admin/points">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    ポイント設定
+                  </button>
+                </a>
+              )}
+              {userRole === 'admin' && (
+                <a href="/admin/positions">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    🏷 役職管理
+                  </button>
+                </a>
+              )}
               <button
                 className="game-button"
                 style={{ width: 'auto', padding: '8px 20px', fontSize: 15, background: '#888', borderColor: '#555' }}

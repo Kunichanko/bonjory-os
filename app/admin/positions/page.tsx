@@ -139,12 +139,12 @@ export default function AdminPositionsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '3px solid #3d6e00' }}>
-                <th className="game-label" style={{ textAlign: 'left', padding: '8px 12px', fontSize: 13, minWidth: 140 }}>
+                <th className="game-label" style={{ display: 'table-cell', textAlign: 'left', padding: '8px 12px', fontSize: 13, minWidth: 140 }}>
                   役職名
                 </th>
                 {FEATURE_LIST.map(f => (
-                  <th key={f.id} className="game-label" style={{ textAlign: 'center', padding: '8px 10px', fontSize: 12, minWidth: 80 }}>
-                    {f.icon}<br />{f.label.replace('・', '・\n')}
+                  <th key={f.id} className="game-label" style={{ display: 'table-cell', textAlign: 'center', padding: '8px 10px', fontSize: 12, minWidth: 100, whiteSpace: 'nowrap' }}>
+                    {f.icon} {f.label}
                   </th>
                 ))}
                 <th style={{ width: 40 }} />

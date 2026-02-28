@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
-import { getEffectivePermissions } from '../../../lib/permissions'
+import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
 
 // ─── 型 ───────────────────────────────────────────────────
 
@@ -63,6 +63,11 @@ export default function AdminSubmissionsPage() {
   const [expandedMember, setExpandedMember] = useState<string | null>(null)
   const [expandedTask, setExpandedTask]     = useState<Record<string, boolean>>({})
   const [loading, setLoading]       = useState(true)
+  const [userRole, setUserRole]     = useState<string | null>(null)
+  const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
+    course_management: false, task_management: false,
+    point_settings: false, submission_review: false, finance: false,
+  })
 
   useEffect(() => {
     let mounted = true
@@ -75,10 +80,9 @@ export default function AdminSubmissionsPage() {
         const { data: me, error: meError } = await supabase
           .from('profiles').select('role').eq('id', authData.user.id).single()
         if (meError || !me) { router.replace('/dashboard'); return }
-        if (me.role !== 'admin') {
-          const perms = await getEffectivePermissions(authData.user.id)
-          if (!perms.submission_review) { router.replace('/dashboard'); return }
-        }
+        const perms = await getEffectivePermissions(authData.user.id)
+        if (me.role !== 'admin' && !perms.submission_review) { router.replace('/dashboard'); return }
+        if (mounted) { setUserRole(me.role); setEffectivePerms(perms) }
 
         const [profilesRes, assignmentsRes] = await Promise.all([
           supabase.from('profiles')
@@ -136,22 +140,35 @@ export default function AdminSubmissionsPage() {
               <h1 className="game-title" style={{ fontSize: 32 }}>提出状況一覧</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>部員数: {profiles.length} 名</p>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <a href="/admin">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  部員管理
-                </button>
-              </a>
-              <a href="/admin/tasks">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  課題管理
-                </button>
-              </a>
-              <a href="/admin/points">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  ポイント設定
-                </button>
-              </a>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {(userRole === 'admin' || effectivePerms.course_management) && (
+                <a href="/admin">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    部員管理
+                  </button>
+                </a>
+              )}
+              {(userRole === 'admin' || effectivePerms.task_management) && (
+                <a href="/admin/tasks">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    課題管理
+                  </button>
+                </a>
+              )}
+              {(userRole === 'admin' || effectivePerms.point_settings) && (
+                <a href="/admin/points">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    ポイント設定
+                  </button>
+                </a>
+              )}
+              {userRole === 'admin' && (
+                <a href="/admin/positions">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    🏷 役職管理
+                  </button>
+                </a>
+              )}
               <button
                 className="game-button"
                 style={{ width: 'auto', padding: '8px 20px', fontSize: 15, background: '#888', borderColor: '#555' }}

@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
-import { FEATURE_LIST, PermissionKey } from '../../lib/permissions'
+import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
 
 type Course = 'Unity' | 'Blender' | null
 type Stage  = 'Foundation' | 'Development' | 'Production' | null
@@ -73,6 +73,11 @@ export default function AdminPage() {
   const [loading, setLoading]           = useState(true)
   const [saving, setSaving]             = useState<Record<string, string>>({})
   const [errors, setErrors]             = useState<Record<string, string>>({})
+  const [userRole, setUserRole]         = useState<string | null>(null)
+  const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
+    course_management: false, task_management: false,
+    point_settings: false, submission_review: false, finance: false,
+  })
 
   useEffect(() => {
     let mounted = true
@@ -84,7 +89,16 @@ export default function AdminPage() {
 
         const { data: me, error: meError } = await supabase
           .from('profiles').select('role').eq('id', authData.user.id).single()
-        if (meError || !me || me.role !== 'admin') { router.replace('/dashboard'); return }
+        if (meError || !me) { router.replace('/dashboard'); return }
+        if (me.role !== 'admin') {
+          const perms = await getEffectivePermissions(authData.user.id)
+          if (!perms.course_management) { router.replace('/dashboard'); return }
+          if (mounted) setEffectivePerms(perms)
+        } else {
+          const perms = await getEffectivePermissions(authData.user.id)
+          if (mounted) setEffectivePerms(perms)
+        }
+        if (mounted) setUserRole(me.role)
 
         const [profilesRes, tasksRes, assignmentsRes, positionsRes, ppRes] = await Promise.all([
           supabase.from('profiles').select('id, username, email, course, stage').order('created_at', { ascending: true }),
@@ -221,26 +235,34 @@ export default function AdminPage() {
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>部員数: {profiles.length} 名</p>
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <a href="/admin/submissions">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  提出状況
-                </button>
-              </a>
-              <a href="/admin/tasks">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  課題管理
-                </button>
-              </a>
-              <a href="/admin/points">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  ポイント設定
-                </button>
-              </a>
-              <a href="/admin/positions">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  🏷 役職管理
-                </button>
-              </a>
+              {(userRole === 'admin' || effectivePerms.submission_review) && (
+                <a href="/admin/submissions">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    提出状況
+                  </button>
+                </a>
+              )}
+              {(userRole === 'admin' || effectivePerms.task_management) && (
+                <a href="/admin/tasks">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    課題管理
+                  </button>
+                </a>
+              )}
+              {(userRole === 'admin' || effectivePerms.point_settings) && (
+                <a href="/admin/points">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    ポイント設定
+                  </button>
+                </a>
+              )}
+              {userRole === 'admin' && (
+                <a href="/admin/positions">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    🏷 役職管理
+                  </button>
+                </a>
+              )}
               <button
                 className="game-button"
                 style={{ width: 'auto', padding: '8px 20px', fontSize: 15, background: '#888', borderColor: '#555' }}
@@ -258,7 +280,7 @@ export default function AdminPage() {
             <thead>
               <tr style={{ borderBottom: '3px solid #3d6e00' }}>
                 {['ユーザー名', 'コース', 'ステージ', '役職', '課題状況', 'アサイン'].map(h => (
-                  <th key={h} className="game-label" style={{ textAlign: 'left', padding: '8px 12px', fontSize: 13 }}>
+                  <th key={h} className="game-label" style={{ display: 'table-cell', textAlign: 'left', padding: '8px 12px', fontSize: 13 }}>
                     {h}
                   </th>
                 ))}
@@ -282,9 +304,8 @@ export default function AdminPage() {
                 )
 
                 return (
-                  <>
+                  <Fragment key={profile.id}>
                     <tr
-                      key={profile.id}
                       style={{
                         borderBottom: isExpanded ? 'none' : (idx < profiles.length - 1 ? '1px solid #c8e89a' : 'none'),
                         background: idx % 2 === 0 ? '#f8fff0' : '#ffffff',
@@ -526,7 +547,7 @@ export default function AdminPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>
