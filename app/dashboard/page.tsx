@@ -36,13 +36,31 @@ const MILESTONES = [
   { key: 'final',   phase: 'final',   day: '日', label: '最終提出',  desc: '日曜日：動画・画像・自己評価をタイムラインに投稿しましょう。' },
 ]
 
-type ViewId = 'tasks' | 'history' | 'timeline'
+type ViewId = 'tasks' | 'history' | 'timeline' | 'past_timeline'
 
 const NAV_ITEMS: { id: ViewId; icon: string; label: string }[] = [
   { id: 'tasks',    icon: '📋', label: '今週の課題' },
   { id: 'history',  icon: '📚', label: '過去の課題' },
   { id: 'timeline', icon: '🌐', label: 'タイムライン' },
 ]
+
+// ─── タイムライン分類ユーティリティ ───────────────────────
+
+function getMostRecentMonday(date: Date): Date {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = day === 0 ? 6 : day - 1
+  d.setDate(d.getDate() - diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function isCurrentTimeline(taskCreatedAt: string): boolean {
+  const taskMonday = getMostRecentMonday(new Date(taskCreatedAt))
+  const nowMonday  = getMostRecentMonday(new Date())
+  const cutoff     = new Date(nowMonday.getTime() - 14 * 24 * 60 * 60 * 1000)
+  return taskMonday >= cutoff
+}
 
 interface AssignmentTask {
   id: string
@@ -81,6 +99,7 @@ interface TimelineItem {
     title: string
     target_course: string | null
     target_stage: string | null
+    created_at: string
   }
   profile: {
     username: string | null
@@ -146,7 +165,7 @@ export default function DashboardPage() {
   // 役職・権限
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
-    point_settings: false, submission_review: false, finance: false,
+    point_settings: false, submission_review: false, finance: false, timeline_management: false,
   })
   const [positionNames, setPositionNames] = useState<string[]>([])
 
@@ -187,7 +206,13 @@ export default function DashboardPage() {
   // タイムライン
   const [timeline, setTimeline]               = useState<TimelineItem[]>([])
   const [timelineLoading, setTimelineLoading] = useState(false)
+  const [timelineLoaded, setTimelineLoaded]   = useState(false)
   const [selectedPost, setSelectedPost]       = useState<TimelineItem | null>(null)
+
+  // タイムライン ソート・フィルター
+  const [timelineSort, setTimelineSort]           = useState<'newest' | 'oldest'>('newest')
+  const [timelineFilterCourse, setTimelineFilterCourse] = useState('')
+  const [timelineFilterStage, setTimelineFilterStage]   = useState('')
 
   // コメント
   const [comments, setComments]             = useState<Record<string, Comment[]>>({})
@@ -299,7 +324,8 @@ export default function DashboardPage() {
   // ─── タイムライン読み込み ───────────────────────────────
 
   useEffect(() => {
-    if (currentView !== 'timeline') return
+    if (currentView !== 'timeline' && currentView !== 'past_timeline') return
+    if (timelineLoaded) return
     let mounted = true
     setTimelineLoading(true)
 
@@ -310,7 +336,7 @@ export default function DashboardPage() {
           .select(`
             id, user_id, is_anonymous, thumbnail_url,
             self_evaluation, retrospective, media_url, submitted_at,
-            task:tasks(id, title, target_course, target_stage)
+            task:tasks(id, title, target_course, target_stage, created_at)
           `)
           .eq('status', 'submitted')
           .order('submitted_at', { ascending: false })
@@ -338,6 +364,7 @@ export default function DashboardPage() {
         if (mounted) {
           setTimeline(merged)
           setTimelineLoading(false)
+          setTimelineLoaded(true)
         }
       } catch (err) {
         console.error('Timeline fetch failed:', err)
@@ -347,7 +374,7 @@ export default function DashboardPage() {
 
     fetchTimeline()
     return () => { mounted = false }
-  }, [currentView])
+  }, [currentView, timelineLoaded])
 
   // ─── ハンドラ ───────────────────────────────────────────
 
@@ -559,6 +586,23 @@ export default function DashboardPage() {
     ? sortedByPoints.find(r => r.min_points > currentRank.min_points) ?? null
     : null
 
+  // ─── タイムライン フィルター・分類 ─────────────────────
+
+  function applyTimelineFilters(items: TimelineItem[]): TimelineItem[] {
+    let list = [...items]
+    if (timelineFilterCourse) list = list.filter(i => i.task.target_course === timelineFilterCourse)
+    if (timelineFilterStage)  list = list.filter(i => i.task.target_stage === timelineFilterStage)
+    list.sort((a, b) => {
+      const dA = new Date(a.submitted_at ?? 0).getTime()
+      const dB = new Date(b.submitted_at ?? 0).getTime()
+      return timelineSort === 'newest' ? dB - dA : dA - dB
+    })
+    return list
+  }
+
+  const currentTimeline = applyTimelineFilters(timeline.filter(i => isCurrentTimeline(i.task.created_at)))
+  const pastTimeline    = applyTimelineFilters(timeline.filter(i => !isCurrentTimeline(i.task.created_at)))
+
   // ─── レンダリング ──────────────────────────────────────
 
   return (
@@ -609,6 +653,18 @@ export default function DashboardPage() {
               {item.label}
             </button>
           ))}
+          <button onClick={() => navigate('past_timeline')} style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            width: '100%', padding: '12px 20px',
+            background: currentView === 'past_timeline' ? '#3d6e00' : 'none',
+            border: 'none', cursor: 'pointer',
+            color: currentView === 'past_timeline' ? '#fff' : '#a8d870',
+            fontSize: 15, fontWeight: currentView === 'past_timeline' ? 'bold' : 'normal',
+            textAlign: 'left', transition: 'background 0.15s',
+          }}>
+            <span style={{ fontSize: 18 }}>📦</span>
+            過去のタイムライン
+          </button>
         </nav>
 
         {(userRole === 'admin' || FEATURE_LIST.some(f => effectivePerms[f.id])) && (
@@ -1117,62 +1173,103 @@ export default function DashboardPage() {
             </>
           )}
 
-          {/* ══ VIEW: タイムライン ════════════════════════════ */}
-          {currentView === 'timeline' && (
-            <>
-              <div className="game-card" style={{ padding: '24px 28px' }}>
-                <h2 className="game-title" style={{ fontSize: 22, marginBottom: 4 }}>🌐 タイムライン</h2>
-                <p style={{ color: '#3d6e00', fontSize: 13 }}>部員の提出作品 — {timeline.length} 件</p>
-              </div>
+          {/* ══ VIEW: タイムライン & 過去タイムライン ══════════ */}
+          {(currentView === 'timeline' || currentView === 'past_timeline') && (() => {
+            const isCurrentView = currentView === 'timeline'
+            const displayList   = isCurrentView ? currentTimeline : pastTimeline
+            return (
+              <>
+                <div className="game-card" style={{ padding: '24px 28px' }}>
+                  <h2 className="game-title" style={{ fontSize: 22, marginBottom: 4 }}>
+                    {isCurrentView ? '🌐 タイムライン' : '📦 過去のタイムライン'}
+                  </h2>
+                  <p style={{ color: '#3d6e00', fontSize: 13 }}>
+                    部員の提出作品 — {displayList.length} 件
+                    {(timelineFilterCourse || timelineFilterStage) && ` (全${isCurrentView ? currentTimeline.length : pastTimeline.length}件中)`}
+                  </p>
+                </div>
 
-              {timelineLoading ? (
-                <div className="game-card" style={{ padding: 40, textAlign: 'center' }}>
-                  <p style={{ color: '#6aac14', fontSize: 16 }}>読み込み中...</p>
+                {/* フィルター・ソート */}
+                <div className="game-card" style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <select className="game-input" style={{ padding: '5px 10px', fontSize: 12, width: 'auto' }}
+                      value={timelineSort} onChange={e => setTimelineSort(e.target.value as 'newest' | 'oldest')}>
+                      <option value="newest">新しい順</option>
+                      <option value="oldest">古い順</option>
+                    </select>
+                    <select className="game-input" style={{ padding: '5px 10px', fontSize: 12, width: 'auto' }}
+                      value={timelineFilterCourse} onChange={e => setTimelineFilterCourse(e.target.value)}>
+                      <option value="">全コース</option>
+                      <option value="Unity">Unity</option>
+                      <option value="Blender">Blender</option>
+                    </select>
+                    <select className="game-input" style={{ padding: '5px 10px', fontSize: 12, width: 'auto' }}
+                      value={timelineFilterStage} onChange={e => setTimelineFilterStage(e.target.value)}>
+                      <option value="">全ステージ</option>
+                      <option value="Foundation">Ⅰ. 基礎</option>
+                      <option value="Development">Ⅱ. 応用</option>
+                      <option value="Production">Ⅲ. 実践</option>
+                    </select>
+                    {(timelineFilterCourse || timelineFilterStage) && (
+                      <button onClick={() => { setTimelineFilterCourse(''); setTimelineFilterStage('') }}
+                        style={{ padding: '4px 10px', borderRadius: 8, border: '2px solid #c0392b', background: 'none', color: '#c0392b', cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}>
+                        リセット
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ) : timeline.length === 0 ? (
-                <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
-                  <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
-                  <p style={{ color: '#6aac14', fontSize: 16 }}>まだ提出された作品はありません</p>
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  {timeline.map(item => (
-                    <button key={item.id}
-                      onClick={() => { setSelectedPost(item); loadComments(item.id) }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
-                      <div className="game-card" style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
-                        {item.thumbnail_url ? (
-                          <img src={item.thumbnail_url} alt={item.task.title}
-                            style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
-                        ) : (
-                          <div style={{
-                            width: '100%', height: 110,
-                            background: 'linear-gradient(135deg, #c8e89a, #6aac14)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <span style={{ fontSize: 32 }}>🎮</span>
-                          </div>
-                        )}
-                        <div style={{ padding: '10px 12px' }}>
-                          <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 13, marginBottom: 4, lineHeight: 1.4 }}>
-                            {item.task.title}
-                          </p>
-                          <p style={{ color: '#6aac14', fontSize: 11, marginBottom: 2 }}>
-                            {item.is_anonymous ? '🙈 匿名' : `👤 ${item.profile?.username ?? '名無し'}`}
-                          </p>
-                          {item.submitted_at && (
-                            <p style={{ color: '#aaa', fontSize: 11 }}>
-                              {new Date(item.submitted_at).toLocaleDateString('ja-JP')}
-                            </p>
+
+                {timelineLoading ? (
+                  <div className="game-card" style={{ padding: 40, textAlign: 'center' }}>
+                    <p style={{ color: '#6aac14', fontSize: 16 }}>読み込み中...</p>
+                  </div>
+                ) : displayList.length === 0 ? (
+                  <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
+                    <p style={{ color: '#6aac14', fontSize: 16 }}>
+                      {timelineFilterCourse || timelineFilterStage ? 'フィルター条件に一致する作品がありません' : 'まだ提出された作品はありません'}
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    {displayList.map(item => (
+                      <button key={item.id}
+                        onClick={() => { setSelectedPost(item); loadComments(item.id) }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
+                        <div className="game-card" style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
+                          {item.thumbnail_url ? (
+                            <img src={item.thumbnail_url} alt={item.task.title}
+                              style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
+                          ) : (
+                            <div style={{
+                              width: '100%', height: 110,
+                              background: 'linear-gradient(135deg, #c8e89a, #6aac14)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              <span style={{ fontSize: 32 }}>🎮</span>
+                            </div>
                           )}
+                          <div style={{ padding: '10px 12px' }}>
+                            <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 13, marginBottom: 4, lineHeight: 1.4 }}>
+                              {item.task.title}
+                            </p>
+                            <p style={{ color: '#6aac14', fontSize: 11, marginBottom: 2 }}>
+                              {item.is_anonymous ? '🙈 匿名' : `👤 ${item.profile?.username ?? '名無し'}`}
+                            </p>
+                            {item.submitted_at && (
+                              <p style={{ color: '#aaa', fontSize: 11 }}>
+                                {new Date(item.submitted_at).toLocaleDateString('ja-JP')}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            )
+          })()}
 
         </div>
       </div>

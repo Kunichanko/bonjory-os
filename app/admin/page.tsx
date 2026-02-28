@@ -76,7 +76,7 @@ export default function AdminPage() {
   const [userRole, setUserRole]         = useState<string | null>(null)
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
-    point_settings: false, submission_review: false, finance: false,
+    point_settings: false, submission_review: false, finance: false, timeline_management: false,
   })
 
   useEffect(() => {
@@ -253,6 +253,13 @@ export default function AdminPage() {
                 <a href="/admin/points">
                   <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
                     ポイント設定
+                  </button>
+                </a>
+              )}
+              {(userRole === 'admin' || effectivePerms.timeline_management) && (
+                <a href="/admin/timeline">
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                    🎬 タイムライン管理
                   </button>
                 </a>
               )}
@@ -555,6 +562,19 @@ export default function AdminPage() {
         </div>
 
       </div>
+
+      {/* ダッシュボードへ戻るボタン */}
+      <a href="/dashboard" style={{ textDecoration: 'none' }}>
+        <button style={{
+          position: 'fixed', bottom: 24, left: 24, zIndex: 50,
+          background: '#1a3a00', border: '3px solid #6aac14', borderRadius: 12,
+          color: '#a8d870', fontSize: 13, fontWeight: 'bold',
+          padding: '10px 18px', cursor: 'pointer',
+          boxShadow: '0 4px 0 #0d2000',
+        }}>
+          ← ダッシュボード
+        </button>
+      </a>
     </div>
   )
 }

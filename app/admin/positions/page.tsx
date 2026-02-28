@@ -76,6 +76,7 @@ export default function AdminPositionsPage() {
     const emptyPerms: Record<PermissionKey, boolean> = {
       course_management: false, task_management: false,
       point_settings: false, submission_review: false, finance: false,
+      timeline_management: false,
     }
     const { data, error: insErr } = await supabase
       .from('positions')
@@ -117,10 +118,15 @@ export default function AdminPositionsPage() {
               <h1 className="game-title" style={{ fontSize: 32 }}>役職管理</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>役職ごとにアクセスできる機能を設定します</p>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <a href="/admin">
                 <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
                   ← 部員管理
+                </button>
+              </a>
+              <a href="/admin/timeline">
+                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
+                  🎬 タイムライン管理
                 </button>
               </a>
               <button
@@ -230,6 +236,18 @@ export default function AdminPositionsPage() {
         </div>
 
       </div>
+
+      <a href="/dashboard" style={{ textDecoration: 'none' }}>
+        <button style={{
+          position: 'fixed', bottom: 24, left: 24, zIndex: 50,
+          background: '#1a3a00', border: '3px solid #6aac14', borderRadius: 12,
+          color: '#a8d870', fontSize: 13, fontWeight: 'bold',
+          padding: '10px 18px', cursor: 'pointer',
+          boxShadow: '0 4px 0 #0d2000',
+        }}>
+          ← ダッシュボード
+        </button>
+      </a>
     </div>
   )
 }
