@@ -67,6 +67,7 @@ export default function AdminSubmissionsPage() {
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
+    dm_management: false,
   })
 
   useEffect(() => {
@@ -433,7 +434,7 @@ export default function AdminSubmissionsPage() {
 
       <a href="/dashboard" style={{ textDecoration: 'none' }}>
         <button style={{
-          position: 'fixed', bottom: 24, left: 24, zIndex: 50,
+          position: 'fixed', top: 20, left: 16, zIndex: 50,
           background: '#1a3a00', border: '3px solid #6aac14', borderRadius: 12,
           color: '#a8d870', fontSize: 13, fontWeight: 'bold',
           padding: '10px 18px', cursor: 'pointer',

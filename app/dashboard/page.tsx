@@ -218,6 +218,7 @@ export default function DashboardPage() {
   const [timelineSort, setTimelineSort]           = useState<'newest' | 'oldest'>('newest')
   const [timelineFilterCourse, setTimelineFilterCourse] = useState('')
   const [timelineFilterStage, setTimelineFilterStage]   = useState('')
+  const [timelineViewMode, setTimelineViewMode]         = useState<'grid' | 'list'>('grid')
 
   // コメント
   const [comments, setComments]             = useState<Record<string, Comment[]>>({})
@@ -731,7 +732,7 @@ export default function DashboardPage() {
                 color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
               }}>
                 <span style={{ fontSize: 18 }}>💬</span>
-                ダイレクトメッセージ
+                DM送信
               </button>
             </a>
             {dmUnreadCount > 0 && (
@@ -747,7 +748,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* DM管理 - dm_management権限のみ */}
+          {/* DM受信 - dm_management権限のみ */}
           {(userRole === 'admin' || effectivePerms.dm_management) && (
             <div style={{ position: 'relative' }}>
               <a href="/dm/manage" style={{ textDecoration: 'none', display: 'block' }}>
@@ -758,7 +759,7 @@ export default function DashboardPage() {
                   color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
                 }}>
                   <span style={{ fontSize: 18 }}>📬</span>
-                  DM管理
+                  DM受信
                 </button>
               </a>
               {dmManageUnreadCount > 0 && (
@@ -1334,6 +1335,17 @@ export default function DashboardPage() {
                         リセット
                       </button>
                     )}
+                    <button
+                      onClick={() => setTimelineViewMode(m => m === 'grid' ? 'list' : 'grid')}
+                      style={{
+                        marginLeft: 'auto', padding: '4px 10px', borderRadius: 8,
+                        border: '2px solid #3d6e00', background: 'none',
+                        color: '#3d6e00', cursor: 'pointer', fontSize: 16, lineHeight: 1,
+                      }}
+                      title={timelineViewMode === 'grid' ? 'リスト表示に切替' : 'グリッド表示に切替'}
+                    >
+                      {timelineViewMode === 'grid' ? '☰' : '⊞'}
+                    </button>
                   </div>
                 </div>
 
@@ -1348,7 +1360,7 @@ export default function DashboardPage() {
                       {timelineFilterCourse || timelineFilterStage ? 'フィルター条件に一致する作品がありません' : 'まだ提出された作品はありません'}
                     </p>
                   </div>
-                ) : (
+                ) : timelineViewMode === 'grid' ? (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {displayList.map(item => (
                       <button key={item.id}
@@ -1379,6 +1391,56 @@ export default function DashboardPage() {
                                 {new Date(item.submitted_at).toLocaleDateString('ja-JP')}
                               </p>
                             )}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {displayList.map(item => (
+                      <button key={item.id}
+                        onClick={() => { setSelectedPost(item); loadComments(item.id) }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
+                        <div className="game-card" style={{ padding: 0, overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                            {item.thumbnail_url ? (
+                              <img src={item.thumbnail_url} alt={item.task.title}
+                                style={{ width: 90, height: 80, objectFit: 'cover', flexShrink: 0 }} />
+                            ) : (
+                              <div style={{
+                                width: 90, height: 80, flexShrink: 0,
+                                background: 'linear-gradient(135deg, #c8e89a, #6aac14)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                <span style={{ fontSize: 24 }}>🎮</span>
+                              </div>
+                            )}
+                            <div style={{ padding: '10px 14px', flex: 1, minWidth: 0 }}>
+                              <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, marginBottom: 4, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.task.title}
+                              </p>
+                              <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                                {item.task.target_course && (
+                                  <span style={{ background: '#6aac14', color: 'white', borderRadius: 8, padding: '1px 6px', fontSize: 10, fontWeight: 'bold' }}>
+                                    {item.task.target_course}
+                                  </span>
+                                )}
+                                {item.task.target_stage && (
+                                  <span style={{ background: '#3d6e00', color: 'white', borderRadius: 8, padding: '1px 6px', fontSize: 10, fontWeight: 'bold' }}>
+                                    {item.task.target_stage}
+                                  </span>
+                                )}
+                              </div>
+                              <p style={{ color: '#6aac14', fontSize: 11 }}>
+                                {item.is_anonymous ? '🙈 匿名' : `👤 ${item.profile?.username ?? '名無し'}`}
+                                {item.submitted_at && (
+                                  <span style={{ color: '#aaa', marginLeft: 8 }}>
+                                    {new Date(item.submitted_at).toLocaleDateString('ja-JP')}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </button>
