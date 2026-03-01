@@ -76,7 +76,7 @@ export default function AdminPositionsPage() {
     const emptyPerms: Record<PermissionKey, boolean> = {
       course_management: false, task_management: false,
       point_settings: false, submission_review: false, finance: false,
-      timeline_management: false,
+      timeline_management: false, dm_management: false,
     }
     const { data, error: insErr } = await supabase
       .from('positions')
@@ -153,13 +153,16 @@ export default function AdminPositionsPage() {
                     {f.icon} {f.label}
                   </th>
                 ))}
+                <th className="game-label" style={{ display: 'table-cell', textAlign: 'center', padding: '8px 10px', fontSize: 12, minWidth: 100, whiteSpace: 'nowrap' }}>
+                  📬 DM管理
+                </th>
                 <th style={{ width: 40 }} />
               </tr>
             </thead>
             <tbody>
               {positions.length === 0 && (
                 <tr>
-                  <td colSpan={FEATURE_LIST.length + 2} style={{ textAlign: 'center', padding: 40, color: '#6aac14', fontSize: 16 }}>
+                  <td colSpan={FEATURE_LIST.length + 3} style={{ textAlign: 'center', padding: 40, color: '#6aac14', fontSize: 16 }}>
                     役職がありません。下のフォームから追加してください。
                   </td>
                 </tr>
@@ -187,6 +190,15 @@ export default function AdminPositionsPage() {
                       />
                     </td>
                   ))}
+                  <td style={{ textAlign: 'center', padding: '10px 8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={pos.permissions['dm_management'] ?? false}
+                      disabled={savingId === pos.id}
+                      onChange={() => togglePermission(pos.id, 'dm_management', pos.permissions['dm_management'] ?? false)}
+                      style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#6aac14' }}
+                    />
+                  </td>
                   <td style={{ textAlign: 'center', padding: '8px' }}>
                     <button
                       onClick={() => deletePosition(pos.id)}

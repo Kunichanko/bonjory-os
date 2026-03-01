@@ -166,7 +166,12 @@ export default function DashboardPage() {
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
+    dm_management: false,
   })
+
+  // DM未読
+  const [dmUnreadCount, setDmUnreadCount]           = useState(0)
+  const [dmManageUnreadCount, setDmManageUnreadCount] = useState(0)
   const [positionNames, setPositionNames] = useState<string[]>([])
 
   // サイドバー
@@ -279,6 +284,56 @@ export default function DashboardPage() {
               return pos?.name ?? ''
             }).filter(Boolean)
           )
+        }
+
+        // DM未読数を計算
+        const [memberConvsRes, managerConvsRes, readsRes] = await Promise.all([
+          supabase.from('dm_conversations').select('id, updated_at').eq('member_id', uid),
+          supabase.from('dm_conversations').select('id, updated_at').eq('manager_id', uid),
+          supabase.from('dm_reads').select('conversation_id, last_read_at').eq('user_id', uid),
+        ])
+        if (mounted) {
+          const readsMap: Record<string, string> = {}
+          ;(readsRes.data ?? []).forEach(r => { readsMap[r.conversation_id] = r.last_read_at })
+
+          const allConvIds = [
+            ...(memberConvsRes.data ?? []).map(c => c.id),
+            ...(managerConvsRes.data ?? []).map(c => c.id),
+          ]
+          if (allConvIds.length > 0) {
+            const { data: latestMsgs } = await supabase
+              .from('dm_messages')
+              .select('conversation_id, created_at, sender_id')
+              .in('conversation_id', allConvIds)
+              .order('created_at', { ascending: false })
+
+            const memberConvIds = new Set((memberConvsRes.data ?? []).map(c => c.id))
+            const managerConvIds = new Set((managerConvsRes.data ?? []).map(c => c.id))
+
+            const seenMember  = new Set<string>()
+            const seenManager = new Set<string>()
+            let memberUnread  = 0
+            let managerUnread = 0
+
+            ;(latestMsgs ?? []).forEach(m => {
+              if (m.sender_id === uid) return
+              const lastRead = readsMap[m.conversation_id]
+              const isUnread = !lastRead || new Date(m.created_at) > new Date(lastRead)
+              if (isUnread) {
+                if (memberConvIds.has(m.conversation_id) && !seenMember.has(m.conversation_id)) {
+                  seenMember.add(m.conversation_id)
+                  memberUnread++
+                }
+                if (managerConvIds.has(m.conversation_id) && !seenManager.has(m.conversation_id)) {
+                  seenManager.add(m.conversation_id)
+                  managerUnread++
+                }
+              }
+            })
+
+            setDmUnreadCount(memberUnread)
+            setDmManageUnreadCount(managerUnread)
+          }
         }
 
         setRankSettings(ranksRes.data ?? [])
@@ -665,6 +720,60 @@ export default function DashboardPage() {
             <span style={{ fontSize: 18 }}>📦</span>
             過去のタイムライン
           </button>
+
+          {/* ダイレクトメッセージ - 全ユーザー */}
+          <div style={{ position: 'relative' }}>
+            <a href="/dm" style={{ textDecoration: 'none', display: 'block' }}>
+              <button style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                width: '100%', padding: '12px 20px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
+              }}>
+                <span style={{ fontSize: 18 }}>💬</span>
+                ダイレクトメッセージ
+              </button>
+            </a>
+            {dmUnreadCount > 0 && (
+              <span style={{
+                position: 'absolute', top: 8, right: 12,
+                background: 'red', color: 'white', borderRadius: 10,
+                fontSize: 11, fontWeight: 'bold', minWidth: 18, height: 18,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                padding: '0 4px',
+              }}>
+                {dmUnreadCount}
+              </span>
+            )}
+          </div>
+
+          {/* DM管理 - dm_management権限のみ */}
+          {(userRole === 'admin' || effectivePerms.dm_management) && (
+            <div style={{ position: 'relative' }}>
+              <a href="/dm/manage" style={{ textDecoration: 'none', display: 'block' }}>
+                <button style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', padding: '12px 20px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
+                }}>
+                  <span style={{ fontSize: 18 }}>📬</span>
+                  DM管理
+                </button>
+              </a>
+              {dmManageUnreadCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: 8, right: 12,
+                  background: 'red', color: 'white', borderRadius: 10,
+                  fontSize: 11, fontWeight: 'bold', minWidth: 18, height: 18,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 4px',
+                }}>
+                  {dmManageUnreadCount}
+                </span>
+              )}
+            </div>
+          )}
         </nav>
 
         {(userRole === 'admin' || FEATURE_LIST.some(f => effectivePerms[f.id])) && (
@@ -707,14 +816,23 @@ export default function DashboardPage() {
       {/* ── メインコンテンツ ─────────────────────────────── */}
       <div style={{ padding: '24px 24px 40px' }}>
         {/* ハンバーガーボタン */}
-        <button onClick={() => setSidebarOpen(true)} style={{
-          position: 'fixed', top: 16, left: 16, zIndex: 99,
-          background: '#1a3a00', border: '2px solid #3d6e00',
-          borderRadius: 8, padding: '6px 10px',
-          cursor: 'pointer', color: '#6aac14', fontSize: 20, lineHeight: 1,
-        }}>
-          ☰
-        </button>
+        <div style={{ position: 'fixed', top: 16, left: 16, zIndex: 99, display: 'inline-block' }}>
+          <button onClick={() => setSidebarOpen(true)} style={{
+            background: '#1a3a00', border: '2px solid #3d6e00',
+            borderRadius: 8, padding: '6px 10px',
+            cursor: 'pointer', color: '#6aac14', fontSize: 20, lineHeight: 1,
+          }}>
+            ☰
+          </button>
+          {(dmUnreadCount > 0 || dmManageUnreadCount > 0) && (
+            <span style={{
+              position: 'absolute', top: 2, right: 2,
+              width: 8, height: 8, borderRadius: '50%',
+              background: 'red', border: '1.5px solid white',
+              display: 'block',
+            }} />
+          )}
+        </div>
 
         {/* ── ランクウィジェット ─────────────────────────── */}
         {currentRank && (

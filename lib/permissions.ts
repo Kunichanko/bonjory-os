@@ -7,6 +7,7 @@ export type PermissionKey =
   | 'submission_review'
   | 'finance'
   | 'timeline_management'
+  | 'dm_management'
 
 export const FEATURE_LIST: { id: PermissionKey; label: string; path: string; icon: string }[] = [
   { id: 'course_management',   label: '部員・コース管理', path: '/admin',            icon: '👥' },
@@ -24,6 +25,7 @@ const EMPTY_PERMS: Record<PermissionKey, boolean> = {
   submission_review:   false,
   finance:             false,
   timeline_management: false,
+  dm_management:       false,
 }
 
 /** 指定ユーザーの有効な権限（全役職の OR）を返す */
