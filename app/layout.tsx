@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "bonjory-os",
   description: "ゲーム",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -13,7 +14,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#6aac14" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+      </head>
+      <body>
+        {children}
+        <script dangerouslySetInnerHTML={{ __html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+              navigator.serviceWorker.register('/sw.js')
+                .catch(function(err) { console.error('SW registration failed:', err); });
+            });
+          }
+        `}} />
+      </body>
     </html>
   );
 }
