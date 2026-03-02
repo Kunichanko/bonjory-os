@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
 
-type AnnouncementType = 'recurring' | 'scheduled' | 'personal' | 'link'
+type AnnouncementType = 'recurring' | 'scheduled' | 'personal' | 'link' | 'immediate'
 
 interface Announcement {
   id: string
@@ -35,6 +35,7 @@ const TYPE_LABELS: Record<AnnouncementType, string> = {
   scheduled: '📅 予約',
   personal:  '👤 個人',
   link:      '🔗 リンク',
+  immediate: '⚡ 即時',
 }
 
 const TYPE_COLORS: Record<AnnouncementType, string> = {
@@ -42,6 +43,7 @@ const TYPE_COLORS: Record<AnnouncementType, string> = {
   scheduled: '#3498db',
   personal:  '#9b59b6',
   link:      '#e67e22',
+  immediate: '#e74c3c',
 }
 
 export default function AnnouncementsPage() {
@@ -131,7 +133,7 @@ export default function AnnouncementsPage() {
       setError('タイトルと本文は必須です')
       return
     }
-    if (formType !== 'recurring' && !formScheduledAt) {
+    if (formType !== 'recurring' && formType !== 'immediate' && !formScheduledAt) {
       setError('送信日時を指定してください')
       return
     }
@@ -153,7 +155,7 @@ export default function AnnouncementsPage() {
     if (formType === 'recurring') {
       payload.day_of_week = formDayOfWeek
       payload.time_of_day = formTimeOfDay
-    } else {
+    } else if (formType !== 'immediate') {
       payload.scheduled_at = new Date(formScheduledAt).toISOString()
     }
 
@@ -270,7 +272,7 @@ export default function AnnouncementsPage() {
 
           {/* タイプ切り替えタブ */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-            {(['recurring', 'scheduled', 'personal', 'link'] as AnnouncementType[]).map(t => (
+            {(['recurring', 'scheduled', 'personal', 'link', 'immediate'] as AnnouncementType[]).map(t => (
               <button
                 key={t}
                 onClick={() => setFormType(t)}
@@ -334,7 +336,7 @@ export default function AnnouncementsPage() {
             )}
 
             {/* 予約・個人・リンク：送信日時 */}
-            {formType !== 'recurring' && (
+            {formType !== 'recurring' && formType !== 'immediate' && (
               <div>
                 <label className="game-label">送信日時 *</label>
                 <input
@@ -372,6 +374,13 @@ export default function AnnouncementsPage() {
                 </div>
                 <p style={{ color: '#6aac14', fontSize: 12, marginTop: 4 }}>選択中: {formTargetIds.length}人</p>
               </div>
+            )}
+
+            {/* 即時通知：説明 */}
+            {formType === 'immediate' && (
+              <p style={{ color: '#a8555a', fontSize: 13, background: '#fff0f0', border: '1px solid #e74c3c', borderRadius: 8, padding: '8px 12px' }}>
+                ⚡ ボタンを押すと全端末に即時送信されます。スケジュール設定は不要です。
+              </p>
             )}
 
             {/* リンク通知：URL */}
@@ -446,6 +455,13 @@ export default function AnnouncementsPage() {
                           )}
                         </p>
                       )}
+                      {ann.type === 'immediate' && (
+                        <p style={{ color: '#888', fontSize: 12 }}>
+                          {ann.last_sent_at
+                            ? `最終送信: ${new Date(ann.last_sent_at).toLocaleString('ja-JP')}`
+                            : '未送信'}
+                        </p>
+                      )}
                       {ann.scheduled_at && (
                         <p style={{ color: '#3d6e00', fontSize: 12 }}>
                           送信日時: {new Date(ann.scheduled_at).toLocaleString('ja-JP')}
@@ -478,8 +494,8 @@ export default function AnnouncementsPage() {
                         </button>
                       )}
 
-                      {/* 今すぐ送信（定期 or 未送信のもの） */}
-                      {(ann.type === 'recurring' || !ann.sent_at) && (
+                      {/* 今すぐ送信（定期・即時 or 未送信のもの） */}
+                      {(ann.type === 'recurring' || ann.type === 'immediate' || !ann.sent_at) && (
                         <button
                           onClick={() => sendNow(ann.id)}
                           disabled={sendingId === ann.id}

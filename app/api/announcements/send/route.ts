@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 送信記録を更新
-  const updateData = ann.type === 'recurring'
+  const updateData = (ann.type === 'recurring' || ann.type === 'immediate')
     ? { last_sent_at: new Date().toISOString() }
     : { sent_at: new Date().toISOString() }
   await supabaseAdmin.from('announcements').update(updateData).eq('id', announcementId)
