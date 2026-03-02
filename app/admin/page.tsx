@@ -125,12 +125,16 @@ export default function AdminPage() {
         // userId → ProfilePosition[] のマップを構築
         const ppMap: Record<string, ProfilePosition[]> = {}
         for (const pp of (ppRes.data ?? [])) {
-          const profileId = (pp as { profile_id: string; position_id: string; positions: { name: string } | null }).profile_id
+          const ppTyped = pp as unknown as { profile_id: string; position_id: string; positions: { name: string } | { name: string }[] | null }
+          const profileId = ppTyped.profile_id
           if (!ppMap[profileId]) ppMap[profileId] = []
+          const posName = Array.isArray(ppTyped.positions)
+            ? ppTyped.positions[0]?.name ?? ''
+            : ppTyped.positions?.name ?? ''
           ppMap[profileId].push({
             profile_id: profileId,
-            position_id: (pp as { position_id: string }).position_id,
-            position_name: (pp as { positions: { name: string } | null }).positions?.name ?? '',
+            position_id: ppTyped.position_id,
+            position_name: posName,
           })
         }
         setProfilePositions(ppMap)
