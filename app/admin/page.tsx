@@ -118,7 +118,7 @@ export default function AdminPage() {
         const map: Record<string, Assignment[]> = {}
         for (const a of (assignmentsRes.data ?? [])) {
           if (!map[a.user_id]) map[a.user_id] = []
-          map[a.user_id].push(a as Assignment)
+          map[a.user_id].push(a as unknown as Assignment)
         }
         setAssignments(map)
 
