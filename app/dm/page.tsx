@@ -79,9 +79,10 @@ export default function DmPage() {
 
         const managerIds = new Set<string>()
         ;(ppData ?? []).forEach(pp => {
-          const perms = (pp as { profile_id: string; positions: { permissions: Record<string, boolean> } | null })
-            .positions?.permissions ?? {}
-          if (perms['dm_management']) managerIds.add(pp.profile_id)
+          const ppTyped = pp as unknown as { profile_id: string; positions: { permissions: Record<string, boolean> } | { permissions: Record<string, boolean> }[] | null }
+          const pos = ppTyped.positions
+          const perms = (Array.isArray(pos) ? pos[0]?.permissions : pos?.permissions) ?? {}
+          if (perms['dm_management']) managerIds.add(ppTyped.profile_id)
         })
 
         let managerList: ManagerProfile[] = []
