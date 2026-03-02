@@ -18,8 +18,10 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date()
-  const dayOfWeek = now.getDay()
-  const nowMinutes = now.getHours() * 60 + now.getMinutes()
+  // Vercel は UTC で動作するため JST（UTC+9）に変換して比較
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const dayOfWeek = jst.getUTCDay()
+  const nowMinutes = jst.getUTCHours() * 60 + jst.getUTCMinutes()
 
   // 定期通知：今日の曜日かつ時刻が±2分以内、かつ last_sent_at が 23 時間以上前
   const { data: recurringAnns } = await supabaseAdmin
