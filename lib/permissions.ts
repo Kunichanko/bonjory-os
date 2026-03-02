@@ -41,7 +41,8 @@ export async function getEffectivePermissions(
     .select('positions(permissions)')
     .eq('profile_id', userId)
   data?.forEach(pp => {
-    const perms = (pp as { positions: { permissions: Record<string, boolean> } | null }).positions?.permissions ?? {}
+    const pos = (pp as unknown as { positions: { permissions: Record<string, boolean> } | { permissions: Record<string, boolean> }[] | null }).positions
+    const perms = (Array.isArray(pos) ? pos[0]?.permissions : pos?.permissions) ?? {}
     ;(Object.keys(base) as PermissionKey[]).forEach(k => {
       if (perms[k]) base[k] = true
     })
