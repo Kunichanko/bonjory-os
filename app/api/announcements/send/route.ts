@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
       .select('positions(permissions)')
       .eq('profile_id', user.id)
     const hasPermission = (ppData ?? []).some(pp => {
-      const perms = (pp as { positions: { permissions: Record<string, boolean> } | null }).positions?.permissions ?? {}
+      const pos = (pp as unknown as { positions: { permissions: Record<string, boolean> } | { permissions: Record<string, boolean> }[] | null }).positions
+      const perms = (Array.isArray(pos) ? pos[0]?.permissions : pos?.permissions) ?? {}
       return perms['announcement_management'] === true
     })
     if (!hasPermission) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
