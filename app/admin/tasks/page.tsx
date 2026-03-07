@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { marked } from 'marked'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
 
@@ -9,6 +10,7 @@ interface Task {
   id: string
   title: string
   description: string | null
+  description_is_markdown: boolean
   target_course: string | null
   target_stage: string | null
   is_active: boolean
@@ -19,6 +21,7 @@ const COURSE_OPTIONS = [
   { label: '全コース', value: '' },
   { label: 'Unityコース', value: 'Unity' },
   { label: 'Blenderコース', value: 'Blender' },
+  { label: 'Web開発コース', value: 'Web' },
 ]
 
 const STAGE_OPTIONS = [
@@ -28,6 +31,39 @@ const STAGE_OPTIONS = [
   { label: 'Ⅲ. 実践 (Production)', value: 'Production' },
 ]
 
+function MarkdownToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', marginTop: 4 }}>
+      <div
+        onClick={() => onChange(!checked)}
+        style={{
+          width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s',
+          background: checked ? '#6aac14' : '#ccc', flexShrink: 0,
+        }}
+      >
+        <div style={{
+          position: 'absolute', top: 2, left: checked ? 18 : 2, width: 16, height: 16,
+          borderRadius: '50%', background: 'white', transition: 'left 0.2s',
+        }} />
+      </div>
+      <span style={{ fontSize: 13, color: checked ? '#2d5500' : '#888', fontWeight: checked ? 'bold' : 'normal' }}>
+        マークダウンとして設定する
+      </span>
+    </label>
+  )
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  const html = marked.parse(content) as string
+  return (
+    <div
+      className="markdown-body"
+      style={{ fontSize: 14, color: '#3d6e00', lineHeight: 1.7 }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
 export default function AdminTasksPage() {
   const router = useRouter()
   const [tasks, setTasks] = useState<Task[]>([])
@@ -36,10 +72,23 @@ export default function AdminTasksPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // 新規作成フォーム
   const [title, setTitle]               = useState('')
   const [description, setDescription]   = useState('')
+  const [isMarkdown, setIsMarkdown]     = useState(false)
   const [targetCourse, setTargetCourse] = useState('')
   const [targetStage, setTargetStage]   = useState('')
+
+  // 編集状態
+  const [editingId, setEditingId]                   = useState<string | null>(null)
+  const [editTitle, setEditTitle]                   = useState('')
+  const [editDescription, setEditDescription]       = useState('')
+  const [editIsMarkdown, setEditIsMarkdown]         = useState(false)
+  const [editTargetCourse, setEditTargetCourse]     = useState('')
+  const [editTargetStage, setEditTargetStage]       = useState('')
+  const [editSaving, setEditSaving]                 = useState(false)
+  const [editError, setEditError]                   = useState<string | null>(null)
+
   const [userRole, setUserRole]         = useState<string | null>(null)
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
@@ -64,7 +113,7 @@ export default function AdminTasksPage() {
 
         const { data: taskList, error: listError } = await supabase
           .from('tasks')
-          .select('id, title, description, target_course, target_stage, is_active, created_at')
+          .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at')
           .order('created_at', { ascending: false })
         if (listError) throw listError
         if (mounted) setTasks(taskList ?? [])
@@ -92,6 +141,7 @@ export default function AdminTasksPage() {
       .insert({
         title,
         description: description || null,
+        description_is_markdown: isMarkdown,
         target_course: targetCourse || null,
         target_stage: targetStage || null,
         created_by: authData?.user?.id,
@@ -106,11 +156,59 @@ export default function AdminTasksPage() {
       setTasks(prev => [newTask, ...prev])
       setTitle('')
       setDescription('')
+      setIsMarkdown(false)
       setTargetCourse('')
       setTargetStage('')
       setSuccess('課題を作成しました！')
     }
     setSubmitting(false)
+  }
+
+  function startEdit(task: Task) {
+    setEditingId(task.id)
+    setEditTitle(task.title)
+    setEditDescription(task.description ?? '')
+    setEditIsMarkdown(task.description_is_markdown)
+    setEditTargetCourse(task.target_course ?? '')
+    setEditTargetStage(task.target_stage ?? '')
+    setEditError(null)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditError(null)
+  }
+
+  async function handleSaveEdit() {
+    if (!editingId) return
+    setEditSaving(true)
+    setEditError(null)
+
+    const { error } = await supabase
+      .from('tasks')
+      .update({
+        title: editTitle,
+        description: editDescription || null,
+        description_is_markdown: editIsMarkdown,
+        target_course: editTargetCourse || null,
+        target_stage: editTargetStage || null,
+      })
+      .eq('id', editingId)
+
+    if (error) {
+      setEditError(error.message)
+    } else {
+      setTasks(prev => prev.map(t => t.id === editingId ? {
+        ...t,
+        title: editTitle,
+        description: editDescription || null,
+        description_is_markdown: editIsMarkdown,
+        target_course: editTargetCourse || null,
+        target_stage: editTargetStage || null,
+      } : t))
+      setEditingId(null)
+    }
+    setEditSaving(false)
   }
 
   async function toggleActive(taskId: string, current: boolean) {
@@ -218,6 +316,7 @@ export default function AdminTasksPage() {
                 placeholder="課題の詳細・参考資料・提出条件などを記入..."
                 style={{ resize: 'vertical' }}
               />
+              <MarkdownToggle checked={isMarkdown} onChange={setIsMarkdown} />
             </div>
 
             <div style={{ display: 'flex', gap: 16 }}>
@@ -273,46 +372,121 @@ export default function AdminTasksPage() {
                     background: task.is_active ? '#f8fff0' : '#f5f5f5',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 16, marginBottom: 4 }}>
-                        {task.title}
-                      </p>
-                      {task.description && (
-                        <p style={{ color: '#3d6e00', fontSize: 14, marginBottom: 8 }}>{task.description}</p>
-                      )}
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{
-                          background: '#6aac14', color: 'white',
-                          borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
-                        }}>
-                          {task.target_course ?? '全コース'}
-                        </span>
-                        <span style={{
-                          background: '#3d6e00', color: 'white',
-                          borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
-                        }}>
-                          {task.target_stage ?? '全ステージ'}
-                        </span>
+                  {editingId === task.id ? (
+                    /* ─── 編集フォーム ─── */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div>
+                        <label className="game-label" style={{ fontSize: 12 }}>タイトル</label>
+                        <input
+                          className="game-input"
+                          value={editTitle}
+                          onChange={e => setEditTitle(e.target.value)}
+                          style={{ fontSize: 14 }}
+                        />
+                      </div>
+                      <div>
+                        <label className="game-label" style={{ fontSize: 12 }}>説明</label>
+                        <textarea
+                          className="game-input"
+                          value={editDescription}
+                          onChange={e => setEditDescription(e.target.value)}
+                          rows={4}
+                          style={{ resize: 'vertical', fontSize: 13 }}
+                        />
+                        <MarkdownToggle checked={editIsMarkdown} onChange={setEditIsMarkdown} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 12 }}>
+                        <div style={{ flex: 1 }}>
+                          <label className="game-label" style={{ fontSize: 12 }}>対象コース</label>
+                          <select className="game-input" value={editTargetCourse} onChange={e => setEditTargetCourse(e.target.value)} style={{ fontSize: 13 }}>
+                            {COURSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label className="game-label" style={{ fontSize: 12 }}>対象ステージ</label>
+                          <select className="game-input" value={editTargetStage} onChange={e => setEditTargetStage(e.target.value)} style={{ fontSize: 13 }}>
+                            {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      {editError && <div className="game-error" style={{ fontSize: 12 }}>{editError}</div>}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={handleSaveEdit}
+                          disabled={editSaving}
+                          style={{ padding: '6px 16px', borderRadius: 8, border: '2px solid #6aac14', background: '#6aac14', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
+                          {editSaving ? '保存中…' : '保存'}
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          style={{ padding: '6px 16px', borderRadius: 8, border: '2px solid #888', background: 'none', color: '#888', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
+                          キャンセル
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => toggleActive(task.id, task.is_active)}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: 8,
-                        border: `2px solid ${task.is_active ? '#c0392b' : '#6aac14'}`,
-                        background: task.is_active ? '#fdecea' : '#e8ffd4',
-                        color: task.is_active ? '#c0392b' : '#1a6e00',
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {task.is_active ? '停止する' : '有効にする'}
-                    </button>
-                  </div>
+                  ) : (
+                    /* ─── 表示モード ─── */
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 16, marginBottom: 4 }}>
+                          {task.title}
+                        </p>
+                        {task.description && (
+                          task.description_is_markdown
+                            ? <MarkdownContent content={task.description} />
+                            : <p style={{ color: '#3d6e00', fontSize: 14, marginBottom: 8, whiteSpace: 'pre-wrap' }}>{task.description}</p>
+                        )}
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                          <span style={{
+                            background: '#6aac14', color: 'white',
+                            borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
+                          }}>
+                            {task.target_course ?? '全コース'}
+                          </span>
+                          <span style={{
+                            background: '#3d6e00', color: 'white',
+                            borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
+                          }}>
+                            {task.target_stage ?? '全ステージ'}
+                          </span>
+                          {task.description_is_markdown && (
+                            <span style={{
+                              background: '#0288d1', color: 'white',
+                              borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
+                            }}>
+                              MD
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                        <button
+                          onClick={() => startEdit(task)}
+                          style={{
+                            padding: '6px 14px', borderRadius: 8,
+                            border: '2px solid #3d6e00', background: 'white',
+                            color: '#3d6e00', fontWeight: 'bold', cursor: 'pointer', fontSize: 13,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          編集
+                        </button>
+                        <button
+                          onClick={() => toggleActive(task.id, task.is_active)}
+                          style={{
+                            padding: '6px 14px', borderRadius: 8,
+                            border: `2px solid ${task.is_active ? '#c0392b' : '#6aac14'}`,
+                            background: task.is_active ? '#fdecea' : '#e8ffd4',
+                            color: task.is_active ? '#c0392b' : '#1a6e00',
+                            fontWeight: 'bold', cursor: 'pointer', fontSize: 13,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {task.is_active ? '停止する' : '有効にする'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

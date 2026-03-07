@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
+import { marked } from 'marked'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
 
 // ─── 定数・型 ─────────────────────────────────────────────
@@ -67,6 +68,7 @@ interface AssignmentTask {
   id: string
   title: string
   description: string | null
+  description_is_markdown: boolean
   target_course: string | null
   target_stage: string | null
 }
@@ -306,7 +308,7 @@ export default function DashboardPage() {
               id, status, plan_text, midterm_progress, midterm_correction,
               media_url, self_evaluation, retrospective, submitted_at,
               is_anonymous, thumbnail_url,
-              task:tasks(id, title, description, target_course, target_stage)
+              task:tasks(id, title, description, description_is_markdown, target_course, target_stage)
             `)
             .eq('user_id', uid)
             .eq('is_assigned', true),
@@ -1071,9 +1073,14 @@ export default function DashboardPage() {
                       {assignment.task.title}
                     </p>
                     {assignment.task.description && (
-                      <p style={{ color: '#3d6e00', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}>
-                        {assignment.task.description}
-                      </p>
+                      assignment.task.description_is_markdown
+                        ? <div
+                            style={{ color: '#3d6e00', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}
+                            dangerouslySetInnerHTML={{ __html: marked.parse(assignment.task.description) as string }}
+                          />
+                        : <p style={{ color: '#3d6e00', fontSize: 14, marginBottom: 16, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                            {assignment.task.description}
+                          </p>
                     )}
 
                     <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '16px 0' }} />

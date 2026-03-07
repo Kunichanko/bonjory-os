@@ -228,11 +228,16 @@ export default function OnboardingPage() {
     if (!selectedCourse || !userId) return
     setSaving(true)
     setError(null)
-    const { error } = await supabase
-      .from('profiles')
-      .update({ course: selectedCourse, stage: 'Foundation' })
-      .eq('id', userId)
-    if (error) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/complete-onboarding', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token ?? ''}`,
+      },
+      body: JSON.stringify({ course: selectedCourse }),
+    })
+    if (!res.ok) {
       setError('コースの設定に失敗しました。もう一度お試しください。')
       setSaving(false)
       return
