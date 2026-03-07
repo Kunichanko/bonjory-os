@@ -956,24 +956,31 @@ export default function DashboardPage() {
         <div style={{ maxWidth: 560, margin: '0 auto', paddingTop: 48, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ── ウェルカムカード ─────────────────────────── */}
-          <div className="game-card" style={{ padding: '36px 32px', textAlign: 'center' }}>
-            <p style={{ fontSize: 44, marginBottom: 12 }}>🎮</p>
-            <h1 className="game-title" style={{ fontSize: 36, marginBottom: 8 }}>ようこそ！</h1>
-            <p style={{ fontSize: 26, fontWeight: 'bold', color: '#6aac14', marginBottom: 20 }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #4e8a00 0%, #3d6e00 60%, #2a4d00 100%)',
+            border: '3px solid #6aac14',
+            borderRadius: 20,
+            padding: '36px 32px',
+            textAlign: 'center',
+            boxShadow: '0 6px 0 #1a3a00',
+          }}>
+            <img src="/icons/Handlime_icon.png" alt="icon" style={{ width: 80, height: 80, objectFit: 'contain', display: 'block', margin: '0 auto 16px' }} />
+            <h1 className="game-title" style={{ fontSize: 36, marginBottom: 8, color: '#ffffff', fontWeight: 900, textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>ようこそ！</h1>
+            <p style={{ fontSize: 26, fontWeight: 'bold', color: '#d4f08a', marginBottom: 20 }}>
               {username ?? '名無し'} さん
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
               <span style={{
-                background: course ? '#6aac14' : '#aaa', color: 'white',
+                background: course ? 'rgba(106,172,20,0.35)' : 'rgba(255,255,255,0.15)', color: '#d4f08a',
                 borderRadius: 20, padding: '5px 16px', fontSize: 14, fontWeight: 'bold',
-                border: `2px solid ${course ? '#3d6e00' : '#888'}`,
+                border: `2px solid ${course ? '#a8d870' : 'rgba(255,255,255,0.3)'}`,
               }}>
                 {course ? COURSE_LABELS[course] : '未設定'}
               </span>
               <span style={{
-                background: stage ? '#3d6e00' : '#aaa', color: 'white',
+                background: stage ? 'rgba(42,77,0,0.5)' : 'rgba(255,255,255,0.15)', color: '#d4f08a',
                 borderRadius: 20, padding: '5px 16px', fontSize: 14, fontWeight: 'bold',
-                border: `2px solid ${stage ? '#2a4d00' : '#888'}`,
+                border: `2px solid ${stage ? '#a8d870' : 'rgba(255,255,255,0.3)'}`,
               }}>
                 {stage ? STAGE_LABELS[stage] : '未設定'}
               </span>
@@ -1470,7 +1477,7 @@ export default function DashboardPage() {
                               background: 'linear-gradient(135deg, #c8e89a, #6aac14)',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
-                              <span style={{ fontSize: 32 }}>🎮</span>
+                              <img src="/icons/Handlime_icon.png" alt="icon" style={{ width: 48, height: 48, objectFit: 'contain' }} />
                             </div>
                           )}
                           <div style={{ padding: '10px 12px' }}>
@@ -1507,7 +1514,7 @@ export default function DashboardPage() {
                                 background: 'linear-gradient(135deg, #c8e89a, #6aac14)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                               }}>
-                                <span style={{ fontSize: 24 }}>🎮</span>
+                                <img src="/icons/Handlime_icon.png" alt="icon" style={{ width: 40, height: 40, objectFit: 'contain' }} />
                               </div>
                             )}
                             <div style={{ padding: '10px 14px', flex: 1, minWidth: 0 }}>
