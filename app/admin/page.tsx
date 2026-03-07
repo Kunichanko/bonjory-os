@@ -333,7 +333,7 @@ export default function AdminPage() {
                       <td style={{ padding: '8px 12px' }}>
                         <select
                           className="game-input"
-                          style={{ padding: '6px 10px', fontSize: 13 }}
+                          style={{ padding: '6px 10px', fontSize: 13, minWidth: 100 }}
                           value={profile.course ?? ''}
                           disabled={saving[profile.id] === 'course'}
                           onChange={e => handleUpdate(profile.id, 'course', (e.target.value || null) as Course)}
@@ -351,7 +351,7 @@ export default function AdminPage() {
                       <td style={{ padding: '8px 12px' }}>
                         <select
                           className="game-input"
-                          style={{ padding: '6px 10px', fontSize: 13 }}
+                          style={{ padding: '6px 10px', fontSize: 13, minWidth: 130 }}
                           value={profile.stage ?? ''}
                           disabled={saving[profile.id] === 'stage'}
                           onChange={e => handleUpdate(profile.id, 'stage', (e.target.value || null) as Stage)}
@@ -404,12 +404,12 @@ export default function AdminPage() {
                       </td>
 
                       {/* アサインボタン */}
-                      <td style={{ padding: '8px 12px' }}>
+                      <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
                         <button
                           onClick={() => setExpandedId(isExpanded ? null : profile.id)}
                           style={{
                             padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold',
-                            cursor: 'pointer', border: '2px solid #6aac14',
+                            cursor: 'pointer', border: '2px solid #6aac14', whiteSpace: 'nowrap',
                             background: isExpanded ? '#6aac14' : 'white',
                             color: isExpanded ? 'white' : '#3d6e00',
                           }}
