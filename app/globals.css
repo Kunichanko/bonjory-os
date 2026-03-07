@@ -242,6 +242,34 @@ body {
 .slime-shadow-stretch    { animation: shadowIdle 1.8s ease-in-out both; }
 .slime-shadow-look       { animation: shadowIdle 2.2s ease-in-out both; }
 
+/* 吹き出しY位置 — スライムのジャンプに追従 */
+@keyframes speechPosJump {
+  0%   { transform: translateX(-50%) translateY(0); }
+  14%  { transform: translateX(-50%) translateY(-3px); }
+  42%  { transform: translateX(-50%) translateY(-26px); }
+  55%  { transform: translateX(-50%) translateY(-24px); }
+  72%  { transform: translateX(-50%) translateY(-8px); }
+  83%  { transform: translateX(-50%) translateY(0); }
+  91%  { transform: translateX(-50%) translateY(-5px); }
+  100% { transform: translateX(-50%) translateY(0); }
+}
+@keyframes speechPosHop {
+  0%   { transform: translateX(-50%) translateY(0); }
+  28%  { transform: translateX(-50%) translateY(-12px); }
+  50%  { transform: translateX(-50%) translateY(-10px); }
+  68%  { transform: translateX(-50%) translateY(0); }
+  83%  { transform: translateX(-50%) translateY(-3px); }
+  100% { transform: translateX(-50%) translateY(0); }
+}
+.speech-pos-idle       { transform: translateX(-50%); }
+.speech-pos-jump       { animation: speechPosJump 2.0s ease-in-out both; }
+.speech-pos-hop        { animation: speechPosHop  1.5s ease-in-out both; }
+.speech-pos-walk-right { transform: translateX(-50%); }
+.speech-pos-walk-left  { transform: translateX(-50%); }
+.speech-pos-wiggle     { transform: translateX(-50%); }
+.speech-pos-stretch    { transform: translateX(-50%); }
+.speech-pos-look       { transform: translateX(-50%); }
+
 @keyframes pulseDot {
   0%, 100% { box-shadow: 0 0 0 4px rgba(106, 172, 20, 0.35); }
   50%      { box-shadow: 0 0 0 10px rgba(106, 172, 20, 0.08); }

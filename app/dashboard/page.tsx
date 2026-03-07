@@ -222,8 +222,16 @@ export default function DashboardPage() {
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
-    dm_management: false, announcement_management: false,
+    dm_management: false, announcement_management: false, gimmick_management: false,
   })
+
+  // スピーチ
+  const [speechBlocks, setSpeechBlocks] = useState<{ id: string; is_active: boolean; sort_order: number }[]>([])
+  const [speechLines, setSpeechLines]   = useState<{ id: string; block_id: string; text: string; type_speed_ms: number; display_ms: number; sort_order: number }[]>([])
+  const [gimmickSettings, setGimmickSettings] = useState({ block_interval_min_sec: 10, block_interval_max_sec: 30 })
+  const [slimeSpeech, setSlimeSpeech]     = useState('')
+  const [slimeSpeechFull, setSlimeSpeechFull] = useState('')
+  const [speechVisible, setSpeechVisible] = useState(false)
 
   // DM未読
   const [dmUnreadCount, setDmUnreadCount]           = useState(0)
@@ -286,6 +294,80 @@ export default function DashboardPage() {
   const today      = new Date().getDay()
   const todayPhase = getWeekPhase(today)
 
+  // ─── スピーチループ ─────────────────────────────────────
+
+  useEffect(() => {
+    const activeBlocks = speechBlocks.filter(b => b.is_active)
+    if (activeBlocks.length === 0) return
+
+    let active = true
+    const cleanups: Array<() => void> = []
+
+    function safeTimeout(fn: () => void, delay: number) {
+      const t = setTimeout(fn, delay)
+      cleanups.push(() => clearTimeout(t))
+    }
+
+    function runBlock(blockId: string) {
+      const blockLines = speechLines
+        .filter(l => l.block_id === blockId)
+        .sort((a, b) => a.sort_order - b.sort_order)
+      if (blockLines.length === 0) { scheduleNext(); return }
+
+      let lineIdx = 0
+
+      function runLine() {
+        if (!active) return
+        if (lineIdx >= blockLines.length) {
+          setSpeechVisible(false)
+          scheduleNext()
+          return
+        }
+        const line = blockLines[lineIdx]
+        setSlimeSpeech('')
+        setSlimeSpeechFull(line.text)
+        setSpeechVisible(true)
+
+        const chars = [...line.text]
+        let charIdx = 0
+        const iv = setInterval(() => {
+          if (!active) { clearInterval(iv); return }
+          charIdx++
+          setSlimeSpeech(chars.slice(0, charIdx).join(''))
+          if (charIdx >= chars.length) {
+            clearInterval(iv)
+            safeTimeout(() => { lineIdx++; runLine() }, line.display_ms ?? 2500)
+          }
+        }, line.type_speed_ms ?? 50)
+        cleanups.push(() => clearInterval(iv))
+      }
+
+      runLine()
+    }
+
+    function scheduleNext() {
+      if (!active) return
+      const active2 = speechBlocks.filter(b => b.is_active)
+      if (active2.length === 0) return
+      const block = active2[Math.floor(Math.random() * active2.length)]
+      const min = (gimmickSettings.block_interval_min_sec ?? 10) * 1000
+      const max = (gimmickSettings.block_interval_max_sec ?? 30) * 1000
+      safeTimeout(() => runBlock(block.id), min + Math.random() * Math.max(0, max - min))
+    }
+
+    // 初回は3〜5秒後に開始
+    safeTimeout(() => {
+      const b = activeBlocks[Math.floor(Math.random() * activeBlocks.length)]
+      runBlock(b.id)
+    }, 3000 + Math.random() * 2000)
+
+    return () => {
+      active = false
+      setSpeechVisible(false)
+      cleanups.forEach(fn => fn())
+    }
+  }, [speechBlocks, speechLines, gimmickSettings])
+
   // ─── 初期データ読み込み ─────────────────────────────────
 
   useEffect(() => {
@@ -299,7 +381,7 @@ export default function DashboardPage() {
         const uid = data.user.id
         if (mounted) setUserId(uid)
 
-        const [profileRes, assignmentRes, ranksRes, commentLimitRes] = await Promise.all([
+        const [profileRes, assignmentRes, ranksRes, commentLimitRes, speechBlocksRes, speechLinesRes, gimmickSettingsRes] = await Promise.all([
           supabase.from('profiles')
             .select('username, course, stage, total_points, cool_points, role')
             .eq('id', uid)
@@ -320,6 +402,9 @@ export default function DashboardPage() {
             .select('base_points')
             .eq('action_key', 'comment_daily_limit')
             .single(),
+          supabase.from('speech_blocks').select('id, is_active, sort_order').order('sort_order'),
+          supabase.from('speech_lines').select('id, block_id, text, type_speed_ms, display_ms, sort_order').order('sort_order'),
+          supabase.from('gimmick_settings').select('block_interval_min_sec, block_interval_max_sec').single(),
         ])
 
         if (!mounted) return
@@ -399,6 +484,9 @@ export default function DashboardPage() {
 
         setRankSettings(ranksRes.data ?? [])
         setCommentDailyLimit(commentLimitRes.data?.base_points ?? 0)
+        setSpeechBlocks(speechBlocksRes.data ?? [])
+        setSpeechLines(speechLinesRes.data ?? [])
+        if (gimmickSettingsRes.data) setGimmickSettings(gimmickSettingsRes.data)
 
         const assignmentData = assignmentRes.data
         if (assignmentData) {
@@ -965,7 +1053,12 @@ export default function DashboardPage() {
             textAlign: 'center',
             boxShadow: '0 6px 0 #1a3a00',
           }}>
-            <SlimeIcon size={80} />
+            <SlimeIcon
+              size={80}
+              speechText={slimeSpeech}
+              speechFullText={slimeSpeechFull}
+              speechVisible={speechVisible}
+            />
             <h1 className="game-title" style={{ fontSize: 36, marginBottom: 8, color: '#ffffff', fontWeight: 900, textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>ようこそ！</h1>
             <p style={{ fontSize: 26, fontWeight: 'bold', color: '#d4f08a', marginBottom: 20 }}>
               {username ?? '名無し'} さん

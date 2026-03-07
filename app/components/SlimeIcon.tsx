@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from 'react'
+import SpeechBubble from './SpeechBubble'
 
 type SlimeState = 'idle' | 'jump' | 'hop' | 'walk-right' | 'walk-left' | 'wiggle' | 'stretch' | 'look'
 
@@ -27,7 +28,17 @@ function pickNext(): SlimeState {
   return 'look'
 }
 
-export default function SlimeIcon({ size = 80 }: { size?: number }) {
+export default function SlimeIcon({
+  size = 80,
+  speechText = '',
+  speechFullText = '',
+  speechVisible = false,
+}: {
+  size?: number
+  speechText?: string
+  speechFullText?: string
+  speechVisible?: boolean
+}) {
   const [state, setState] = useState<SlimeState>('idle')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -52,6 +63,7 @@ export default function SlimeIcon({ size = 80 }: { size?: number }) {
 
   return (
     <div style={{ position: 'relative', width: size, margin: '0 auto 16px' }}>
+      <SpeechBubble text={speechText} fullText={speechFullText} visible={speechVisible} state={state} />
       <img
         src="/icons/Handlime_icon.png"
         alt="slime"
