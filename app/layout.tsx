@@ -16,7 +16,8 @@ export default function RootLayout({
     <html lang="ja">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#6aac14" />
+        <meta name="theme-color" content="#6aac14" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#6aac14" media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />

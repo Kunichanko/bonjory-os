@@ -43,6 +43,8 @@ export default function GimmickPage() {
   const [settings, setSettings] = useState<GimmickSettings>({ block_interval_min_sec: 10, block_interval_max_sec: 30 })
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null)
+  const [defaultTypeSpeedSec, setDefaultTypeSpeedSec] = useState(0.05)
+  const [defaultDisplaySec, setDefaultDisplaySec] = useState(2.5)
 
   useEffect(() => {
     let mounted = true
@@ -129,7 +131,7 @@ export default function GimmickPage() {
     const existing = linesForBlock(blockId)
     const nextOrder = existing.length
     const { data, error } = await supabase.from('speech_lines')
-      .insert({ block_id: blockId, text: '', type_speed_ms: 50, display_ms: 2500, sort_order: nextOrder })
+      .insert({ block_id: blockId, text: '', type_speed_ms: Math.round(defaultTypeSpeedSec * 1000), display_ms: Math.round(defaultDisplaySec * 1000), sort_order: nextOrder })
       .select().single()
     if (error || !data) return
     setLines(prev => [...prev, data])
@@ -209,6 +211,24 @@ export default function GimmickPage() {
           <p style={{ color: '#a8d870', fontSize: 12, marginTop: 8 }}>
             ブロック間の間隔をランダムで決定します（最小〜最大秒）
           </p>
+
+          <hr style={{ border: 'none', borderTop: '1px solid #c8e89a', margin: '16px 0' }} />
+          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>新規一言のデフォルト値</h2>
+          <p style={{ color: '#a8d870', fontSize: 12, marginBottom: 12 }}>「一言を追加」時に自動で設定される値です</p>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <div>
+              <label className="game-label">タイピング速度 (秒/文字)</label>
+              <input className="game-input" type="number" min={0.01} max={2} step={0.01} style={{ width: 110 }}
+                value={defaultTypeSpeedSec}
+                onChange={e => setDefaultTypeSpeedSec(Number(e.target.value))} />
+            </div>
+            <div>
+              <label className="game-label">表示時間 (秒)</label>
+              <input className="game-input" type="number" min={0.5} step={0.1} style={{ width: 110 }}
+                value={defaultDisplaySec}
+                onChange={e => setDefaultDisplaySec(Number(e.target.value))} />
+            </div>
+          </div>
         </div>
 
         {/* ブロック一覧 */}
@@ -276,18 +296,18 @@ export default function GimmickPage() {
                       </div>
                       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                         <div>
-                          <label className="game-label" style={{ fontSize: 11 }}>タイピング速度 (ms/文字)</label>
-                          <input className="game-input" type="number" min={10} max={500} style={{ width: 90, fontSize: 13 }}
-                            value={line.type_speed_ms}
-                            onChange={e => updateLine(line.id, 'type_speed_ms', Number(e.target.value))}
-                            onBlur={e => updateLine(line.id, 'type_speed_ms', Number(e.target.value))} />
+                          <label className="game-label" style={{ fontSize: 11 }}>タイピング速度 (秒/文字)</label>
+                          <input className="game-input" type="number" min={0.01} max={2} step={0.01} style={{ width: 100, fontSize: 13 }}
+                            value={+(line.type_speed_ms / 1000).toFixed(3)}
+                            onChange={e => updateLine(line.id, 'type_speed_ms', Math.round(Number(e.target.value) * 1000))}
+                            onBlur={e => updateLine(line.id, 'type_speed_ms', Math.round(Number(e.target.value) * 1000))} />
                         </div>
                         <div>
-                          <label className="game-label" style={{ fontSize: 11 }}>表示時間 (ms)</label>
-                          <input className="game-input" type="number" min={500} style={{ width: 90, fontSize: 13 }}
-                            value={line.display_ms}
-                            onChange={e => updateLine(line.id, 'display_ms', Number(e.target.value))}
-                            onBlur={e => updateLine(line.id, 'display_ms', Number(e.target.value))} />
+                          <label className="game-label" style={{ fontSize: 11 }}>表示時間 (秒)</label>
+                          <input className="game-input" type="number" min={0.5} step={0.1} style={{ width: 100, fontSize: 13 }}
+                            value={+(line.display_ms / 1000).toFixed(2)}
+                            onChange={e => updateLine(line.id, 'display_ms', Math.round(Number(e.target.value) * 1000))}
+                            onBlur={e => updateLine(line.id, 'display_ms', Math.round(Number(e.target.value) * 1000))} />
                         </div>
                       </div>
                     </div>

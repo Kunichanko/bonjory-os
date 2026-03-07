@@ -10,7 +10,7 @@ interface SpeechBubbleProps {
 export default function SpeechBubble({ text, fullText, visible, state = 'idle' }: SpeechBubbleProps) {
   return (
     <div
-      className={state === 'jump' || state === 'hop' ? `speech-pos-${state}` : undefined}
+      className={['jump','hop','walk-right','walk-left'].includes(state) ? `speech-pos-${state}` : undefined}
       style={{
         position: 'absolute',
         bottom: 'calc(100% + 14px)',

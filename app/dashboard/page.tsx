@@ -866,7 +866,8 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <nav style={{ flex: 1, padding: '12px 0' }}>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <nav style={{ padding: '12px 0' }}>
           {NAV_ITEMS.map(item => (
             <button key={item.id} onClick={() => navigate(item.id)} style={{
               display: 'flex', alignItems: 'center', gap: 12,
@@ -977,6 +978,7 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
+        </div>{/* scrollable area end */}
 
         <div style={{ padding: '12px 20px 0', borderTop: '2px solid #3d6e00' }}>
           <a href="/account"

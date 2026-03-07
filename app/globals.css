@@ -103,6 +103,10 @@ body {
   font-size: 14px;
 }
 
+/* ── Scrollbar（非表示・スクロール維持） ──────────── */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
 /* ── Animations ───────────────────────────────────── */
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(18px); }
@@ -261,11 +265,29 @@ body {
   83%  { transform: translateX(-50%) translateY(-3px); }
   100% { transform: translateX(-50%) translateY(0); }
 }
+@keyframes speechPosWalkRight {
+  0%   { transform: translateX(calc(-50% +  0px)); }
+  18%  { transform: translateX(calc(-50% +  8px)); }
+  40%  { transform: translateX(calc(-50% + 22px)); }
+  55%  { transform: translateX(calc(-50% + 20px)); }
+  72%  { transform: translateX(calc(-50% +  7px)); }
+  88%  { transform: translateX(calc(-50% +  1px)); }
+  100% { transform: translateX(calc(-50% +  0px)); }
+}
+@keyframes speechPosWalkLeft {
+  0%   { transform: translateX(calc(-50% -  0px)); }
+  18%  { transform: translateX(calc(-50% -  8px)); }
+  40%  { transform: translateX(calc(-50% - 22px)); }
+  55%  { transform: translateX(calc(-50% - 20px)); }
+  72%  { transform: translateX(calc(-50% -  7px)); }
+  88%  { transform: translateX(calc(-50% -  1px)); }
+  100% { transform: translateX(calc(-50% -  0px)); }
+}
 .speech-pos-idle       { transform: translateX(-50%); }
-.speech-pos-jump       { animation: speechPosJump 2.0s ease-in-out both; }
-.speech-pos-hop        { animation: speechPosHop  1.5s ease-in-out both; }
-.speech-pos-walk-right { transform: translateX(-50%); }
-.speech-pos-walk-left  { transform: translateX(-50%); }
+.speech-pos-jump       { animation: speechPosJump      2.0s ease-in-out both; }
+.speech-pos-hop        { animation: speechPosHop       1.5s ease-in-out both; }
+.speech-pos-walk-right { animation: speechPosWalkRight 1.7s ease-in-out both; }
+.speech-pos-walk-left  { animation: speechPosWalkLeft  1.7s ease-in-out both; }
 .speech-pos-wiggle     { transform: translateX(-50%); }
 .speech-pos-stretch    { transform: translateX(-50%); }
 .speech-pos-look       { transform: translateX(-50%); }
