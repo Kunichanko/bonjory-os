@@ -102,3 +102,171 @@ body {
   padding: 8px 12px;
   font-size: 14px;
 }
+
+/* ── Animations ───────────────────────────────────── */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* スライム物理アニメーション */
+@keyframes slimeIdleBreath {
+  0%,100% { transform: scaleX(1)    scaleY(1); }
+  40%     { transform: scaleX(1.025) scaleY(0.975); }
+  70%     { transform: scaleX(0.985) scaleY(1.018); }
+}
+
+@keyframes slimeBigJump {
+  0%   { transform: scaleX(1.12) scaleY(0.86) translateY(0); }
+  14%  { transform: scaleX(0.92) scaleY(1.10) translateY(-3px); }
+  42%  { transform: scaleX(0.94) scaleY(1.07) translateY(-26px); }
+  55%  { transform: scaleX(0.95) scaleY(1.06) translateY(-24px); }
+  72%  { transform: scaleX(0.93) scaleY(1.08) translateY(-8px); }
+  83%  { transform: scaleX(1.14) scaleY(0.84) translateY(0); }
+  91%  { transform: scaleX(0.96) scaleY(1.05) translateY(-5px); }
+  96%  { transform: scaleX(1.03) scaleY(0.97) translateY(0); }
+  100% { transform: scaleX(1)    scaleY(1)    translateY(0); }
+}
+
+@keyframes slimeSmallHop {
+  0%   { transform: scaleX(1.07) scaleY(0.92) translateY(0); }
+  28%  { transform: scaleX(0.95) scaleY(1.07) translateY(-12px); }
+  50%  { transform: scaleX(0.96) scaleY(1.05) translateY(-10px); }
+  68%  { transform: scaleX(1.08) scaleY(0.91) translateY(0); }
+  83%  { transform: scaleX(0.98) scaleY(1.03) translateY(-3px); }
+  100% { transform: scaleX(1)    scaleY(1)    translateY(0); }
+}
+
+@keyframes slimeWalkRight {
+  0%   { transform: translateX(0)    scaleX(1)    scaleY(1); }
+  18%  { transform: translateX(8px)  scaleX(1.07) scaleY(0.92); }
+  40%  { transform: translateX(22px) scaleX(0.92) scaleY(1.09); }
+  55%  { transform: translateX(20px) scaleX(0.93) scaleY(1.08); }
+  72%  { transform: translateX(7px)  scaleX(1.05) scaleY(0.95); }
+  88%  { transform: translateX(1px)  scaleX(0.99) scaleY(1.02); }
+  100% { transform: translateX(0)    scaleX(1)    scaleY(1); }
+}
+
+@keyframes slimeWalkLeft {
+  0%   { transform: translateX(0)     scaleX(1)    scaleY(1); }
+  18%  { transform: translateX(-8px)  scaleX(1.07) scaleY(0.92); }
+  40%  { transform: translateX(-22px) scaleX(0.92) scaleY(1.09); }
+  55%  { transform: translateX(-20px) scaleX(0.93) scaleY(1.08); }
+  72%  { transform: translateX(-7px)  scaleX(1.05) scaleY(0.95); }
+  88%  { transform: translateX(-1px)  scaleX(0.99) scaleY(1.02); }
+  100% { transform: translateX(0)     scaleX(1)    scaleY(1); }
+}
+
+@keyframes slimeWiggle {
+  0%,100% { transform: rotate(0deg)  scaleX(1); }
+  15%     { transform: rotate(-6deg) scaleX(0.95); }
+  32%     { transform: rotate(6deg)  scaleX(1.05); }
+  50%     { transform: rotate(-4deg) scaleX(0.97); }
+  68%     { transform: rotate(4deg)  scaleX(1.03); }
+  84%     { transform: rotate(-2deg); }
+}
+
+@keyframes slimeStretch {
+  0%   { transform: scaleX(1)    scaleY(1); }
+  20%  { transform: scaleX(0.82) scaleY(1.30); }
+  40%  { transform: scaleX(0.85) scaleY(1.25); }
+  58%  { transform: scaleX(1.12) scaleY(0.86); }
+  72%  { transform: scaleX(0.95) scaleY(1.07); }
+  84%  { transform: scaleX(1.04) scaleY(0.96); }
+  100% { transform: scaleX(1)    scaleY(1); }
+}
+
+@keyframes slimeLook {
+  0%,100% { transform: rotate(0deg)  scaleX(1)    scaleY(1); }
+  20%     { transform: rotate(-10deg) scaleX(0.97) scaleY(1.03); }
+  45%     { transform: rotate(-8deg)  scaleX(0.97) scaleY(1.03); }
+  65%     { transform: rotate(9deg)   scaleX(1.03) scaleY(0.97); }
+  85%     { transform: rotate(7deg)   scaleX(1.03) scaleY(0.97); }
+}
+
+/* 影アニメーション */
+@keyframes shadowIdle {
+  0%,100% { transform: translateX(-50%) scaleX(1);    opacity: 0.22; }
+  40%     { transform: translateX(-50%) scaleX(1.03); opacity: 0.24; }
+  70%     { transform: translateX(-50%) scaleX(0.98); opacity: 0.21; }
+}
+@keyframes shadowJump {
+  0%   { transform: translateX(-50%) scaleX(1.1);  opacity: 0.26; }
+  14%  { transform: translateX(-50%) scaleX(0.85); opacity: 0.19; }
+  42%  { transform: translateX(-50%) scaleX(0.42); opacity: 0.09; }
+  55%  { transform: translateX(-50%) scaleX(0.40); opacity: 0.08; }
+  72%  { transform: translateX(-50%) scaleX(0.65); opacity: 0.15; }
+  83%  { transform: translateX(-50%) scaleX(1.25); opacity: 0.30; }
+  91%  { transform: translateX(-50%) scaleX(0.88); opacity: 0.21; }
+  100% { transform: translateX(-50%) scaleX(1);    opacity: 0.22; }
+}
+@keyframes shadowHop {
+  0%   { transform: translateX(-50%) scaleX(1.05); opacity: 0.24; }
+  28%  { transform: translateX(-50%) scaleX(0.65); opacity: 0.13; }
+  50%  { transform: translateX(-50%) scaleX(0.62); opacity: 0.12; }
+  68%  { transform: translateX(-50%) scaleX(1.08); opacity: 0.26; }
+  83%  { transform: translateX(-50%) scaleX(0.92); opacity: 0.20; }
+  100% { transform: translateX(-50%) scaleX(1);    opacity: 0.22; }
+}
+@keyframes shadowWalk {
+  0%,100% { transform: translateX(-50%) scaleX(1);    opacity: 0.22; }
+  40%     { transform: translateX(-50%) scaleX(0.88); opacity: 0.18; }
+  75%     { transform: translateX(-50%) scaleX(1.05); opacity: 0.24; }
+}
+
+.slime-idle       { animation: slimeIdleBreath 3.8s ease-in-out infinite; transform-origin: center bottom; }
+.slime-jump       { animation: slimeBigJump    2.0s ease-in-out both;     transform-origin: center bottom; }
+.slime-hop        { animation: slimeSmallHop   1.5s ease-in-out both;     transform-origin: center bottom; }
+.slime-walk-right { animation: slimeWalkRight  1.7s ease-in-out both;     transform-origin: center bottom; }
+.slime-walk-left  { animation: slimeWalkLeft   1.7s ease-in-out both;     transform-origin: center bottom; }
+.slime-wiggle     { animation: slimeWiggle     1.6s ease-in-out both;     transform-origin: center bottom; }
+.slime-stretch    { animation: slimeStretch    1.8s ease-in-out both;     transform-origin: center bottom; }
+.slime-look       { animation: slimeLook       2.2s ease-in-out both;     transform-origin: center bottom; }
+
+.slime-shadow {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.22);
+  filter: blur(3px);
+  pointer-events: none;
+}
+.slime-shadow-idle       { animation: shadowIdle 3.8s ease-in-out infinite; }
+.slime-shadow-jump       { animation: shadowJump 2.0s ease-in-out both; }
+.slime-shadow-hop        { animation: shadowHop  1.5s ease-in-out both; }
+.slime-shadow-walk-right { animation: shadowWalk 1.7s ease-in-out both; }
+.slime-shadow-walk-left  { animation: shadowWalk 1.7s ease-in-out both; }
+.slime-shadow-wiggle     { animation: shadowIdle 1.6s ease-in-out both; }
+.slime-shadow-stretch    { animation: shadowIdle 1.8s ease-in-out both; }
+.slime-shadow-look       { animation: shadowIdle 2.2s ease-in-out both; }
+
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(106, 172, 20, 0.35); }
+  50%      { box-shadow: 0 0 0 10px rgba(106, 172, 20, 0.08); }
+}
+
+.stagger-children > * {
+  animation: fadeSlideUp 0.45s ease-out both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0.00s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.07s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.14s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.21s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.28s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.35s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.42s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.49s; }
+
+.timeline-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.timeline-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 11px 0 var(--green-dark), 0 16px 30px rgba(0, 0, 0, 0.28);
+}
+
+.milestone-active {
+  animation: pulseDot 2s ease-in-out infinite;
+}

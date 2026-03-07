@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 import { marked } from 'marked'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
+import SlimeIcon from '../components/SlimeIcon'
 
 // ─── 定数・型 ─────────────────────────────────────────────
 
@@ -953,7 +954,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div style={{ maxWidth: 560, margin: '0 auto', paddingTop: 48, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="stagger-children" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 48, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ── ウェルカムカード ─────────────────────────── */}
           <div style={{
@@ -964,7 +965,7 @@ export default function DashboardPage() {
             textAlign: 'center',
             boxShadow: '0 6px 0 #1a3a00',
           }}>
-            <img src="/icons/Handlime_icon.png" alt="icon" style={{ width: 80, height: 80, objectFit: 'contain', display: 'block', margin: '0 auto 16px' }} />
+            <SlimeIcon size={80} />
             <h1 className="game-title" style={{ fontSize: 36, marginBottom: 8, color: '#ffffff', fontWeight: 900, textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>ようこそ！</h1>
             <p style={{ fontSize: 26, fontWeight: 'bold', color: '#d4f08a', marginBottom: 20 }}>
               {username ?? '名無し'} さん
@@ -1019,7 +1020,7 @@ export default function DashboardPage() {
                             background: isPast ? '#6aac14' : '#c8e89a', zIndex: 0,
                           }} />
                         )}
-                        <div style={{
+                        <div className={isActive ? 'milestone-active' : ''} style={{
                           width: 32, height: 32, borderRadius: '50%',
                           background: isActive ? '#6aac14' : isPast ? '#3d6e00' : '#c8e89a',
                           border: `4px solid ${isActive ? '#3d6e00' : isPast ? '#2a4d00' : '#8dc832'}`,
@@ -1467,7 +1468,7 @@ export default function DashboardPage() {
                       <button key={item.id}
                         onClick={() => { setSelectedPost(item); loadComments(item.id) }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
-                        <div className="game-card" style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
+                        <div className="game-card timeline-card" style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
                           {item.thumbnail_url ? (
                             <img src={item.thumbnail_url} alt={item.task.title}
                               style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
@@ -1503,7 +1504,7 @@ export default function DashboardPage() {
                       <button key={item.id}
                         onClick={() => { setSelectedPost(item); loadComments(item.id) }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
-                        <div className="game-card" style={{ padding: 0, overflow: 'hidden' }}>
+                        <div className="game-card timeline-card" style={{ padding: 0, overflow: 'hidden' }}>
                           <div style={{ display: 'flex', alignItems: 'stretch' }}>
                             {item.thumbnail_url ? (
                               <img src={item.thumbnail_url} alt={item.task.title}
