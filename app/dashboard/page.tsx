@@ -889,9 +889,15 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div style={{ padding: '16px 20px', borderTop: '2px solid #3d6e00' }}>
+        <div style={{ padding: '12px 20px 0', borderTop: '2px solid #3d6e00' }}>
+          <a href="/account"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#a8d870', fontSize: 14, textDecoration: 'none', padding: '8px 0' }}>
+            <span>⚙</span> アカウント設定
+          </a>
+        </div>
+        <div style={{ padding: '0 20px 16px' }}>
           <button onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#a8d870', fontSize: 14, padding: 0 }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#a8d870', fontSize: 14, padding: '8px 0' }}>
             <span>🚪</span> ログアウト
           </button>
         </div>
