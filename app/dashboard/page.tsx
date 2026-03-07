@@ -16,6 +16,7 @@ const STAGE_LABELS: Record<string, string> = {
 const COURSE_LABELS: Record<string, string> = {
   Unity:   'Unityコース',
   Blender: 'Blenderコース',
+  Web:     'Web開発コース',
 }
 
 const STATUS_INFO: Record<string, { label: string; emoji: string; bg: string; color: string }> = {

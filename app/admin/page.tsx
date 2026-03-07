@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
 
-type Course = 'Unity' | 'Blender' | null
+type Course = 'Unity' | 'Blender' | 'Web' | null
 type Stage  = 'Foundation' | 'Development' | 'Production' | null
 
 interface Profile {
@@ -45,6 +45,7 @@ const COURSE_OPTIONS: { label: string; value: Course }[] = [
   { label: '—', value: null },
   { label: 'Unity', value: 'Unity' },
   { label: 'Blender', value: 'Blender' },
+  { label: 'Web開発', value: 'Web' },
 ]
 
 const STAGE_OPTIONS: { label: string; value: Stage }[] = [

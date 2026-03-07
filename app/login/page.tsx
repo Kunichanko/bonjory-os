@@ -17,12 +17,14 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         setError(error.message)
         return
       }
-      router.push('/dashboard')
+      const { data: profile } = await supabase
+        .from('profiles').select('course').eq('id', data.user.id).single()
+      router.push(profile?.course ? '/dashboard' : '/onboarding')
     } catch (err: any) {
       setError(err?.message ?? String(err))
     } finally {

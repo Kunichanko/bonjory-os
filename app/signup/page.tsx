@@ -1,20 +1,20 @@
 "use client"
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 
 export default function SignupPage() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [username, setUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
     setError(null)
-    setSuccess(null)
     setLoading(true)
 
     try {
@@ -31,7 +31,7 @@ export default function SignupPage() {
         return
       }
 
-      setSuccess('アカウントを作成しました！')
+      router.push('/login')
     } catch (err: any) {
       setError(err?.message ?? String(err))
     } finally {
@@ -94,7 +94,6 @@ export default function SignupPage() {
           </button>
 
           {error && <div className="game-error">エラー: {error}</div>}
-          {success && <div className="game-success">{success}</div>}
         </form>
 
         <p style={{ textAlign: 'center', marginTop: 24, color: '#3d6e00', fontSize: 14 }}>

@@ -72,10 +72,11 @@ export default function DmPage() {
         const uid = authData.user.id
         if (mounted) setUserId(uid)
 
-        // DM管理者一覧（dm_management権限を持つプロフィール）
-        const { data: ppData } = await supabase
-          .from('profile_positions')
-          .select('profile_id, positions(permissions)')
+        // DM管理者一覧（dm_management権限を持つプロフィール + adminロール）
+        const [{ data: ppData }, { data: adminProfiles }] = await Promise.all([
+          supabase.from('profile_positions').select('profile_id, positions(permissions)'),
+          supabase.from('profiles').select('id, username').eq('role', 'admin'),
+        ])
 
         const managerIds = new Set<string>()
         ;(ppData ?? []).forEach(pp => {
@@ -84,6 +85,8 @@ export default function DmPage() {
           const perms = (Array.isArray(pos) ? pos[0]?.permissions : pos?.permissions) ?? {}
           if (perms['dm_management']) managerIds.add(ppTyped.profile_id)
         })
+        // adminロールも送信先に含める
+        ;(adminProfiles ?? []).forEach(p => managerIds.add(p.id))
 
         let managerList: ManagerProfile[] = []
         if (managerIds.size > 0) {
