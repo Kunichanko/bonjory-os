@@ -16,6 +16,8 @@ interface TimelinePost {
   self_evaluation: string | null
   retrospective: string | null
   submitted_at: string | null
+  hidden_in_timeline: boolean
+  force_past_timeline: boolean
   task: {
     id: string
     title: string
@@ -82,6 +84,11 @@ export default function AdminTimelinePage() {
   // 削除状態
   const [deleting, setDeleting]   = useState<Record<string, string>>({}) // id -> 'thumb'|'video'|'both'
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ postId: string; type: 'thumb' | 'video' } | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState<'thumb' | 'video' | 'both' | null>(null)
+
+  // 非表示・過去移動の更新状態
+  const [updating, setUpdating] = useState<Record<string, boolean>>({})
 
   // リフレッシュ確認
   const [refreshConfirm, setRefreshConfirm] = useState(false)
@@ -116,6 +123,7 @@ export default function AdminTimelinePage() {
           .select(`
             id, user_id, is_anonymous, thumbnail_url, media_url,
             self_evaluation, retrospective, submitted_at,
+            hidden_in_timeline, force_past_timeline,
             task:tasks(id, title, target_course, target_stage, created_at)
           `)
           .eq('status', 'submitted')
@@ -150,8 +158,8 @@ export default function AdminTimelinePage() {
 
   const filteredPosts = useMemo(() => {
     let list = posts.filter(p => tab === 'current'
-      ? isCurrentTimeline(p.task.created_at)
-      : !isCurrentTimeline(p.task.created_at)
+      ? !p.force_past_timeline && isCurrentTimeline(p.task.created_at)
+      : p.force_past_timeline || !isCurrentTimeline(p.task.created_at)
     )
     if (filterCourse) list = list.filter(p => p.task.target_course === filterCourse)
     if (filterStage)  list = list.filter(p => p.task.target_stage === filterStage)
@@ -164,6 +172,28 @@ export default function AdminTimelinePage() {
     })
     return list
   }, [posts, tab, filterCourse, filterStage, filterDateFrom, filterDateTo, sortOrder])
+
+  // ─── 非表示・過去移動 ────────────────────────────────────
+
+  async function toggleHidden(postId: string, current: boolean) {
+    setUpdating(prev => ({ ...prev, [postId]: true }))
+    const { error } = await supabase
+      .from('task_assignments')
+      .update({ hidden_in_timeline: !current })
+      .eq('id', postId)
+    if (!error) setPosts(prev => prev.map(p => p.id === postId ? { ...p, hidden_in_timeline: !current } : p))
+    setUpdating(prev => { const n = { ...prev }; delete n[postId]; return n })
+  }
+
+  async function toggleForcePast(postId: string, current: boolean) {
+    setUpdating(prev => ({ ...prev, [postId]: true }))
+    const { error } = await supabase
+      .from('task_assignments')
+      .update({ force_past_timeline: !current })
+      .eq('id', postId)
+    if (!error) setPosts(prev => prev.map(p => p.id === postId ? { ...p, force_past_timeline: !current } : p))
+    setUpdating(prev => { const n = { ...prev }; delete n[postId]; return n })
+  }
 
   // ─── ストレージ削除 ──────────────────────────────────────
 
@@ -227,6 +257,7 @@ export default function AdminTimelinePage() {
       .select(`
         id, user_id, is_anonymous, thumbnail_url, media_url,
         self_evaluation, retrospective, submitted_at,
+        hidden_in_timeline, force_past_timeline,
         task:tasks(id, title, target_course, target_stage, created_at)
       `)
       .eq('status', 'submitted')
@@ -257,8 +288,8 @@ export default function AdminTimelinePage() {
     )
   }
 
-  const currentCount = posts.filter(p => isCurrentTimeline(p.task.created_at)).length
-  const pastCount    = posts.filter(p => !isCurrentTimeline(p.task.created_at)).length
+  const currentCount = posts.filter(p => !p.force_past_timeline && isCurrentTimeline(p.task.created_at)).length
+  const pastCount    = posts.filter(p => p.force_past_timeline || !isCurrentTimeline(p.task.created_at)).length
 
   // ─── レンダリング ────────────────────────────────────────
 
@@ -377,18 +408,39 @@ export default function AdminTimelinePage() {
           {canManage && filteredPosts.length > 0 && (
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ color: '#c0392b', fontWeight: 'bold', fontSize: 12 }}>一括削除 ({filteredPosts.length}件):</span>
-              <button onClick={() => bulkDelete('thumb')} disabled={bulkDeleting}
-                style={{ padding: '4px 12px', borderRadius: 8, border: '2px solid #c0392b', background: 'none', color: '#c0392b', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
-                {bulkDeleting ? '削除中…' : 'サムネイル削除'}
-              </button>
-              <button onClick={() => bulkDelete('video')} disabled={bulkDeleting}
-                style={{ padding: '4px 12px', borderRadius: 8, border: '2px solid #c0392b', background: 'none', color: '#c0392b', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
-                {bulkDeleting ? '削除中…' : '動画削除'}
-              </button>
-              <button onClick={() => bulkDelete('both')} disabled={bulkDeleting}
-                style={{ padding: '4px 12px', borderRadius: 8, border: '2px solid #c0392b', background: '#c0392b', color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
-                {bulkDeleting ? '削除中…' : '全メディア削除'}
-              </button>
+              {bulkDeleteConfirm ? (
+                <>
+                  <span style={{ color: '#c0392b', fontSize: 12, fontWeight: 'bold' }}>
+                    {bulkDeleteConfirm === 'thumb' ? 'サムネイル' : bulkDeleteConfirm === 'video' ? '動画' : '全メディア'}を{filteredPosts.length}件一括削除しますか?
+                  </span>
+                  <button
+                    onClick={async () => { await bulkDelete(bulkDeleteConfirm); setBulkDeleteConfirm(null) }}
+                    disabled={bulkDeleting}
+                    style={{ padding: '4px 12px', borderRadius: 8, border: '2px solid #c0392b', background: '#c0392b', color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                    {bulkDeleting ? '削除中…' : '削除する'}
+                  </button>
+                  <button
+                    onClick={() => setBulkDeleteConfirm(null)}
+                    style={{ padding: '4px 12px', borderRadius: 8, border: '2px solid #888', background: 'none', color: '#888', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                    キャンセル
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setBulkDeleteConfirm('thumb')} disabled={bulkDeleting}
+                    style={{ padding: '4px 12px', borderRadius: 8, border: '2px solid #c0392b', background: 'none', color: '#c0392b', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                    サムネイル削除
+                  </button>
+                  <button onClick={() => setBulkDeleteConfirm('video')} disabled={bulkDeleting}
+                    style={{ padding: '4px 12px', borderRadius: 8, border: '2px solid #c0392b', background: 'none', color: '#c0392b', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                    動画削除
+                  </button>
+                  <button onClick={() => setBulkDeleteConfirm('both')} disabled={bulkDeleting}
+                    style={{ padding: '4px 12px', borderRadius: 8, border: '2px solid #c0392b', background: '#c0392b', color: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                    全メディア削除
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -441,6 +493,14 @@ export default function AdminTimelinePage() {
                         {post.is_anonymous ? '🙈 匿名' : `👤 ${post.profile?.username ?? '名無し'}`}
                         {post.submitted_at && ` · ${new Date(post.submitted_at).toLocaleDateString('ja-JP')}`}
                       </p>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+                        {post.hidden_in_timeline && (
+                          <span style={{ background: '#888', color: 'white', borderRadius: 6, padding: '1px 6px', fontSize: 10, fontWeight: 'bold' }}>非表示</span>
+                        )}
+                        {post.force_past_timeline && (
+                          <span style={{ background: '#0288d1', color: 'white', borderRadius: 6, padding: '1px 6px', fontSize: 10, fontWeight: 'bold' }}>強制・過去</span>
+                        )}
+                      </div>
                     </div>
                     <span style={{ color: '#6aac14', fontSize: 18 }}>{isOpen ? '▲' : '▼'}</span>
                   </button>
@@ -449,30 +509,80 @@ export default function AdminTimelinePage() {
                   {isOpen && (
                     <div style={{ padding: '0 20px 16px', borderTop: '2px dashed #c8e89a' }}>
 
+                      {/* 表示制御ボタン (管理者のみ) */}
+                      {canManage && (
+                        <div style={{ display: 'flex', gap: 8, padding: '12px 0 4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 12 }}>表示制御:</span>
+                          <button
+                            onClick={() => toggleHidden(post.id, post.hidden_in_timeline)}
+                            disabled={updating[post.id]}
+                            style={{
+                              padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+                              border: `2px solid ${post.hidden_in_timeline ? '#6aac14' : '#888'}`,
+                              background: post.hidden_in_timeline ? '#f0fce0' : 'none',
+                              color: post.hidden_in_timeline ? '#2d5500' : '#888',
+                            }}>
+                            {updating[post.id] ? '更新中…' : post.hidden_in_timeline ? '表示に戻す' : '非表示にする'}
+                          </button>
+                          <button
+                            onClick={() => toggleForcePast(post.id, post.force_past_timeline)}
+                            disabled={updating[post.id]}
+                            style={{
+                              padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+                              border: `2px solid ${post.force_past_timeline ? '#6aac14' : '#0288d1'}`,
+                              background: post.force_past_timeline ? '#f0fce0' : 'none',
+                              color: post.force_past_timeline ? '#2d5500' : '#0288d1',
+                            }}>
+                            {updating[post.id] ? '更新中…' : post.force_past_timeline ? '最新に戻す' : '過去に移動'}
+                          </button>
+                        </div>
+                      )}
+
                       {/* 削除ボタン (管理者のみ) */}
                       {canManage && (
-                        <div style={{ display: 'flex', gap: 8, padding: '12px 0', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 8, padding: '4px 0 12px', flexWrap: 'wrap', alignItems: 'center' }}>
                           <span style={{ color: '#c0392b', fontWeight: 'bold', fontSize: 12 }}>ストレージ削除:</span>
-                          <button
-                            onClick={() => deleteFile(post.id, 'thumb')}
-                            disabled={!post.thumbnail_url || deleting[post.id] === 'thumb'}
-                            style={{
-                              padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
-                              border: '2px solid #c0392b', background: 'none', color: '#c0392b',
-                              opacity: !post.thumbnail_url ? 0.4 : 1,
-                            }}>
-                            {deleting[post.id] === 'thumb' ? '削除中…' : post.thumbnail_url ? 'サムネイル削除' : 'サムネなし'}
-                          </button>
-                          <button
-                            onClick={() => deleteFile(post.id, 'video')}
-                            disabled={!post.media_url || deleting[post.id] === 'video'}
-                            style={{
-                              padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
-                              border: '2px solid #c0392b', background: 'none', color: '#c0392b',
-                              opacity: !post.media_url ? 0.4 : 1,
-                            }}>
-                            {deleting[post.id] === 'video' ? '削除中…' : post.media_url && !post.media_url.includes('youtube') && !post.media_url.includes('youtu.be') ? '動画削除' : post.media_url ? 'URL投稿(削除不可)' : 'メディアなし'}
-                          </button>
+                          {deleteConfirm?.postId === post.id ? (
+                            <>
+                              <span style={{ color: '#c0392b', fontSize: 12, fontWeight: 'bold' }}>
+                                {deleteConfirm.type === 'thumb' ? 'サムネイル' : '動画'}を削除しますか?
+                              </span>
+                              <button
+                                onClick={async () => { await deleteFile(post.id, deleteConfirm.type); setDeleteConfirm(null) }}
+                                disabled={!!deleting[post.id]}
+                                style={{ padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', border: '2px solid #c0392b', background: '#c0392b', color: 'white' }}>
+                                {deleting[post.id] ? '削除中…' : '削除する'}
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm(null)}
+                                style={{ padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', border: '2px solid #888', background: 'none', color: '#888' }}>
+                                キャンセル
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setDeleteConfirm({ postId: post.id, type: 'thumb' })}
+                                disabled={!post.thumbnail_url || !!deleting[post.id]}
+                                style={{
+                                  padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+                                  border: '2px solid #c0392b', background: 'none', color: '#c0392b',
+                                  opacity: !post.thumbnail_url ? 0.4 : 1,
+                                }}>
+                                {post.thumbnail_url ? 'サムネイル削除' : 'サムネなし'}
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm({ postId: post.id, type: 'video' })}
+                                disabled={!post.media_url || !!deleting[post.id] || post.media_url.includes('youtube') || post.media_url.includes('youtu.be')}
+                                style={{
+                                  padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+                                  border: '2px solid #c0392b', background: 'none', color: '#c0392b',
+                                  opacity: !post.media_url || post.media_url.includes('youtube') || post.media_url.includes('youtu.be') ? 0.4 : 1,
+                                }}>
+                                {post.media_url && !post.media_url.includes('youtube') && !post.media_url.includes('youtu.be') ? '動画削除' : post.media_url ? 'URL投稿(削除不可)' : 'メディアなし'}
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
 

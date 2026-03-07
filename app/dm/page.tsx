@@ -72,30 +72,9 @@ export default function DmPage() {
         const uid = authData.user.id
         if (mounted) setUserId(uid)
 
-        // DM管理者一覧（dm_management権限を持つプロフィール + adminロール）
-        const [{ data: ppData }, { data: adminProfiles }] = await Promise.all([
-          supabase.from('profile_positions').select('profile_id, positions(permissions)'),
-          supabase.from('profiles').select('id, username').eq('role', 'admin'),
-        ])
-
-        const managerIds = new Set<string>()
-        ;(ppData ?? []).forEach(pp => {
-          const ppTyped = pp as unknown as { profile_id: string; positions: { permissions: Record<string, boolean> } | { permissions: Record<string, boolean> }[] | null }
-          const pos = ppTyped.positions
-          const perms = (Array.isArray(pos) ? pos[0]?.permissions : pos?.permissions) ?? {}
-          if (perms['dm_management']) managerIds.add(ppTyped.profile_id)
-        })
-        // adminロールも送信先に含める
-        ;(adminProfiles ?? []).forEach(p => managerIds.add(p.id))
-
-        let managerList: ManagerProfile[] = []
-        if (managerIds.size > 0) {
-          const { data: profData } = await supabase
-            .from('profiles')
-            .select('id, username')
-            .in('id', [...managerIds])
-          managerList = (profData ?? []) as ManagerProfile[]
-        }
+        // DM管理者一覧（RPCで取得 - SECURITY DEFINERでRLSをバイパス）
+        const { data: managerData } = await supabase.rpc('get_dm_managers')
+        const managerList: ManagerProfile[] = (managerData ?? []) as ManagerProfile[]
 
         // 要件タイプ
         const { data: typesData } = await supabase

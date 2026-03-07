@@ -95,6 +95,8 @@ interface TimelineItem {
   retrospective: string | null
   media_url: string | null
   submitted_at: string | null
+  hidden_in_timeline: boolean
+  force_past_timeline: boolean
   task: {
     id: string
     title: string
@@ -211,6 +213,7 @@ export default function DashboardPage() {
   const [coolPoints, setCoolPoints]     = useState(0)
   const [rankSettings, setRankSettings] = useState<RankSetting[]>([])
   const [userRole, setUserRole]         = useState<string | null>(null)
+  const [commentDailyLimit, setCommentDailyLimit] = useState(0) // 0=無制限
 
   // 役職・権限
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
@@ -293,7 +296,7 @@ export default function DashboardPage() {
         const uid = data.user.id
         if (mounted) setUserId(uid)
 
-        const [profileRes, assignmentRes, ranksRes] = await Promise.all([
+        const [profileRes, assignmentRes, ranksRes, commentLimitRes] = await Promise.all([
           supabase.from('profiles')
             .select('username, course, stage, total_points, cool_points, role')
             .eq('id', uid)
@@ -310,6 +313,10 @@ export default function DashboardPage() {
           supabase.from('rank_settings')
             .select('id, name, min_points, color, rank_order')
             .order('rank_order'),
+          supabase.from('point_settings')
+            .select('base_points')
+            .eq('action_key', 'comment_daily_limit')
+            .single(),
         ])
 
         if (!mounted) return
@@ -388,6 +395,7 @@ export default function DashboardPage() {
         }
 
         setRankSettings(ranksRes.data ?? [])
+        setCommentDailyLimit(commentLimitRes.data?.base_points ?? 0)
 
         const assignmentData = assignmentRes.data
         if (assignmentData) {
@@ -445,6 +453,7 @@ export default function DashboardPage() {
           .select(`
             id, user_id, is_anonymous, thumbnail_url,
             self_evaluation, retrospective, media_url, submitted_at,
+            hidden_in_timeline, force_past_timeline,
             task:tasks(id, title, target_course, target_stage, created_at)
           `)
           .eq('status', 'submitted')
@@ -648,6 +657,25 @@ export default function DashboardPage() {
     if (!content || !userId) return
 
     setPostingComment(prev => ({ ...prev, [assignmentId]: true }))
+
+    // コメントポイント付与可否チェック（他人投稿・初コメント・日次上限）
+    let canEarnPoint = false
+    if (userId !== postOwnerId) {
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+      const [{ count: prevCount }, { data: todayComments }] = await Promise.all([
+        supabase.from('timeline_comments')
+          .select('id', { count: 'exact', head: true })
+          .eq('assignment_id', assignmentId).eq('user_id', userId),
+        supabase.from('timeline_comments')
+          .select('assignment_id')
+          .eq('user_id', userId)
+          .gte('created_at', todayStart.toISOString()),
+      ])
+      const isFirst = (prevCount ?? 0) === 0
+      const uniqueToday = new Set((todayComments ?? []).map(c => c.assignment_id)).size
+      canEarnPoint = isFirst && (commentDailyLimit === 0 || uniqueToday < commentDailyLimit)
+    }
+
     const { error } = await supabase
       .from('timeline_comments')
       .insert({ assignment_id: assignmentId, user_id: userId, content })
@@ -655,8 +683,7 @@ export default function DashboardPage() {
     if (!error) {
       setCommentInputs(prev => ({ ...prev, [assignmentId]: '' }))
       await loadComments(assignmentId)
-      // 他人の投稿へのコメントのみポイント付与
-      if (userId !== postOwnerId) {
+      if (canEarnPoint) {
         const { data: pts } = await supabase.rpc('award_points', {
           p_user_id: userId, p_action_key: 'comment',
         })
@@ -709,8 +736,9 @@ export default function DashboardPage() {
     return list
   }
 
-  const currentTimeline = applyTimelineFilters(timeline.filter(i => isCurrentTimeline(i.task.created_at)))
-  const pastTimeline    = applyTimelineFilters(timeline.filter(i => !isCurrentTimeline(i.task.created_at)))
+  const visibleTimeline = timeline.filter(i => !i.hidden_in_timeline)
+  const currentTimeline = applyTimelineFilters(visibleTimeline.filter(i => !i.force_past_timeline && isCurrentTimeline(i.task.created_at)))
+  const pastTimeline    = applyTimelineFilters(visibleTimeline.filter(i => i.force_past_timeline || !isCurrentTimeline(i.task.created_at)))
 
   // ─── レンダリング ──────────────────────────────────────
 
