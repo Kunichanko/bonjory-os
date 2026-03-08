@@ -23,10 +23,23 @@ interface Task {
 }
 
 interface Assignment {
+  id: string
   task_id: string
   user_id: string
   status: 'assigned' | 'in_progress' | 'submitted'
+  created_at: string
+  deadline_at: string | null
   task: { title: string }
+}
+
+function getAssignmentDeadline(a: { created_at: string; deadline_at?: string | null }): Date {
+  if (a.deadline_at) return new Date(a.deadline_at)
+  const created = new Date(a.created_at)
+  const daysToSunday = created.getDay() === 0 ? 0 : 7 - created.getDay()
+  const sunday = new Date(created)
+  sunday.setDate(created.getDate() + daysToSunday)
+  sunday.setHours(23, 59, 59, 0)
+  return sunday
 }
 
 interface Position {
@@ -76,7 +89,7 @@ export default function AdminPage() {
   const [errors, setErrors]             = useState<Record<string, string>>({})
   const [userRole, setUserRole]         = useState<string | null>(null)
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
-    course_management: false, task_management: false,
+    course_management: false, task_management: false, assignment_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, gimmick_management: false,
   })
@@ -105,7 +118,7 @@ export default function AdminPage() {
         const [profilesRes, tasksRes, assignmentsRes, positionsRes, ppRes] = await Promise.all([
           supabase.from('profiles').select('id, username, email, course, stage').order('created_at', { ascending: true }),
           supabase.from('tasks').select('id, title, target_course').eq('is_active', true),
-          supabase.from('task_assignments').select('task_id, user_id, status, task:tasks(title)').eq('is_assigned', true),
+          supabase.from('task_assignments').select('id, task_id, user_id, status, created_at, deadline_at, task:tasks(title)').eq('is_assigned', true),
           supabase.from('positions').select('id, name, permissions').order('created_at', { ascending: true }),
           supabase.from('profile_positions').select('profile_id, position_id, positions(name)'),
         ])
@@ -172,11 +185,14 @@ export default function AdminPage() {
     const task = allTasks.find(t => t.id === taskId)
     if (!task) return
 
-    const { error } = await supabase.from('task_assignments').insert({ task_id: taskId, user_id: userId })
-    if (!error) {
+    const { data: inserted, error } = await supabase.from('task_assignments')
+      .insert({ task_id: taskId, user_id: userId })
+      .select('id, created_at, deadline_at')
+      .single()
+    if (!error && inserted) {
       setAssignments(prev => ({
         ...prev,
-        [userId]: [...(prev[userId] ?? []), { task_id: taskId, user_id: userId, status: 'assigned', task: { title: task.title } }],
+        [userId]: [...(prev[userId] ?? []), { id: inserted.id, task_id: taskId, user_id: userId, status: 'assigned', created_at: inserted.created_at, deadline_at: inserted.deadline_at, task: { title: task.title } }],
       }))
       setAddingTask(prev => { const next = { ...prev }; delete next[userId]; return next })
     }
@@ -217,6 +233,24 @@ export default function AdminPage() {
       setAssignments(prev => ({
         ...prev,
         [userId]: (prev[userId] ?? []).filter(a => a.task_id !== taskId),
+      }))
+    }
+  }
+
+  async function adjustDeadline(userId: string, assignment: Assignment, deltaDays: number) {
+    const base = getAssignmentDeadline(assignment)
+    const newDeadline = new Date(base)
+    newDeadline.setDate(newDeadline.getDate() + deltaDays)
+    const { error } = await supabase.from('task_assignments')
+      .update({ deadline_at: newDeadline.toISOString() })
+      .eq('id', assignment.id)
+    if (!error) {
+      setAssignments(prev => ({
+        ...prev,
+        [userId]: (prev[userId] ?? []).map(a => a.id === assignment.id
+          ? { ...a, deadline_at: newDeadline.toISOString() }
+          : a
+        ),
       }))
     }
   }
@@ -431,21 +465,36 @@ export default function AdminPage() {
                               {memberAssignments.length === 0 ? (
                                 <p style={{ color: '#aaa', fontSize: 13 }}>まだアサインなし</p>
                               ) : (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                   {memberAssignments.map(a => {
                                     const s = STATUS_LABELS[a.status]
+                                    const deadline = getAssignmentDeadline(a)
+                                    const deadlineLabel = `${deadline.getMonth() + 1}/${deadline.getDate()}(日)`
                                     return (
                                       <div key={a.task_id} style={{
-                                        display: 'flex', alignItems: 'center', gap: 6,
-                                        background: s.bg, borderRadius: 10, padding: '4px 10px',
+                                        display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                                        background: s.bg, borderRadius: 10, padding: '6px 10px',
                                         border: '1px solid #c8e89a',
                                       }}>
-                                        <span style={{ fontSize: 13, color: s.color, fontWeight: 'bold' }}>
+                                        <span style={{ fontSize: 13, color: s.color, fontWeight: 'bold', flex: 1, minWidth: 0 }}>
                                           {a.task.title}
                                         </span>
-                                        <span style={{ fontSize: 11, color: s.color, opacity: 0.8 }}>
-                                          · {s.label}
+                                        <span style={{ fontSize: 11, color: s.color, opacity: 0.8, whiteSpace: 'nowrap' }}>
+                                          {s.label}
                                         </span>
+                                        <span style={{ fontSize: 11, color: '#555', whiteSpace: 'nowrap' }}>
+                                          期限: {deadlineLabel}
+                                        </span>
+                                        <button
+                                          onClick={() => adjustDeadline(profile.id, a, -7)}
+                                          style={{ padding: '2px 7px', borderRadius: 6, border: '1px solid #aaa', background: '#f5f5f5', color: '#555', cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}
+                                          title="-1週間"
+                                        >−7日</button>
+                                        <button
+                                          onClick={() => adjustDeadline(profile.id, a, 7)}
+                                          style={{ padding: '2px 7px', borderRadius: 6, border: '1px solid #6aac14', background: '#e8ffd4', color: '#2d5500', cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}
+                                          title="+1週間"
+                                        >+7日</button>
                                         <button
                                           onClick={() => removeAssignment(profile.id, a.task_id)}
                                           style={{

@@ -10,10 +10,12 @@ export type PermissionKey =
   | 'dm_management'
   | 'announcement_management'
   | 'gimmick_management'
+  | 'assignment_management'
 
 export const FEATURE_LIST: { id: PermissionKey; label: string; path: string; icon: string }[] = [
   { id: 'course_management',     label: '部員・コース管理', path: '/admin',                  icon: '👥' },
   { id: 'task_management',       label: '課題管理',         path: '/admin/tasks',            icon: '📝' },
+  { id: 'assignment_management', label: 'アサイン管理',     path: '/admin/assignments',      icon: '📋' },
   { id: 'point_settings',        label: 'ポイント設定',     path: '/admin/points',           icon: '🏆' },
   { id: 'submission_review',     label: '提出状況',         path: '/admin/submissions',      icon: '📊' },
   { id: 'finance',               label: '金の管理',         path: '/admin/finance',          icon: '💰' },
@@ -25,6 +27,7 @@ export const FEATURE_LIST: { id: PermissionKey; label: string; path: string; ico
 const EMPTY_PERMS: Record<PermissionKey, boolean> = {
   course_management:       false,
   task_management:         false,
+  assignment_management:   false,
   point_settings:          false,
   submission_review:       false,
   finance:                 false,

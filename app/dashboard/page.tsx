@@ -86,6 +86,8 @@ interface AssignmentRecord {
   submitted_at: string | null
   is_anonymous: boolean
   thumbnail_url: string | null
+  created_at: string
+  deadline_at: string | null
   task: AssignmentTask
 }
 
@@ -223,7 +225,7 @@ export default function DashboardPage() {
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
-    dm_management: false, announcement_management: false, gimmick_management: false,
+    dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
   })
 
   // スピーチ
@@ -395,7 +397,7 @@ export default function DashboardPage() {
             .select(`
               id, status, plan_text, midterm_progress, midterm_correction,
               media_url, self_evaluation, retrospective, submitted_at,
-              is_anonymous, thumbnail_url,
+              is_anonymous, thumbnail_url, created_at, deadline_at,
               task:tasks(id, title, description, description_is_markdown, target_course, target_stage)
             `)
             .eq('user_id', uid)
@@ -824,9 +826,20 @@ export default function DashboardPage() {
   }
 
   const currentMilestone     = MILESTONES.find(m => m.phase === todayPhase)!
-  const thisSunday = new Date(getMostRecentMonday(new Date()).getTime() + 6 * 24 * 60 * 60 * 1000)
-  const sundayLabel = `${thisSunday.getMonth() + 1}/${thisSunday.getDate()}(日)`
   const activeAssignments    = assignments.filter(a => a.status !== 'submitted')
+
+  function getDeadlineLabel(a: AssignmentRecord): string {
+    let deadline: Date
+    if (a.deadline_at) {
+      deadline = new Date(a.deadline_at)
+    } else {
+      const created = new Date(a.created_at)
+      const daysToSunday = created.getDay() === 0 ? 0 : 7 - created.getDay()
+      deadline = new Date(created)
+      deadline.setDate(created.getDate() + daysToSunday)
+    }
+    return `${deadline.getMonth() + 1}/${deadline.getDate()}(日)`
+  }
   const submittedAssignments = assignments.filter(a => a.status === 'submitted')
 
   // ランク計算：rank_order ではなく min_points でソートして正確に判定
@@ -1228,7 +1241,7 @@ export default function DashboardPage() {
                           {assignment.task.title}
                         </p>
                         <p style={{ color: '#6aac14', fontSize: 12, margin: 0, marginTop: 2, fontWeight: 'bold' }}>
-                          最終提出: {sundayLabel}
+                          最終提出: {getDeadlineLabel(assignment)}
                         </p>
                       </div>
                       <span style={{ background: si.bg, color: si.color, borderRadius: 12, padding: '4px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>

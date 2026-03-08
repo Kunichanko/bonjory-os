@@ -15,6 +15,7 @@ interface Task {
   target_stage: string | null
   is_active: boolean
   created_at: string
+  progress_number: number | null
 }
 
 const COURSE_OPTIONS = [
@@ -73,21 +74,23 @@ export default function AdminTasksPage() {
   const [success, setSuccess] = useState<string | null>(null)
 
   // 新規作成フォーム
-  const [title, setTitle]               = useState('')
-  const [description, setDescription]   = useState('')
-  const [isMarkdown, setIsMarkdown]     = useState(false)
-  const [targetCourse, setTargetCourse] = useState('')
-  const [targetStage, setTargetStage]   = useState('')
+  const [title, setTitle]                     = useState('')
+  const [description, setDescription]         = useState('')
+  const [isMarkdown, setIsMarkdown]           = useState(false)
+  const [targetCourse, setTargetCourse]       = useState('')
+  const [targetStage, setTargetStage]         = useState('')
+  const [progressNumber, setProgressNumber]   = useState('')
 
   // 編集状態
-  const [editingId, setEditingId]                   = useState<string | null>(null)
-  const [editTitle, setEditTitle]                   = useState('')
-  const [editDescription, setEditDescription]       = useState('')
-  const [editIsMarkdown, setEditIsMarkdown]         = useState(false)
-  const [editTargetCourse, setEditTargetCourse]     = useState('')
-  const [editTargetStage, setEditTargetStage]       = useState('')
-  const [editSaving, setEditSaving]                 = useState(false)
-  const [editError, setEditError]                   = useState<string | null>(null)
+  const [editingId, setEditingId]                         = useState<string | null>(null)
+  const [editTitle, setEditTitle]                         = useState('')
+  const [editDescription, setEditDescription]             = useState('')
+  const [editIsMarkdown, setEditIsMarkdown]               = useState(false)
+  const [editTargetCourse, setEditTargetCourse]           = useState('')
+  const [editTargetStage, setEditTargetStage]             = useState('')
+  const [editProgressNumber, setEditProgressNumber]       = useState('')
+  const [editSaving, setEditSaving]                       = useState(false)
+  const [editError, setEditError]                         = useState<string | null>(null)
 
   // 初期課題設定
   const [initialTasks, setInitialTasks]       = useState<Record<string, string>>({})
@@ -102,7 +105,7 @@ export default function AdminTasksPage() {
 
   const [userRole, setUserRole]         = useState<string | null>(null)
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
-    course_management: false, task_management: false,
+    course_management: false, task_management: false, assignment_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, gimmick_management: false,
   })
@@ -125,7 +128,7 @@ export default function AdminTasksPage() {
         const [{ data: taskList, error: listError }, { data: initList }] = await Promise.all([
           supabase
             .from('tasks')
-            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at')
+            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at, progress_number')
             .order('created_at', { ascending: false }),
           supabase.from('course_initial_tasks').select('course, task_id'),
         ])
@@ -163,6 +166,7 @@ export default function AdminTasksPage() {
         description_is_markdown: isMarkdown,
         target_course: targetCourse || null,
         target_stage: targetStage || null,
+        progress_number: progressNumber !== '' ? parseFloat(progressNumber) : null,
         created_by: authData?.user?.id,
         is_active: true,
       })
@@ -178,6 +182,7 @@ export default function AdminTasksPage() {
       setIsMarkdown(false)
       setTargetCourse('')
       setTargetStage('')
+      setProgressNumber('')
       setSuccess('課題を作成しました！')
     }
     setSubmitting(false)
@@ -190,6 +195,7 @@ export default function AdminTasksPage() {
     setEditIsMarkdown(task.description_is_markdown)
     setEditTargetCourse(task.target_course ?? '')
     setEditTargetStage(task.target_stage ?? '')
+    setEditProgressNumber(task.progress_number != null ? String(task.progress_number) : '')
     setEditError(null)
   }
 
@@ -211,6 +217,7 @@ export default function AdminTasksPage() {
         description_is_markdown: editIsMarkdown,
         target_course: editTargetCourse || null,
         target_stage: editTargetStage || null,
+        progress_number: editProgressNumber !== '' ? parseFloat(editProgressNumber) : null,
       })
       .eq('id', editingId)
 
@@ -224,6 +231,7 @@ export default function AdminTasksPage() {
         description_is_markdown: editIsMarkdown,
         target_course: editTargetCourse || null,
         target_stage: editTargetStage || null,
+        progress_number: editProgressNumber !== '' ? parseFloat(editProgressNumber) : null,
       } : t))
       setEditingId(null)
     }
@@ -391,6 +399,18 @@ export default function AdminTasksPage() {
                   ))}
                 </select>
               </div>
+              <div style={{ width: 120 }}>
+                <label className="game-label">進行番号</label>
+                <input
+                  className="game-input"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={progressNumber}
+                  onChange={e => setProgressNumber(e.target.value)}
+                  placeholder="例: 1.0"
+                />
+              </div>
             </div>
 
             <button className="game-button" type="submit" disabled={submitting} style={{ marginTop: 4 }}>
@@ -497,6 +517,9 @@ export default function AdminTasksPage() {
                           {task.title}
                         </span>
                         <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          {task.progress_number != null && (
+                            <span style={{ background: '#a8d870', color: '#1a3a00', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>#{task.progress_number}</span>
+                          )}
                           <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                             {task.target_course ?? '全コース'}
                           </span>
@@ -550,6 +573,19 @@ export default function AdminTasksPage() {
                                   <select className="game-input" value={editTargetStage} onChange={e => setEditTargetStage(e.target.value)} style={{ fontSize: 13 }}>
                                     {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                   </select>
+                                </div>
+                                <div style={{ width: 100 }}>
+                                  <label className="game-label" style={{ fontSize: 12 }}>進行番号</label>
+                                  <input
+                                    className="game-input"
+                                    type="number"
+                                    step="0.1"
+                                    min="0"
+                                    value={editProgressNumber}
+                                    onChange={e => setEditProgressNumber(e.target.value)}
+                                    placeholder="1.0"
+                                    style={{ fontSize: 13 }}
+                                  />
                                 </div>
                               </div>
                               {editError && <div className="game-error" style={{ fontSize: 12 }}>{editError}</div>}
