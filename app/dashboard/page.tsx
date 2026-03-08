@@ -246,6 +246,10 @@ export default function DashboardPage() {
   // 履歴アコーディオン
   const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({})
 
+  // 課題アコーディオン
+  const [taskParentOpen, setTaskParentOpen] = useState<Record<string, boolean>>({})
+  const [taskSectionOpen, setTaskSectionOpen] = useState<Record<string, { detail: boolean; plan: boolean; midterm: boolean; final: boolean }>>({})
+
   // 制作計画
   const [planTexts, setPlanTexts]     = useState<Record<string, string>>({})
   const [savingPlan, setSavingPlan]   = useState<Record<string, boolean>>({})
@@ -492,6 +496,20 @@ export default function DashboardPage() {
         const assignmentData = assignmentRes.data
         if (assignmentData) {
           setAssignments(assignmentData as unknown as AssignmentRecord[])
+          // 子アコーディオン自動オープン（ページ読み込み時1回のみ）
+          const initSections: Record<string, { detail: boolean; plan: boolean; midterm: boolean; final: boolean }> = {}
+          for (const a of (assignmentData as any[])) {
+            if (a.status === 'assigned') {
+              initSections[a.id] = { detail: true, plan: true, midterm: false, final: false }
+            } else if (a.status === 'in_progress') {
+              initSections[a.id] = !a.midterm_progress
+                ? { detail: false, plan: false, midterm: true, final: false }
+                : { detail: false, plan: false, midterm: false, final: true }
+            } else {
+              initSections[a.id] = { detail: false, plan: false, midterm: false, final: false }
+            }
+          }
+          setTaskSectionOpen(initSections)
           const plans: Record<string, string>   = {}
           const midProg: Record<string, string> = {}
           const midCorr: Record<string, string> = {}
@@ -604,6 +622,7 @@ export default function DashboardPage() {
       setAssignments(prev => prev.map(a =>
         a.id === assignmentId ? { ...a, status: 'in_progress', plan_text: planTexts[assignmentId] } : a
       ))
+      setTaskSectionOpen(prev => ({ ...prev, [assignmentId]: { detail: false, plan: false, midterm: true, final: false } }))
     }
   }
 
@@ -621,6 +640,7 @@ export default function DashboardPage() {
     setSavingMidterm(prev => ({ ...prev, [assignmentId]: false }))
     if (!error) {
       setMidtermSuccess(prev => ({ ...prev, [assignmentId]: true }))
+      setTaskSectionOpen(prev => ({ ...prev, [assignmentId]: { detail: false, plan: false, midterm: false, final: true } }))
       // 初回記入のみポイント付与
       if (wasEmpty && newProgress && userId) {
         const { data: pts } = await supabase.rpc('award_points', {
@@ -804,6 +824,8 @@ export default function DashboardPage() {
   }
 
   const currentMilestone     = MILESTONES.find(m => m.phase === todayPhase)!
+  const thisSunday = new Date(getMostRecentMonday(new Date()).getTime() + 6 * 24 * 60 * 60 * 1000)
+  const sundayLabel = `${thisSunday.getMonth() + 1}/${thisSunday.getDate()}(日)`
   const activeAssignments    = assignments.filter(a => a.status !== 'submitted')
   const submittedAssignments = assignments.filter(a => a.status === 'submitted')
 
@@ -1020,7 +1042,7 @@ export default function DashboardPage() {
         {currentRank && (
           <div style={{
             position: 'fixed', top: 64, left: 8, zIndex: 98,
-            transform: rankOpen ? 'translateX(0)' : 'translateX(-150px)',
+            transform: rankOpen ? 'translateX(0)' : 'translateX(-93px)',
             transition: 'transform 0.3s ease',
             display: 'flex', alignItems: 'stretch',
           }}>
@@ -1034,25 +1056,25 @@ export default function DashboardPage() {
               borderBottomRightRadius: 0,
               borderTopLeftRadius: 12,
               borderBottomLeftRadius: 12,
-              padding: '12px 16px',
-              textAlign: 'center', width: 138,
+              padding: '10px 10px',
+              textAlign: 'center', width: 90,
             }}>
-              <p style={{ color: currentRank.color, fontWeight: 'bold', fontSize: 32, lineHeight: 1, marginBottom: 2 }}>
+              <p style={{ color: currentRank.color, fontWeight: 'bold', fontSize: 26, lineHeight: 1, marginBottom: 2 }}>
                 {currentRank.name}
               </p>
-              <p style={{ color: currentRank.color, fontSize: 12, marginBottom: 6 }}>ランク</p>
-              <p style={{ color: '#a8d870', fontSize: 12, marginBottom: 6 }}>
+              <p style={{ color: currentRank.color, fontSize: 11, marginBottom: 4 }}>ランク</p>
+              <p style={{ color: '#a8d870', fontSize: 11, marginBottom: 4 }}>
                 累計 <span style={{ fontWeight: 'bold' }}>{totalPoints}</span> pt
               </p>
               {nextRank ? (
-                <p style={{ color: '#a8d870', fontSize: 12, lineHeight: 1.4 }}>
+                <p style={{ color: '#a8d870', fontSize: 11, lineHeight: 1.4 }}>
                   次まで<br/>
-                  <span style={{ fontWeight: 'bold', fontSize: 16 }}>
+                  <span style={{ fontWeight: 'bold', fontSize: 14 }}>
                     {nextRank.min_points - coolPoints}
                   </span> pt
                 </p>
               ) : (
-                <p style={{ color: '#f0a000', fontSize: 12 }}>最高ランク！</p>
+                <p style={{ color: '#f0a000', fontSize: 11 }}>最高ランク！</p>
               )}
             </div>
             {/* つまみ */}
@@ -1184,224 +1206,213 @@ export default function DashboardPage() {
                 </div>
               ) : activeAssignments.map(assignment => {
                 const si = STATUS_INFO[assignment.status]
+                const parentOpen = taskParentOpen[assignment.id] ?? false
+                const sec = taskSectionOpen[assignment.id] ?? { detail: false, plan: false, midterm: false, final: false }
+                const toggleSec = (key: 'detail' | 'plan' | 'midterm' | 'final') =>
+                  setTaskSectionOpen(prev => {
+                    const cur = prev[assignment.id] ?? { detail: false, plan: false, midterm: false, final: false }
+                    return { ...prev, [assignment.id]: { ...cur, [key]: !cur[key] } }
+                  })
+
                 return (
-                  <div key={assignment.id} className="game-card" style={{ padding: '28px 32px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 22 }}>📋</span>
-                        <h2 className="game-title" style={{ fontSize: 20 }}>課題</h2>
+                  <div key={assignment.id} className="game-card" style={{ padding: 0, overflow: 'hidden' }}>
+
+                    {/* ── 親ヘッダー */}
+                    <div
+                      onClick={() => setTaskParentOpen(prev => ({ ...prev, [assignment.id]: !parentOpen }))}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', cursor: 'pointer', userSelect: 'none' }}
+                    >
+                      <span style={{ fontSize: 13, color: '#6aac14', flexShrink: 0, display: 'inline-block', transform: parentOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 16, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {assignment.task.title}
+                        </p>
+                        <p style={{ color: '#6aac14', fontSize: 12, margin: 0, marginTop: 2, fontWeight: 'bold' }}>
+                          最終提出: {sundayLabel}
+                        </p>
                       </div>
-                      <span style={{ background: si.bg, color: si.color, borderRadius: 12, padding: '4px 12px', fontSize: 13, fontWeight: 'bold' }}>
+                      <span style={{ background: si.bg, color: si.color, borderRadius: 12, padding: '4px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
                         {si.emoji} {si.label}
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-                      {assignment.task.target_course && (
-                        <span style={{ background: '#6aac14', color: 'white', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold' }}>
-                          {assignment.task.target_course}
-                        </span>
-                      )}
-                      {assignment.task.target_stage && (
-                        <span style={{ background: '#3d6e00', color: 'white', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold' }}>
-                          {assignment.task.target_stage}
-                        </span>
-                      )}
-                    </div>
+                    {/* ── 子セクション群 */}
+                    {parentOpen && (
+                      <div style={{ borderTop: '2px solid #d4f0a0' }}>
 
-                    <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 18, marginBottom: 8 }}>
-                      {assignment.task.title}
-                    </p>
-                    {assignment.task.description && (
-                      assignment.task.description_is_markdown
-                        ? <div
-                            className="markdown-body"
-                            style={{ color: '#3d6e00', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}
-                            dangerouslySetInnerHTML={{ __html: marked.parse(assignment.task.description, { breaks: true }) as string }}
-                          />
-                        : <p style={{ color: '#3d6e00', fontSize: 14, marginBottom: 16, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-                            {assignment.task.description}
-                          </p>
-                    )}
-
-                    <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '16px 0' }} />
-
-                    {/* 制作計画 */}
-                    <div style={{ marginBottom: 20 }}>
-                      <label className="game-label">📝 今週の制作計画</label>
-                      <textarea
-                        className="game-input" rows={3}
-                        placeholder="今週どこまで作るか、どんな手順で進めるかを書こう..."
-                        value={planTexts[assignment.id] ?? ''}
-                        onChange={e => setPlanTexts(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                        style={{ resize: 'vertical', marginBottom: 10 }}
-                      />
-                      <button className="game-button" disabled={savingPlan[assignment.id]} onClick={() => savePlan(assignment.id)}>
-                        {savingPlan[assignment.id] ? '保存中…' : '計画を保存'}
-                      </button>
-                      {planSuccess[assignment.id] && (
-                        <div className="game-success" style={{ marginTop: 8 }}>保存しました！ステータスを「取り組み中」に更新しました。</div>
-                      )}
-                    </div>
-
-                    <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '16px 0' }} />
-
-                    {/* 中間報告 */}
-                    <div style={{ marginBottom: 20 }}>
-                      <p className="game-label" style={{ marginBottom: 12 }}>
-                        🔍 木曜中間報告
-                        {todayPhase === 'midterm' && (
-                          <span style={{ marginLeft: 8, background: '#6aac14', color: 'white', borderRadius: 8, padding: '2px 8px', fontSize: 11 }}>今日！</span>
-                        )}
-                      </p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <div>
-                          <label className="game-label" style={{ fontSize: 13 }}>現在の進捗状況</label>
-                          <textarea className="game-input" rows={3}
-                            placeholder="どこまで進んだか、詰まっている箇所はあるか..."
-                            value={midtermProgress[assignment.id] ?? ''}
-                            onChange={e => setMidtermProgress(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                            style={{ resize: 'vertical' }} />
-                        </div>
-                        <div>
-                          <label className="game-label" style={{ fontSize: 13 }}>日曜までの修正計画</label>
-                          <textarea className="game-input" rows={3}
-                            placeholder="残りの期間でどこまで仕上げるか、何を変更するか..."
-                            value={midtermCorrection[assignment.id] ?? ''}
-                            onChange={e => setMidtermCorrection(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                            style={{ resize: 'vertical' }} />
-                        </div>
-                        <button className="game-button" disabled={savingMidterm[assignment.id]} onClick={() => saveMidterm(assignment.id)}>
-                          {savingMidterm[assignment.id] ? '保存中…' : '中間報告を保存'}
-                        </button>
-                        {midtermSuccess[assignment.id] && (
-                          <div className="game-success" style={{ marginTop: 8 }}>中間報告を保存しました！</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '16px 0' }} />
-
-                    {/* 最終提出 */}
-                    <div>
-                      <p className="game-label" style={{ marginBottom: 12 }}>
-                        🎬 最終提出
-                        {todayPhase === 'final' && (
-                          <span style={{ marginLeft: 8, background: '#6aac14', color: 'white', borderRadius: 8, padding: '2px 8px', fontSize: 11 }}>今日！</span>
-                        )}
-                      </p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                        <div>
-                          <label className="game-label">動画 / 画像</label>
-                          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                            {(['url', 'file'] as const).map(mode => (
-                              <button key={mode} type="button"
-                                onClick={() => setMediaInputMode(p => ({ ...p, [assignment.id]: mode }))}
-                                style={{
-                                  flex: 1, padding: '6px 0', borderRadius: 8,
-                                  background: (mediaInputMode[assignment.id] ?? 'url') === mode ? '#6aac14' : '#f0fae0',
-                                  border: '2px solid #6aac14',
-                                  color: (mediaInputMode[assignment.id] ?? 'url') === mode ? '#fff' : '#3d6e00',
-                                  cursor: 'pointer', fontWeight: 'bold', fontSize: 13,
-                                }}>
-                                {mode === 'url' ? '🔗 URL（YouTube等）' : '📁 ファイルアップロード'}
-                              </button>
-                            ))}
+                        {/* 📋 課題 */}
+                        <div style={{ borderBottom: '1px solid #e8ffd4' }}>
+                          <div onClick={() => toggleSec('detail')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}>
+                            <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.detail ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>📋 課題</span>
+                            <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                              {assignment.task.target_course && <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>{assignment.task.target_course}</span>}
+                              {assignment.task.target_stage && <span style={{ background: '#3d6e00', color: 'white', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>{assignment.task.target_stage}</span>}
+                            </div>
                           </div>
-
-                          {(mediaInputMode[assignment.id] ?? 'url') === 'url' ? (
-                            <input className="game-input" type="url"
-                              placeholder="https://youtube.com/watch?v=... または画像URL"
-                              value={mediaUrls[assignment.id] ?? ''}
-                              onChange={e => setMediaUrls(prev => ({ ...prev, [assignment.id]: e.target.value }))} />
-                          ) : (
-                            <div>
-                              <input type="file" accept="video/*,image/*"
-                                onChange={e => {
-                                  const f = e.target.files?.[0] ?? null
-                                  setVideoFiles(prev => ({ ...prev, [assignment.id]: f }))
-                                  if (f) setVideoPreviews(prev => ({ ...prev, [assignment.id]: URL.createObjectURL(f) }))
-                                  else setVideoPreviews(prev => ({ ...prev, [assignment.id]: '' }))
-                                }}
-                                style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
-                              <p style={{ color: '#888', fontSize: 12, marginTop: 4 }}>
-                                ⚠️ 50 MB まで。長い動画は YouTube にアップして URL を使用推奨
-                              </p>
-                              {videoPreviews[assignment.id] && (
-                                <video src={videoPreviews[assignment.id]} controls
-                                  style={{ marginTop: 8, width: '100%', maxHeight: 160, borderRadius: 8 }} />
-                              )}
-                              {uploadingVideo[assignment.id] && (
-                                <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>動画アップロード中...</p>
-                              )}
+                          {sec.detail && (
+                            <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4' }}>
+                              {assignment.task.description ? (
+                                assignment.task.description_is_markdown
+                                  ? <div className="markdown-body" style={{ color: '#3d6e00', fontSize: 14, lineHeight: 1.7 }}
+                                      dangerouslySetInnerHTML={{ __html: marked.parse(assignment.task.description, { breaks: true }) as string }} />
+                                  : <p style={{ color: '#3d6e00', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0 }}>{assignment.task.description}</p>
+                              ) : <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（説明なし）</p>}
                             </div>
                           )}
                         </div>
-                        <div>
-                          <label className="game-label">自己評価</label>
-                          <textarea className="game-input" rows={3}
-                            placeholder="今週の制作を振り返って、自分で評価してみよう..."
-                            value={selfEvals[assignment.id] ?? ''}
-                            onChange={e => setSelfEvals(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                            style={{ resize: 'vertical' }} />
-                        </div>
-                        <div>
-                          <label className="game-label">計画の振り返り</label>
-                          <textarea className="game-input" rows={3}
-                            placeholder="月曜に立てた計画と、実際の進捗の差を振り返ろう..."
-                            value={retros[assignment.id] ?? ''}
-                            onChange={e => setRetros(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                            style={{ resize: 'vertical' }} />
-                        </div>
 
-                        {/* サムネイル */}
-                        <div>
-                          <label className="game-label">サムネイル画像（任意）</label>
-                          <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>タイムラインのカードに表示されるサムネイルです</p>
-                          <input type="file" accept="image/*"
-                            onChange={e => handleThumbnailChange(assignment.id, e.target.files?.[0] ?? null)}
-                            style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
-                          {thumbPreviews[assignment.id] && (
-                            <img src={thumbPreviews[assignment.id]} alt="preview"
-                              style={{ marginTop: 8, width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '2px solid #c8e89a' }} />
-                          )}
-                          {uploadingThumb[assignment.id] && (
-                            <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>アップロード中...</p>
+                        {/* 📝 計画 */}
+                        <div style={{ borderBottom: '1px solid #e8ffd4' }}>
+                          <div onClick={() => toggleSec('plan')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}>
+                            <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.plan ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>📝 計画</span>
+                            {assignment.plan_text && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
+                          </div>
+                          {sec.plan && (
+                            <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              <textarea
+                                className="game-input" rows={3}
+                                placeholder="今週どこまで作るか、どんな手順で進めるかを書こう..."
+                                value={planTexts[assignment.id] ?? ''}
+                                onChange={e => setPlanTexts(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                                style={{ resize: 'vertical' }}
+                              />
+                              <button className="game-button" disabled={savingPlan[assignment.id]} onClick={() => savePlan(assignment.id)}>
+                                {savingPlan[assignment.id] ? '保存中…' : '計画を保存'}
+                              </button>
+                              {planSuccess[assignment.id] && <div className="game-success">保存しました！ステータスを「取り組み中」に更新しました。</div>}
+                            </div>
                           )}
                         </div>
 
-                        {/* 匿名設定 */}
-                        <div>
-                          <label className="game-label">投稿設定</label>
-                          <button type="button"
-                            onClick={() => setIsAnonymous(prev => ({ ...prev, [assignment.id]: !prev[assignment.id] }))}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 10,
-                              marginTop: 8, padding: '8px 20px', borderRadius: 20,
-                              background: isAnonymous[assignment.id] ? '#3d6e00' : '#f0fae0',
-                              border: `2px solid ${isAnonymous[assignment.id] ? '#2a4d00' : '#c8e89a'}`,
-                              cursor: 'pointer', fontSize: 14, fontWeight: 'bold',
-                              color: isAnonymous[assignment.id] ? '#fff' : '#3d6e00',
-                              transition: 'all 0.15s',
-                            }}>
-                            <span>{isAnonymous[assignment.id] ? '🙈' : '👤'}</span>
-                            {isAnonymous[assignment.id] ? '匿名投稿' : '実名投稿（公開）'}
-                          </button>
-                          <p style={{ color: '#888', fontSize: 12, marginTop: 6 }}>
-                            {isAnonymous[assignment.id]
-                              ? 'タイムラインには名前が表示されません'
-                              : 'タイムラインにあなたの名前と作品が公開されます'}
-                          </p>
+                        {/* 🔍 中間報告 */}
+                        <div style={{ borderBottom: '1px solid #e8ffd4' }}>
+                          <div onClick={() => toggleSec('midterm')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}>
+                            <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.midterm ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>
+                              🔍 中間報告
+                              {todayPhase === 'midterm' && <span style={{ marginLeft: 8, background: '#6aac14', color: 'white', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>今日！</span>}
+                            </span>
+                            {assignment.midterm_progress && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
+                          </div>
+                          {sec.midterm && (
+                            <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                              <div>
+                                <label className="game-label" style={{ fontSize: 13 }}>現在の進捗状況</label>
+                                <textarea className="game-input" rows={3}
+                                  placeholder="どこまで進んだか、詰まっている箇所はあるか..."
+                                  value={midtermProgress[assignment.id] ?? ''}
+                                  onChange={e => setMidtermProgress(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                                  style={{ resize: 'vertical' }} />
+                              </div>
+                              <div>
+                                <label className="game-label" style={{ fontSize: 13 }}>日曜までの修正計画</label>
+                                <textarea className="game-input" rows={3}
+                                  placeholder="残りの期間でどこまで仕上げるか、何を変更するか..."
+                                  value={midtermCorrection[assignment.id] ?? ''}
+                                  onChange={e => setMidtermCorrection(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                                  style={{ resize: 'vertical' }} />
+                              </div>
+                              <button className="game-button" disabled={savingMidterm[assignment.id]} onClick={() => saveMidterm(assignment.id)}>
+                                {savingMidterm[assignment.id] ? '保存中…' : '中間報告を保存'}
+                              </button>
+                              {midtermSuccess[assignment.id] && <div className="game-success">中間報告を保存しました！</div>}
+                            </div>
+                          )}
                         </div>
 
-                        <button className="game-button" disabled={submitting[assignment.id]} onClick={() => submitWork(assignment.id)}>
-                          {submitting[assignment.id] ? '提出中…' : '🚀 提出する'}
-                        </button>
-                        {submitSuccess[assignment.id] && (
-                          <div className="game-success">提出完了！お疲れさまでした 🎉</div>
-                        )}
+                        {/* 🎬 最終提出 */}
+                        <div>
+                          <div onClick={() => toggleSec('final')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}>
+                            <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.final ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>
+                              🎬 最終提出
+                              {todayPhase === 'final' && <span style={{ marginLeft: 8, background: '#6aac14', color: 'white', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>今日！</span>}
+                            </span>
+                            {assignment.media_url && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
+                          </div>
+                          {sec.final && (
+                            <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                              <div>
+                                <label className="game-label">動画 / 画像</label>
+                                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                                  {(['url', 'file'] as const).map(mode => (
+                                    <button key={mode} type="button"
+                                      onClick={() => setMediaInputMode(p => ({ ...p, [assignment.id]: mode }))}
+                                      style={{ flex: 1, padding: '6px 0', borderRadius: 8, background: (mediaInputMode[assignment.id] ?? 'url') === mode ? '#6aac14' : '#f0fae0', border: '2px solid #6aac14', color: (mediaInputMode[assignment.id] ?? 'url') === mode ? '#fff' : '#3d6e00', cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+                                      {mode === 'url' ? '🔗 URL（YouTube等）' : '📁 ファイルアップロード'}
+                                    </button>
+                                  ))}
+                                </div>
+                                {(mediaInputMode[assignment.id] ?? 'url') === 'url' ? (
+                                  <input className="game-input" type="url"
+                                    placeholder="https://youtube.com/watch?v=... または画像URL"
+                                    value={mediaUrls[assignment.id] ?? ''}
+                                    onChange={e => setMediaUrls(prev => ({ ...prev, [assignment.id]: e.target.value }))} />
+                                ) : (
+                                  <div>
+                                    <input type="file" accept="video/*,image/*"
+                                      onChange={e => {
+                                        const f = e.target.files?.[0] ?? null
+                                        setVideoFiles(prev => ({ ...prev, [assignment.id]: f }))
+                                        if (f) setVideoPreviews(prev => ({ ...prev, [assignment.id]: URL.createObjectURL(f) }))
+                                        else setVideoPreviews(prev => ({ ...prev, [assignment.id]: '' }))
+                                      }}
+                                      style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
+                                    <p style={{ color: '#888', fontSize: 12, marginTop: 4 }}>⚠️ 50 MB まで。長い動画は YouTube にアップして URL を使用推奨</p>
+                                    {videoPreviews[assignment.id] && <video src={videoPreviews[assignment.id]} controls style={{ marginTop: 8, width: '100%', maxHeight: 160, borderRadius: 8 }} />}
+                                    {uploadingVideo[assignment.id] && <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>動画アップロード中...</p>}
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <label className="game-label">自己評価</label>
+                                <textarea className="game-input" rows={3}
+                                  placeholder="今週の制作を振り返って、自分で評価してみよう..."
+                                  value={selfEvals[assignment.id] ?? ''}
+                                  onChange={e => setSelfEvals(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                                  style={{ resize: 'vertical' }} />
+                              </div>
+                              <div>
+                                <label className="game-label">計画の振り返り</label>
+                                <textarea className="game-input" rows={3}
+                                  placeholder="月曜に立てた計画と、実際の進捗の差を振り返ろう..."
+                                  value={retros[assignment.id] ?? ''}
+                                  onChange={e => setRetros(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                                  style={{ resize: 'vertical' }} />
+                              </div>
+                              <div>
+                                <label className="game-label">サムネイル画像（任意）</label>
+                                <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>タイムラインのカードに表示されるサムネイルです</p>
+                                <input type="file" accept="image/*"
+                                  onChange={e => handleThumbnailChange(assignment.id, e.target.files?.[0] ?? null)}
+                                  style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
+                                {thumbPreviews[assignment.id] && <img src={thumbPreviews[assignment.id]} alt="preview" style={{ marginTop: 8, width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '2px solid #c8e89a' }} />}
+                                {uploadingThumb[assignment.id] && <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>アップロード中...</p>}
+                              </div>
+                              <div>
+                                <label className="game-label">投稿設定</label>
+                                <button type="button"
+                                  onClick={() => setIsAnonymous(prev => ({ ...prev, [assignment.id]: !prev[assignment.id] }))}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, padding: '8px 20px', borderRadius: 20, background: isAnonymous[assignment.id] ? '#3d6e00' : '#f0fae0', border: `2px solid ${isAnonymous[assignment.id] ? '#2a4d00' : '#c8e89a'}`, cursor: 'pointer', fontSize: 14, fontWeight: 'bold', color: isAnonymous[assignment.id] ? '#fff' : '#3d6e00', transition: 'all 0.15s' }}>
+                                  <span>{isAnonymous[assignment.id] ? '🙈' : '👤'}</span>
+                                  {isAnonymous[assignment.id] ? '匿名投稿' : '実名投稿（公開）'}
+                                </button>
+                                <p style={{ color: '#888', fontSize: 12, marginTop: 6 }}>
+                                  {isAnonymous[assignment.id] ? 'タイムラインには名前が表示されません' : 'タイムラインにあなたの名前と作品が公開されます'}
+                                </p>
+                              </div>
+                              <button className="game-button" disabled={submitting[assignment.id]} onClick={() => submitWork(assignment.id)}>
+                                {submitting[assignment.id] ? '提出中…' : '🚀 提出する'}
+                              </button>
+                              {submitSuccess[assignment.id] && <div className="game-success">提出完了！お疲れさまでした 🎉</div>}
+                            </div>
+                          )}
+                        </div>
+
                       </div>
-                    </div>
+                    )}
                   </div>
                 )
               })}
