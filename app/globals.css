@@ -141,25 +141,38 @@ body {
   100% { transform: scaleX(1)    scaleY(1)    translateY(0); }
 }
 
-@keyframes slimeWalkRight {
-  0%   { transform: translateX(0)    scaleX(1)    scaleY(1); }
-  18%  { transform: translateX(8px)  scaleX(1.07) scaleY(0.92); }
-  40%  { transform: translateX(22px) scaleX(0.92) scaleY(1.09); }
-  55%  { transform: translateX(20px) scaleX(0.93) scaleY(1.08); }
-  72%  { transform: translateX(7px)  scaleX(1.05) scaleY(0.95); }
-  88%  { transform: translateX(1px)  scaleX(0.99) scaleY(1.02); }
-  100% { transform: translateX(0)    scaleX(1)    scaleY(1); }
+/* walk X — コンテナdivに適用 (img+shadow を一緒に動かす) */
+@keyframes slimeWalkRightX {
+  0%   { transform: translateX(0); }
+  18%  { transform: translateX(8px); }
+  40%  { transform: translateX(22px); }
+  55%  { transform: translateX(20px); }
+  72%  { transform: translateX(22px); }
+  88%  { transform: translateX(22px); }
+  100% { transform: translateX(22px); }
 }
-
-@keyframes slimeWalkLeft {
-  0%   { transform: translateX(0)     scaleX(1)    scaleY(1); }
-  18%  { transform: translateX(-8px)  scaleX(1.07) scaleY(0.92); }
-  40%  { transform: translateX(-22px) scaleX(0.92) scaleY(1.09); }
-  55%  { transform: translateX(-20px) scaleX(0.93) scaleY(1.08); }
-  72%  { transform: translateX(-7px)  scaleX(1.05) scaleY(0.95); }
-  88%  { transform: translateX(-1px)  scaleX(0.99) scaleY(1.02); }
-  100% { transform: translateX(0)     scaleX(1)    scaleY(1); }
+@keyframes slimeWalkLeftX {
+  0%   { transform: translateX(0); }
+  18%  { transform: translateX(-8px); }
+  40%  { transform: translateX(-22px); }
+  55%  { transform: translateX(-20px); }
+  72%  { transform: translateX(-22px); }
+  88%  { transform: translateX(-22px); }
+  100% { transform: translateX(-22px); }
 }
+/* walk squash/stretch — imgのみに適用 (translateXなし) */
+@keyframes slimeWalkSqueeze {
+  0%   { transform: scaleX(1)    scaleY(1); }
+  18%  { transform: scaleX(1.07) scaleY(0.92); }
+  40%  { transform: scaleX(0.92) scaleY(1.09); }
+  55%  { transform: scaleX(0.93) scaleY(1.08); }
+  72%  { transform: scaleX(1.02) scaleY(0.98); }
+  88%  { transform: scaleX(0.99) scaleY(1.01); }
+  100% { transform: scaleX(1)    scaleY(1); }
+}
+.slime-walk-x-right  { animation: slimeWalkRightX  1.7s ease-in-out both; }
+.slime-walk-x-left   { animation: slimeWalkLeftX   1.7s ease-in-out both; }
+.slime-walk-squeeze  { animation: slimeWalkSqueeze 1.7s ease-in-out both; transform-origin: center bottom; display: block; }
 
 @keyframes slimeWiggle {
   0%,100% { transform: rotate(0deg)  scaleX(1); }
@@ -190,34 +203,40 @@ body {
 
 /* 影アニメーション */
 @keyframes shadowIdle {
-  0%,100% { transform: translateX(-50%) scaleX(1);    opacity: 0.22; }
-  40%     { transform: translateX(-50%) scaleX(1.03); opacity: 0.24; }
-  70%     { transform: translateX(-50%) scaleX(0.98); opacity: 0.21; }
+  0%,100% { transform: translateX(-50%) scaleX(1);    opacity: 0.85; }
+  40%     { transform: translateX(-50%) scaleX(1.03); opacity: 0.9; }
+  70%     { transform: translateX(-50%) scaleX(0.98); opacity: 0.82; }
 }
 @keyframes shadowJump {
-  0%   { transform: translateX(-50%) scaleX(1.1);  opacity: 0.26; }
-  14%  { transform: translateX(-50%) scaleX(0.85); opacity: 0.19; }
-  42%  { transform: translateX(-50%) scaleX(0.42); opacity: 0.09; }
-  55%  { transform: translateX(-50%) scaleX(0.40); opacity: 0.08; }
-  72%  { transform: translateX(-50%) scaleX(0.65); opacity: 0.15; }
-  83%  { transform: translateX(-50%) scaleX(1.25); opacity: 0.30; }
-  91%  { transform: translateX(-50%) scaleX(0.88); opacity: 0.21; }
-  100% { transform: translateX(-50%) scaleX(1);    opacity: 0.22; }
+  /* Y追従なし — scaleXのみ変化、opacityは固定 */
+  0%   { transform: translateX(-50%) scaleX(1.1);  opacity: 0.85; }
+  42%  { transform: translateX(-50%) scaleX(0.85); opacity: 0.85; }
+  83%  { transform: translateX(-50%) scaleX(1.2);  opacity: 0.85; }
+  100% { transform: translateX(-50%) scaleX(1);    opacity: 0.85; }
 }
 @keyframes shadowHop {
-  0%   { transform: translateX(-50%) scaleX(1.05); opacity: 0.24; }
-  28%  { transform: translateX(-50%) scaleX(0.65); opacity: 0.13; }
-  50%  { transform: translateX(-50%) scaleX(0.62); opacity: 0.12; }
-  68%  { transform: translateX(-50%) scaleX(1.08); opacity: 0.26; }
-  83%  { transform: translateX(-50%) scaleX(0.92); opacity: 0.20; }
-  100% { transform: translateX(-50%) scaleX(1);    opacity: 0.22; }
+  /* Y追従なし */
+  0%   { transform: translateX(-50%) scaleX(1.05); opacity: 0.85; }
+  42%  { transform: translateX(-50%) scaleX(0.88); opacity: 0.85; }
+  68%  { transform: translateX(-50%) scaleX(1.1);  opacity: 0.85; }
+  100% { transform: translateX(-50%) scaleX(1);    opacity: 0.85; }
 }
-@keyframes shadowWalk {
-  0%,100% { transform: translateX(-50%) scaleX(1);    opacity: 0.22; }
-  40%     { transform: translateX(-50%) scaleX(0.88); opacity: 0.18; }
-  75%     { transform: translateX(-50%) scaleX(1.05); opacity: 0.24; }
+/* walk shadow — コンテナがX移動を担当するのでscaleXのみ */
+@keyframes shadowWalkScale {
+  0%,100% { transform: translateX(-50%) scaleX(1);    opacity: 0.85; }
+  40%     { transform: translateX(-50%) scaleX(0.88); opacity: 0.85; }
+  75%     { transform: translateX(-50%) scaleX(1.05); opacity: 0.85; }
 }
 
+@keyframes slimePoke {
+  0%   { transform: scaleX(1)    scaleY(1); }
+  18%  { transform: scaleX(1.22) scaleY(0.72); }
+  38%  { transform: scaleX(0.88) scaleY(1.26); }
+  55%  { transform: scaleX(1.12) scaleY(0.88); }
+  72%  { transform: scaleX(0.96) scaleY(1.08); }
+  86%  { transform: scaleX(1.03) scaleY(0.97); }
+  100% { transform: scaleX(1)    scaleY(1); }
+}
 .slime-idle       { animation: slimeIdleBreath 3.8s ease-in-out infinite; transform-origin: center bottom; }
 .slime-jump       { animation: slimeBigJump    2.0s ease-in-out both;     transform-origin: center bottom; }
 .slime-hop        { animation: slimeSmallHop   1.5s ease-in-out both;     transform-origin: center bottom; }
@@ -226,6 +245,7 @@ body {
 .slime-wiggle     { animation: slimeWiggle     1.6s ease-in-out both;     transform-origin: center bottom; }
 .slime-stretch    { animation: slimeStretch    1.8s ease-in-out both;     transform-origin: center bottom; }
 .slime-look       { animation: slimeLook       2.2s ease-in-out both;     transform-origin: center bottom; }
+.slime-poke       { animation: slimePoke       0.7s cubic-bezier(0.36,0.07,0.19,0.97) both; transform-origin: center bottom; }
 
 .slime-shadow {
   position: absolute;
@@ -233,18 +253,20 @@ body {
   left: 50%;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.22);
+  background: rgba(0, 0, 0, 0.38);
   filter: blur(3px);
   pointer-events: none;
+  opacity: 0.85;
 }
 .slime-shadow-idle       { animation: shadowIdle 3.8s ease-in-out infinite; }
 .slime-shadow-jump       { animation: shadowJump 2.0s ease-in-out both; }
 .slime-shadow-hop        { animation: shadowHop  1.5s ease-in-out both; }
-.slime-shadow-walk-right { animation: shadowWalk 1.7s ease-in-out both; }
-.slime-shadow-walk-left  { animation: shadowWalk 1.7s ease-in-out both; }
+.slime-shadow-walk-right { animation: shadowWalkScale 1.7s ease-in-out both; }
+.slime-shadow-walk-left  { animation: shadowWalkScale 1.7s ease-in-out both; }
 .slime-shadow-wiggle     { animation: shadowIdle 1.6s ease-in-out both; }
 .slime-shadow-stretch    { animation: shadowIdle 1.8s ease-in-out both; }
 .slime-shadow-look       { animation: shadowIdle 2.2s ease-in-out both; }
+.slime-shadow-poke       { animation: shadowIdle 0.7s ease-in-out both; }
 
 /* 吹き出しY位置 — スライムのジャンプに追従 */
 @keyframes speechPosJump {
@@ -270,18 +292,18 @@ body {
   18%  { transform: translateX(calc(-50% +  8px)); }
   40%  { transform: translateX(calc(-50% + 22px)); }
   55%  { transform: translateX(calc(-50% + 20px)); }
-  72%  { transform: translateX(calc(-50% +  7px)); }
-  88%  { transform: translateX(calc(-50% +  1px)); }
-  100% { transform: translateX(calc(-50% +  0px)); }
+  72%  { transform: translateX(calc(-50% + 22px)); }
+  88%  { transform: translateX(calc(-50% + 22px)); }
+  100% { transform: translateX(calc(-50% + 22px)); }
 }
 @keyframes speechPosWalkLeft {
   0%   { transform: translateX(calc(-50% -  0px)); }
   18%  { transform: translateX(calc(-50% -  8px)); }
   40%  { transform: translateX(calc(-50% - 22px)); }
   55%  { transform: translateX(calc(-50% - 20px)); }
-  72%  { transform: translateX(calc(-50% -  7px)); }
-  88%  { transform: translateX(calc(-50% -  1px)); }
-  100% { transform: translateX(calc(-50% -  0px)); }
+  72%  { transform: translateX(calc(-50% - 22px)); }
+  88%  { transform: translateX(calc(-50% - 22px)); }
+  100% { transform: translateX(calc(-50% - 22px)); }
 }
 .speech-pos-idle       { transform: translateX(-50%); }
 .speech-pos-jump       { animation: speechPosJump      2.0s ease-in-out both; }

@@ -20,15 +20,15 @@ const STEPS = [
     title: 'Bonjory OS へようこそ！',
     illustration: (
       <div style={{ textAlign: 'center', padding: '16px 0' }}>
-        <div style={{ fontSize: 72, lineHeight: 1 }}>🎮</div>
+        <img src="/icons/Handlime_icon.png" alt="slime" style={{ width: 80, height: 80, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
         <div style={{ marginTop: 12, fontSize: 18, fontWeight: 700, color: C.dark }}>
-          ゲーム部 クラブ管理システム
+          ゲーム制作サークル 「BONJORY」管理システム
         </div>
       </div>
     ),
     body: (
       <p style={{ color: C.dark, lineHeight: 1.8, margin: 0 }}>
-        Bonjory OS はゲーム部の活動を一括管理するシステムです。
+        Bonjory OS はゲーム製作サークル「BONJORY」の活動を一括管理するシステムです。
         課題の提出・タイムラインの共有・部員同士のコミュニケーション・
         ポイント管理など、クラブ活動に必要な機能がそろっています。
         <br /><br />
@@ -198,7 +198,7 @@ const STEPS = [
 const COURSES = [
   { value: 'Unity',   label: 'Unityコース',   emoji: '🎮', desc: 'Unity を使ったゲーム制作を学ぶ' },
   { value: 'Blender', label: 'Blenderコース', emoji: '🎨', desc: 'Blender を使った3DCG制作を学ぶ' },
-  { value: 'Web',     label: 'Web開発コース', emoji: '🌐', desc: 'HTML/CSS/JS などWeb技術を学ぶ' },
+  { value: 'Web',     label: 'Web開発コース', emoji: '🌐', desc: 'HTML/CSS/JS などWeb技術をAIコーディングで学ぶ' },
 ]
 
 // ─── Page ───────────────────────────────────────────────────
