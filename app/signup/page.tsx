@@ -29,6 +29,7 @@ export default function SignupPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [username, setUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -36,6 +37,10 @@ export default function SignupPage() {
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
     setError(null)
+    if (password !== confirmPassword) {
+      setError('パスワードが一致しません')
+      return
+    }
     setLoading(true)
     try {
       const { error: signUpError } = await supabase.auth.signUp({
@@ -74,6 +79,11 @@ export default function SignupPage() {
           <div>
             <label style={LABEL}>パスワード</label>
             <input style={INPUT} type="password" value={password} onChange={e => setPassword(e.target.value)}
+              required placeholder="••••••••" />
+          </div>
+          <div>
+            <label style={LABEL}>パスワード（確認）</label>
+            <input style={INPUT} type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
               required placeholder="••••••••" />
           </div>
 
