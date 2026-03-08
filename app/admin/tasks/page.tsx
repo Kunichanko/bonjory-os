@@ -54,7 +54,7 @@ function MarkdownToggle({ checked, onChange }: { checked: boolean; onChange: (v:
 }
 
 function MarkdownContent({ content }: { content: string }) {
-  const html = marked.parse(content) as string
+  const html = marked.parse(content, { breaks: true }) as string
   return (
     <div
       className="markdown-body"

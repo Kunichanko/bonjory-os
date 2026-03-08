@@ -213,6 +213,7 @@ export default function DashboardPage() {
 
   // ポイント・ランク
   const [totalPoints, setTotalPoints]   = useState(0)
+  const [rankOpen, setRankOpen]         = useState(true)
   const [coolPoints, setCoolPoints]     = useState(0)
   const [rankSettings, setRankSettings] = useState<RankSetting[]>([])
   const [userRole, setUserRole]         = useState<string | null>(null)
@@ -1019,28 +1020,58 @@ export default function DashboardPage() {
         {currentRank && (
           <div style={{
             position: 'fixed', top: 64, left: 8, zIndex: 98,
-            background: '#1a3a00',
-            border: `3px solid ${currentRank.color}`,
-            borderRadius: 12, padding: '12px 16px',
-            textAlign: 'center', minWidth: 130,
+            transform: rankOpen ? 'translateX(0)' : 'translateX(-150px)',
+            transition: 'transform 0.3s ease',
+            display: 'flex', alignItems: 'stretch',
           }}>
-            <p style={{ color: currentRank.color, fontWeight: 'bold', fontSize: 32, lineHeight: 1, marginBottom: 2 }}>
-              {currentRank.name}
-            </p>
-            <p style={{ color: currentRank.color, fontSize: 12, marginBottom: 6 }}>ランク</p>
-            <p style={{ color: '#a8d870', fontSize: 12, marginBottom: 6 }}>
-              累計 <span style={{ fontWeight: 'bold' }}>{totalPoints}</span> pt
-            </p>
-            {nextRank ? (
-              <p style={{ color: '#a8d870', fontSize: 12, lineHeight: 1.4 }}>
-                次まで<br/>
-                <span style={{ fontWeight: 'bold', fontSize: 16 }}>
-                  {nextRank.min_points - coolPoints}
-                </span> pt
+            {/* カード本体 */}
+            <div style={{
+              background: '#1a3a00',
+              border: `3px solid ${currentRank.color}`,
+              borderRight: 'none',
+              borderRadius: '0 0 0 0',
+              borderTopRightRadius: 0,
+              borderBottomRightRadius: 0,
+              borderTopLeftRadius: 12,
+              borderBottomLeftRadius: 12,
+              padding: '12px 16px',
+              textAlign: 'center', width: 138,
+            }}>
+              <p style={{ color: currentRank.color, fontWeight: 'bold', fontSize: 32, lineHeight: 1, marginBottom: 2 }}>
+                {currentRank.name}
               </p>
-            ) : (
-              <p style={{ color: '#f0a000', fontSize: 12 }}>最高ランク！</p>
-            )}
+              <p style={{ color: currentRank.color, fontSize: 12, marginBottom: 6 }}>ランク</p>
+              <p style={{ color: '#a8d870', fontSize: 12, marginBottom: 6 }}>
+                累計 <span style={{ fontWeight: 'bold' }}>{totalPoints}</span> pt
+              </p>
+              {nextRank ? (
+                <p style={{ color: '#a8d870', fontSize: 12, lineHeight: 1.4 }}>
+                  次まで<br/>
+                  <span style={{ fontWeight: 'bold', fontSize: 16 }}>
+                    {nextRank.min_points - coolPoints}
+                  </span> pt
+                </p>
+              ) : (
+                <p style={{ color: '#f0a000', fontSize: 12 }}>最高ランク！</p>
+              )}
+            </div>
+            {/* つまみ */}
+            <button
+              onClick={() => setRankOpen(o => !o)}
+              style={{
+                background: '#1a3a00',
+                border: `3px solid ${currentRank.color}`,
+                borderLeft: 'none',
+                borderRadius: '0 10px 10px 0',
+                width: 20, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: 0,
+              }}
+            >
+              <span style={{ color: currentRank.color, fontSize: 11, lineHeight: 1, userSelect: 'none' }}>
+                {rankOpen ? '‹' : '›'}
+              </span>
+            </button>
           </div>
         )}
 
@@ -1184,8 +1215,9 @@ export default function DashboardPage() {
                     {assignment.task.description && (
                       assignment.task.description_is_markdown
                         ? <div
+                            className="markdown-body"
                             style={{ color: '#3d6e00', fontSize: 14, marginBottom: 16, lineHeight: 1.7 }}
-                            dangerouslySetInnerHTML={{ __html: marked.parse(assignment.task.description) as string }}
+                            dangerouslySetInnerHTML={{ __html: marked.parse(assignment.task.description, { breaks: true }) as string }}
                           />
                         : <p style={{ color: '#3d6e00', fontSize: 14, marginBottom: 16, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
                             {assignment.task.description}
