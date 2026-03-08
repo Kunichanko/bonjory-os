@@ -147,6 +147,41 @@ const STEPS = [
     ),
   },
   {
+    title: '通知でもっと便利に',
+    illustration: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+          {[
+            { icon: '📅', label: '提出日に通知', desc: '締め切りを見逃さない', color: '#fff8e1', border: '#f9a825' },
+            { icon: '📲', label: 'ホーム画面に追加', desc: 'アプリのように起動', color: '#e8f5e9', border: '#388e3c' },
+            { icon: '👆', label: '1タップで移動', desc: '通知からすぐページへ', color: '#e3f2fd', border: '#0288d1' },
+          ].map(item => (
+            <div key={item.label} style={{
+              flex: 1, border: `2px solid ${item.border}`, borderRadius: 10,
+              padding: '10px 8px', textAlign: 'center', background: item.color,
+            }}>
+              <div style={{ fontSize: 26 }}>{item.icon}</div>
+              <div style={{ fontWeight: 700, color: '#2d5500', fontSize: 12, marginTop: 4 }}>{item.label}</div>
+              <div style={{ fontSize: 10, color: '#5a8a00', marginTop: 2 }}>{item.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+    body: (
+      <div style={{ color: C.dark, lineHeight: 1.8 }}>
+        <p style={{ margin: '0 0 8px' }}>
+          ダッシュボードの「🔔 通知を有効にする」から通知を許可すると：
+        </p>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>
+          <li><strong>木曜・日曜の提出日</strong>に事前リマインドが届きます</li>
+          <li>通知をタップするだけで<strong>該当ページに直接ジャンプ</strong>できます</li>
+          <li>ブラウザの「ホーム画面に追加」でアプリのように使えます（<strong>iOS 16.4以上</strong>はホーム画面追加後に通知が使えます）</li>
+        </ul>
+      </div>
+    ),
+  },
+  {
     title: 'DM機能',
     illustration: (
       <div style={{ padding: '8px 0', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>

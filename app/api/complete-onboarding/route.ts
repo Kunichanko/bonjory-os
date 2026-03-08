@@ -23,5 +23,21 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // 初期課題を自動割り当て
+  const { data: initialTask } = await supabaseAdmin
+    .from('course_initial_tasks')
+    .select('task_id')
+    .eq('course', course)
+    .single()
+
+  if (initialTask?.task_id) {
+    await supabaseAdmin.from('task_assignments').insert({
+      user_id: user.id,
+      task_id: initialTask.task_id,
+      status: 'assigned',
+      is_assigned: true,
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }

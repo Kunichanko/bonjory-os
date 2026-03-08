@@ -89,6 +89,10 @@ export default function AdminTasksPage() {
   const [editSaving, setEditSaving]                 = useState(false)
   const [editError, setEditError]                   = useState<string | null>(null)
 
+  // 初期課題設定
+  const [initialTasks, setInitialTasks]       = useState<Record<string, string>>({})
+  const [initialSaving, setInitialSaving]     = useState<string | null>(null)
+
   const [userRole, setUserRole]         = useState<string | null>(null)
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
@@ -111,12 +115,20 @@ export default function AdminTasksPage() {
         if (me.role !== 'admin' && !perms.task_management) { router.replace('/dashboard'); return }
         if (mounted) { setUserRole(me.role); setEffectivePerms(perms) }
 
-        const { data: taskList, error: listError } = await supabase
-          .from('tasks')
-          .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at')
-          .order('created_at', { ascending: false })
+        const [{ data: taskList, error: listError }, { data: initList }] = await Promise.all([
+          supabase
+            .from('tasks')
+            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at')
+            .order('created_at', { ascending: false }),
+          supabase.from('course_initial_tasks').select('course, task_id'),
+        ])
         if (listError) throw listError
-        if (mounted) setTasks(taskList ?? [])
+        if (mounted) {
+          setTasks(taskList ?? [])
+          const map: Record<string, string> = {}
+          for (const row of (initList ?? [])) map[row.course] = row.task_id
+          setInitialTasks(map)
+        }
       } catch (err: any) {
         console.error(err)
       } finally {
@@ -209,6 +221,34 @@ export default function AdminTasksPage() {
       setEditingId(null)
     }
     setEditSaving(false)
+  }
+
+  async function handleDelete(taskId: string, taskTitle: string) {
+    if (!window.confirm(`「${taskTitle}」を削除しますか？\nこの操作は取り消せません。`)) return
+    const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== taskId))
+      // 初期課題に設定されていたら解除
+      setInitialTasks(prev => {
+        const next = { ...prev }
+        for (const course of Object.keys(next)) {
+          if (next[course] === taskId) delete next[course]
+        }
+        return next
+      })
+    }
+  }
+
+  async function handleSaveInitialTask(course: string, taskId: string) {
+    setInitialSaving(course)
+    if (taskId === '') {
+      await supabase.from('course_initial_tasks').delete().eq('course', course)
+      setInitialTasks(prev => { const n = { ...prev }; delete n[course]; return n })
+    } else {
+      await supabase.from('course_initial_tasks').upsert({ course, task_id: taskId }, { onConflict: 'course' })
+      setInitialTasks(prev => ({ ...prev, [course]: taskId }))
+    }
+    setInitialSaving(null)
   }
 
   async function toggleActive(taskId: string, current: boolean) {
@@ -355,6 +395,41 @@ export default function AdminTasksPage() {
           </form>
         </div>
 
+        {/* 初期課題設定 */}
+        <div className="game-card" style={{ padding: '24px 28px', marginBottom: 24 }}>
+          <h2 className="game-title" style={{ fontSize: 22, marginBottom: 6 }}>初期課題設定</h2>
+          <p style={{ color: '#3d6e00', fontSize: 13, marginBottom: 20 }}>
+            新入部員がコースを選択したとき自動で割り当てられる課題を設定します。
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {(['Unity', 'Blender', 'Web'] as const).map(course => (
+              <div key={course} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{
+                  minWidth: 110, fontWeight: 'bold', fontSize: 14, color: '#2d5500',
+                  background: '#e8ffd4', borderRadius: 8, padding: '4px 12px', textAlign: 'center',
+                }}>
+                  {course}コース
+                </span>
+                <select
+                  className="game-input"
+                  style={{ flex: 1, fontSize: 14 }}
+                  value={initialTasks[course] ?? ''}
+                  onChange={e => handleSaveInitialTask(course, e.target.value)}
+                  disabled={initialSaving === course}
+                >
+                  <option value="">（なし）</option>
+                  {tasks.filter(t => t.is_active && (!t.target_course || t.target_course === course)).map(t => (
+                    <option key={t.id} value={t.id}>{t.title}</option>
+                  ))}
+                </select>
+                {initialSaving === course && (
+                  <span style={{ fontSize: 12, color: '#6aac14', whiteSpace: 'nowrap' }}>保存中…</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* 課題一覧 */}
         <div className="game-card" style={{ padding: '24px 28px' }}>
           <h2 className="game-title" style={{ fontSize: 22, marginBottom: 20 }}>課題一覧</h2>
@@ -483,6 +558,17 @@ export default function AdminTasksPage() {
                           }}
                         >
                           {task.is_active ? '停止する' : '有効にする'}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(task.id, task.title)}
+                          style={{
+                            padding: '6px 14px', borderRadius: 8,
+                            border: '2px solid #c0392b', background: '#fdecea',
+                            color: '#c0392b', fontWeight: 'bold', cursor: 'pointer', fontSize: 13,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          削除
                         </button>
                       </div>
                     </div>
