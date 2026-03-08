@@ -219,7 +219,7 @@ export default function AdminPointsPage() {
 
         {/* ヘッダー */}
         <div className="game-card" style={{ padding: '24px 32px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <h1 className="game-title" style={{ fontSize: 28 }}>ポイント・ランク設定</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 13 }}>ポイント・倍率ウィーク・ランクを管理します</p>

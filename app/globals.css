@@ -39,8 +39,8 @@ body {
 
 .game-title {
   font-family: 'Mantou Sans', 'Arial Rounded MT Bold', Arial, sans-serif;
+  font-weight: bold;
   color: var(--green-dark);
-  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.1);
 }
 
 .game-input {

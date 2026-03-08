@@ -93,6 +93,13 @@ export default function AdminTasksPage() {
   const [initialTasks, setInitialTasks]       = useState<Record<string, string>>({})
   const [initialSaving, setInitialSaving]     = useState<string | null>(null)
 
+  // アコーディオン & フィルター
+  const [expandedId, setExpandedId]           = useState<string | null>(null)
+  const [filterText, setFilterText]           = useState('')
+  const [filterCourse, setFilterCourse]       = useState('')
+  const [filterStage, setFilterStage]         = useState('')
+  const [filterActive, setFilterActive]       = useState<'all' | 'active' | 'inactive'>('all')
+
   const [userRole, setUserRole]         = useState<string | null>(null)
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
@@ -276,7 +283,7 @@ export default function AdminTasksPage() {
 
         {/* ヘッダー */}
         <div className="game-card" style={{ padding: '24px 32px', marginBottom: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <h1 className="game-title" style={{ fontSize: 32 }}>課題管理</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>
@@ -395,8 +402,215 @@ export default function AdminTasksPage() {
           </form>
         </div>
 
+        {/* 課題一覧 */}
+        <div className="game-card" style={{ padding: '24px 28px' }}>
+          <h2 className="game-title" style={{ fontSize: 22, marginBottom: 16 }}>課題一覧</h2>
+
+          {/* フィルター */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            <input
+              className="game-input"
+              type="text"
+              placeholder="課題名で検索…"
+              value={filterText}
+              onChange={e => setFilterText(e.target.value)}
+              style={{ fontSize: 14 }}
+            />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <select
+                className="game-input"
+                value={filterCourse}
+                onChange={e => setFilterCourse(e.target.value)}
+                style={{ flex: 1, minWidth: 120, fontSize: 13 }}
+              >
+                {COURSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <select
+                className="game-input"
+                value={filterStage}
+                onChange={e => setFilterStage(e.target.value)}
+                style={{ flex: 1, minWidth: 140, fontSize: 13 }}
+              >
+                {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <select
+                className="game-input"
+                value={filterActive}
+                onChange={e => setFilterActive(e.target.value as 'all' | 'active' | 'inactive')}
+                style={{ flex: 1, minWidth: 100, fontSize: 13 }}
+              >
+                <option value="all">全て</option>
+                <option value="active">有効のみ</option>
+                <option value="inactive">停止中</option>
+              </select>
+            </div>
+          </div>
+
+          {tasks.length === 0 ? (
+            <p style={{ color: '#6aac14', textAlign: 'center', padding: 24 }}>まだ課題がありません</p>
+          ) : (() => {
+            const filtered = tasks.filter(t => {
+              if (filterText && !t.title.toLowerCase().includes(filterText.toLowerCase())) return false
+              if (filterCourse && t.target_course !== filterCourse) return false
+              if (filterStage && t.target_stage !== filterStage) return false
+              if (filterActive === 'active' && !t.is_active) return false
+              if (filterActive === 'inactive' && t.is_active) return false
+              return true
+            })
+            if (filtered.length === 0) return (
+              <p style={{ color: '#6aac14', textAlign: 'center', padding: 24 }}>該当する課題がありません</p>
+            )
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {filtered.map(task => {
+                  const isExpanded = expandedId === task.id
+                  const isEditing = editingId === task.id
+                  return (
+                    <div
+                      key={task.id}
+                      style={{
+                        border: `2px solid ${task.is_active ? '#6aac14' : '#bbb'}`,
+                        borderRadius: 10,
+                        background: task.is_active ? '#f8fff0' : '#f5f5f5',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {/* ─── 折りたたみヘッダー行 ─── */}
+                      <div
+                        onClick={() => {
+                          if (isEditing) return
+                          setExpandedId(isExpanded ? null : task.id)
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '12px 16px', cursor: isEditing ? 'default' : 'pointer',
+                          userSelect: 'none',
+                        }}
+                      >
+                        <span style={{
+                          fontSize: 13, color: isExpanded ? '#6aac14' : '#888',
+                          transition: 'transform 0.2s',
+                          transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                          display: 'inline-block', flexShrink: 0,
+                        }}>▶</span>
+                        <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {task.title}
+                        </span>
+                        <div style={{ display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            {task.target_course ?? '全コース'}
+                          </span>
+                          <span style={{ background: '#3d6e00', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            {task.target_stage ?? '全ステージ'}
+                          </span>
+                          {!task.is_active && (
+                            <span style={{ background: '#999', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>停止中</span>
+                          )}
+                          {task.description_is_markdown && (
+                            <span style={{ background: '#0288d1', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>MD</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ─── 展開部分 ─── */}
+                      {(isExpanded || isEditing) && (
+                        <div style={{ borderTop: '1px solid #d4f0a0', padding: '14px 16px' }}>
+                          {isEditing ? (
+                            /* ─── 編集フォーム ─── */
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                              <div>
+                                <label className="game-label" style={{ fontSize: 12 }}>タイトル</label>
+                                <input
+                                  className="game-input"
+                                  value={editTitle}
+                                  onChange={e => setEditTitle(e.target.value)}
+                                  style={{ fontSize: 14 }}
+                                />
+                              </div>
+                              <div>
+                                <label className="game-label" style={{ fontSize: 12 }}>説明</label>
+                                <textarea
+                                  className="game-input"
+                                  value={editDescription}
+                                  onChange={e => setEditDescription(e.target.value)}
+                                  rows={4}
+                                  style={{ resize: 'vertical', fontSize: 13 }}
+                                />
+                                <MarkdownToggle checked={editIsMarkdown} onChange={setEditIsMarkdown} />
+                              </div>
+                              <div style={{ display: 'flex', gap: 12 }}>
+                                <div style={{ flex: 1 }}>
+                                  <label className="game-label" style={{ fontSize: 12 }}>対象コース</label>
+                                  <select className="game-input" value={editTargetCourse} onChange={e => setEditTargetCourse(e.target.value)} style={{ fontSize: 13 }}>
+                                    {COURSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                  </select>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label className="game-label" style={{ fontSize: 12 }}>対象ステージ</label>
+                                  <select className="game-input" value={editTargetStage} onChange={e => setEditTargetStage(e.target.value)} style={{ fontSize: 13 }}>
+                                    {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              {editError && <div className="game-error" style={{ fontSize: 12 }}>{editError}</div>}
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button
+                                  onClick={handleSaveEdit}
+                                  disabled={editSaving}
+                                  style={{ padding: '6px 16px', borderRadius: 8, border: '2px solid #6aac14', background: '#6aac14', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
+                                  {editSaving ? '保存中…' : '保存'}
+                                </button>
+                                <button
+                                  onClick={() => { cancelEdit(); setExpandedId(task.id) }}
+                                  style={{ padding: '6px 16px', borderRadius: 8, border: '2px solid #888', background: 'none', color: '#888', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
+                                  キャンセル
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* ─── 詳細表示 ─── */
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                <button
+                                  onClick={() => { startEdit(task); setExpandedId(null) }}
+                                  style={{ padding: '6px 14px', borderRadius: 8, border: '2px solid #3d6e00', background: 'white', color: '#3d6e00', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
+                                >
+                                  編集
+                                </button>
+                                <button
+                                  onClick={() => toggleActive(task.id, task.is_active)}
+                                  style={{ padding: '6px 14px', borderRadius: 8, border: `2px solid ${task.is_active ? '#c0392b' : '#6aac14'}`, background: task.is_active ? '#fdecea' : '#e8ffd4', color: task.is_active ? '#c0392b' : '#1a6e00', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
+                                >
+                                  {task.is_active ? '停止する' : '有効にする'}
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(task.id, task.title)}
+                                  style={{ padding: '6px 14px', borderRadius: 8, border: '2px solid #c0392b', background: '#fdecea', color: '#c0392b', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
+                                >
+                                  削除
+                                </button>
+                              </div>
+                              {task.description ? (
+                                task.description_is_markdown
+                                  ? <MarkdownContent content={task.description} />
+                                  : <p style={{ color: '#3d6e00', fontSize: 14, whiteSpace: 'pre-wrap', margin: 0 }}>{task.description}</p>
+                              ) : (
+                                <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（説明なし）</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
+        </div>
+
         {/* 初期課題設定 */}
-        <div className="game-card" style={{ padding: '24px 28px', marginBottom: 24 }}>
+        <div className="game-card" style={{ padding: '24px 28px', marginTop: 24 }}>
           <h2 className="game-title" style={{ fontSize: 22, marginBottom: 6 }}>初期課題設定</h2>
           <p style={{ color: '#3d6e00', fontSize: 13, marginBottom: 20 }}>
             新入部員がコースを選択したとき自動で割り当てられる課題を設定します。
@@ -428,155 +642,6 @@ export default function AdminTasksPage() {
               </div>
             ))}
           </div>
-        </div>
-
-        {/* 課題一覧 */}
-        <div className="game-card" style={{ padding: '24px 28px' }}>
-          <h2 className="game-title" style={{ fontSize: 22, marginBottom: 20 }}>課題一覧</h2>
-          {tasks.length === 0 ? (
-            <p style={{ color: '#6aac14', textAlign: 'center', padding: 24 }}>まだ課題がありません</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {tasks.map(task => (
-                <div
-                  key={task.id}
-                  style={{
-                    border: `3px solid ${task.is_active ? '#6aac14' : '#ccc'}`,
-                    borderRadius: 12,
-                    padding: '16px 20px',
-                    background: task.is_active ? '#f8fff0' : '#f5f5f5',
-                  }}
-                >
-                  {editingId === task.id ? (
-                    /* ─── 編集フォーム ─── */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      <div>
-                        <label className="game-label" style={{ fontSize: 12 }}>タイトル</label>
-                        <input
-                          className="game-input"
-                          value={editTitle}
-                          onChange={e => setEditTitle(e.target.value)}
-                          style={{ fontSize: 14 }}
-                        />
-                      </div>
-                      <div>
-                        <label className="game-label" style={{ fontSize: 12 }}>説明</label>
-                        <textarea
-                          className="game-input"
-                          value={editDescription}
-                          onChange={e => setEditDescription(e.target.value)}
-                          rows={4}
-                          style={{ resize: 'vertical', fontSize: 13 }}
-                        />
-                        <MarkdownToggle checked={editIsMarkdown} onChange={setEditIsMarkdown} />
-                      </div>
-                      <div style={{ display: 'flex', gap: 12 }}>
-                        <div style={{ flex: 1 }}>
-                          <label className="game-label" style={{ fontSize: 12 }}>対象コース</label>
-                          <select className="game-input" value={editTargetCourse} onChange={e => setEditTargetCourse(e.target.value)} style={{ fontSize: 13 }}>
-                            {COURSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                          </select>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <label className="game-label" style={{ fontSize: 12 }}>対象ステージ</label>
-                          <select className="game-input" value={editTargetStage} onChange={e => setEditTargetStage(e.target.value)} style={{ fontSize: 13 }}>
-                            {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      {editError && <div className="game-error" style={{ fontSize: 12 }}>{editError}</div>}
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={handleSaveEdit}
-                          disabled={editSaving}
-                          style={{ padding: '6px 16px', borderRadius: 8, border: '2px solid #6aac14', background: '#6aac14', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
-                          {editSaving ? '保存中…' : '保存'}
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          style={{ padding: '6px 16px', borderRadius: 8, border: '2px solid #888', background: 'none', color: '#888', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
-                          キャンセル
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* ─── 表示モード ─── */
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 16, marginBottom: 4 }}>
-                          {task.title}
-                        </p>
-                        {task.description && (
-                          task.description_is_markdown
-                            ? <MarkdownContent content={task.description} />
-                            : <p style={{ color: '#3d6e00', fontSize: 14, marginBottom: 8, whiteSpace: 'pre-wrap' }}>{task.description}</p>
-                        )}
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-                          <span style={{
-                            background: '#6aac14', color: 'white',
-                            borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
-                          }}>
-                            {task.target_course ?? '全コース'}
-                          </span>
-                          <span style={{
-                            background: '#3d6e00', color: 'white',
-                            borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
-                          }}>
-                            {task.target_stage ?? '全ステージ'}
-                          </span>
-                          {task.description_is_markdown && (
-                            <span style={{
-                              background: '#0288d1', color: 'white',
-                              borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold',
-                            }}>
-                              MD
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                        <button
-                          onClick={() => startEdit(task)}
-                          style={{
-                            padding: '6px 14px', borderRadius: 8,
-                            border: '2px solid #3d6e00', background: 'white',
-                            color: '#3d6e00', fontWeight: 'bold', cursor: 'pointer', fontSize: 13,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => toggleActive(task.id, task.is_active)}
-                          style={{
-                            padding: '6px 14px', borderRadius: 8,
-                            border: `2px solid ${task.is_active ? '#c0392b' : '#6aac14'}`,
-                            background: task.is_active ? '#fdecea' : '#e8ffd4',
-                            color: task.is_active ? '#c0392b' : '#1a6e00',
-                            fontWeight: 'bold', cursor: 'pointer', fontSize: 13,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {task.is_active ? '停止する' : '有効にする'}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(task.id, task.title)}
-                          style={{
-                            padding: '6px 14px', borderRadius: 8,
-                            border: '2px solid #c0392b', background: '#fdecea',
-                            color: '#c0392b', fontWeight: 'bold', cursor: 'pointer', fontSize: 13,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          削除
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
       </div>

@@ -113,7 +113,7 @@ export default function AdminPositionsPage() {
 
         {/* ヘッダー */}
         <div className="game-card" style={{ padding: '24px 32px', marginBottom: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <h1 className="game-title" style={{ fontSize: 32 }}>役職管理</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>役職ごとにアクセスできる機能を設定します</p>

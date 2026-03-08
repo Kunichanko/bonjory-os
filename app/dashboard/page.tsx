@@ -876,7 +876,7 @@ export default function DashboardPage() {
               background: currentView === item.id ? '#3d6e00' : 'none',
               border: 'none', cursor: 'pointer',
               color: currentView === item.id ? '#fff' : '#a8d870',
-              fontSize: 15, fontWeight: currentView === item.id ? 'bold' : 'normal',
+              fontSize: 15, fontWeight: 'bold',
               textAlign: 'left', transition: 'background 0.15s',
             }}>
               <span style={{ fontSize: 18 }}>{item.icon}</span>
@@ -1158,7 +1158,7 @@ export default function DashboardPage() {
                         </div>
                         <p style={{
                           marginTop: 8, fontSize: 12,
-                          fontWeight: isActive ? 'bold' : 'normal',
+                          fontWeight: 'bold',
                           color: isActive ? '#3d6e00' : '#6aac14', textAlign: 'center',
                         }}>
                           {m.label}
@@ -1413,7 +1413,7 @@ export default function DashboardPage() {
             <>
               <div className="game-card" style={{ padding: '24px 28px' }}>
                 <h2 className="game-title" style={{ fontSize: 22, marginBottom: 4 }}>📚 過去の課題</h2>
-                <p style={{ color: '#3d6e00', fontSize: 13 }}>提出済みの課題履歴 — {submittedAssignments.length} 件</p>
+                <p style={{ color: '#3d6e00', fontSize: 13, fontWeight: 'bold' }}>提出済みの課題履歴 — {submittedAssignments.length} 件</p>
               </div>
 
               {submittedAssignments.length === 0 ? (
@@ -1531,7 +1531,7 @@ export default function DashboardPage() {
                   <h2 className="game-title" style={{ fontSize: 22, marginBottom: 4 }}>
                     {isCurrentView ? '🌐 タイムライン' : '📦 過去のタイムライン'}
                   </h2>
-                  <p style={{ color: '#3d6e00', fontSize: 13 }}>
+                  <p style={{ color: '#3d6e00', fontSize: 13, fontWeight: 'bold' }}>
                     部員の提出作品 — {displayList.length} 件
                     {(timelineFilterCourse || timelineFilterStage) && ` (全${isCurrentView ? currentTimeline.length : pastTimeline.length}件中)`}
                   </p>
