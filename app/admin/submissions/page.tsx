@@ -22,6 +22,7 @@ interface AssignmentDetail {
   midterm_progress: string | null
   midterm_correction: string | null
   media_url: string | null
+  image_urls: string[] | null
   self_evaluation: string | null
   retrospective: string | null
   submitted_at: string | null
@@ -92,7 +93,7 @@ export default function AdminSubmissionsPage() {
           supabase.from('task_assignments')
             .select(`
               id, user_id, status, plan_text, midterm_progress, midterm_correction,
-              media_url, self_evaluation, retrospective, submitted_at,
+              media_url, image_urls, self_evaluation, retrospective, submitted_at,
               is_anonymous, thumbnail_url,
               task:tasks(id, title, target_course, target_stage)
             `)
@@ -389,9 +390,21 @@ export default function AdminSubmissionsPage() {
                                     <EmptyBlock label="中間報告" />
                                   )}
 
-                                  {a.media_url ? (
+                                  {a.image_urls && a.image_urls.length > 0 ? (
                                     <div>
-                                      <p className="game-label" style={{ marginBottom: 4 }}>🎬 提出URL</p>
+                                      <p className="game-label" style={{ marginBottom: 8 }}>🖼️ 提出画像 ({a.image_urls.length}枚)</p>
+                                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                        {a.image_urls.map((url, i) => (
+                                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                            <img src={url} alt={`image-${i + 1}`}
+                                              style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '2px solid #c8e89a' }} />
+                                          </a>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : a.media_url ? (
+                                    <div>
+                                      <p className="game-label" style={{ marginBottom: 4 }}>🎬 提出URL（旧形式）</p>
                                       <a
                                         href={a.media_url}
                                         target="_blank"
@@ -402,7 +415,7 @@ export default function AdminSubmissionsPage() {
                                       </a>
                                     </div>
                                   ) : (
-                                    <EmptyBlock label="提出URL" />
+                                    <EmptyBlock label="提出画像" />
                                   )}
 
                                   {a.self_evaluation ? (

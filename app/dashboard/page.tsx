@@ -72,6 +72,7 @@ interface AssignmentTask {
   description_is_markdown: boolean
   target_course: string | null
   target_stage: string | null
+  allow_image_attachment: boolean
 }
 
 interface AssignmentRecord {
@@ -81,6 +82,7 @@ interface AssignmentRecord {
   midterm_progress: string | null
   midterm_correction: string | null
   media_url: string | null
+  image_urls: string[] | null
   self_evaluation: string | null
   retrospective: string | null
   submitted_at: string | null
@@ -99,6 +101,7 @@ interface TimelineItem {
   self_evaluation: string | null
   retrospective: string | null
   media_url: string | null
+  image_urls: string[] | null
   submitted_at: string | null
   hidden_in_timeline: boolean
   force_past_timeline: boolean
@@ -150,6 +153,7 @@ function detectMediaType(url: string): 'youtube' | 'video' | 'image' | 'link' {
   if (getYoutubeEmbedUrl(url)) return 'youtube'
   if (/\.(mp4|webm|mov|avi)(\?|$)/i.test(url)) return 'video'
   if (/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url)) return 'image'
+  if (url.includes('/storage/v1/object/public/media/images/')) return 'image'
   if (url.includes('/storage/v1/object/public/media/')) return 'video'
   return 'link'
 }
@@ -264,7 +268,6 @@ export default function DashboardPage() {
   const [midtermSuccess, setMidtermSuccess]       = useState<Record<string, boolean>>({})
 
   // 最終提出
-  const [mediaUrls, setMediaUrls]             = useState<Record<string, string>>({})
   const [selfEvals, setSelfEvals]             = useState<Record<string, string>>({})
   const [retros, setRetros]                   = useState<Record<string, string>>({})
   const [isAnonymous, setIsAnonymous]         = useState<Record<string, boolean>>({})
@@ -273,11 +276,10 @@ export default function DashboardPage() {
   const [uploadingThumb, setUploadingThumb]   = useState<Record<string, boolean>>({})
   const [submitting, setSubmitting]           = useState<Record<string, boolean>>({})
   const [submitSuccess, setSubmitSuccess]     = useState<Record<string, boolean>>({})
-  // 動画アップロード
-  const [mediaInputMode, setMediaInputMode]   = useState<Record<string, 'url' | 'file'>>({})
-  const [videoFiles, setVideoFiles]           = useState<Record<string, File | null>>({})
-  const [videoPreviews, setVideoPreviews]     = useState<Record<string, string>>({})
-  const [uploadingVideo, setUploadingVideo]   = useState<Record<string, boolean>>({})
+  // 画像アップロード（複数枚、最大5枚）
+  const [imageFiles, setImageFiles]           = useState<Record<string, File[]>>({})
+  const [imagePreviews, setImagePreviews]     = useState<Record<string, string[]>>({})
+  const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({})
 
   // タイムライン
   const [timeline, setTimeline]               = useState<TimelineItem[]>([])
@@ -396,9 +398,9 @@ export default function DashboardPage() {
           supabase.from('task_assignments')
             .select(`
               id, status, plan_text, midterm_progress, midterm_correction,
-              media_url, self_evaluation, retrospective, submitted_at,
+              media_url, image_urls, self_evaluation, retrospective, submitted_at,
               is_anonymous, thumbnail_url, created_at, deadline_at,
-              task:tasks(id, title, description, description_is_markdown, target_course, target_stage)
+              task:tasks(id, title, description, description_is_markdown, target_course, target_stage, allow_image_attachment)
             `)
             .eq('user_id', uid)
             .eq('is_assigned', true),
@@ -515,7 +517,6 @@ export default function DashboardPage() {
           const plans: Record<string, string>   = {}
           const midProg: Record<string, string> = {}
           const midCorr: Record<string, string> = {}
-          const medias: Record<string, string>  = {}
           const evals: Record<string, string>   = {}
           const retro: Record<string, string>   = {}
           const anon: Record<string, boolean>   = {}
@@ -523,7 +524,6 @@ export default function DashboardPage() {
             plans[a.id]   = a.plan_text           ?? ''
             midProg[a.id] = a.midterm_progress    ?? ''
             midCorr[a.id] = a.midterm_correction  ?? ''
-            medias[a.id]  = a.media_url           ?? ''
             evals[a.id]   = a.self_evaluation     ?? ''
             retro[a.id]   = a.retrospective       ?? ''
             anon[a.id]    = a.is_anonymous        ?? false
@@ -531,7 +531,6 @@ export default function DashboardPage() {
           setPlanTexts(plans)
           setMidtermProgress(midProg)
           setMidtermCorrection(midCorr)
-          setMediaUrls(medias)
           setSelfEvals(evals)
           setRetros(retro)
           setIsAnonymous(anon)
@@ -564,7 +563,7 @@ export default function DashboardPage() {
           .from('task_assignments')
           .select(`
             id, user_id, is_anonymous, thumbnail_url,
-            self_evaluation, retrospective, media_url, submitted_at,
+            self_evaluation, retrospective, media_url, image_urls, submitted_at,
             hidden_in_timeline, force_past_timeline,
             task:tasks(id, title, target_course, target_stage, created_at)
           `)
@@ -681,25 +680,28 @@ export default function DashboardPage() {
       }
     }
 
-    // 動画ファイルアップロード（ファイルモードの場合）
-    let finalMediaUrl = mediaUrls[assignmentId] ?? ''
-    const videoFile = videoFiles[assignmentId]
-    if (videoFile && userId && mediaInputMode[assignmentId] === 'file') {
-      setUploadingVideo(prev => ({ ...prev, [assignmentId]: true }))
-      const ext = videoFile.name.split('.').pop() ?? 'mp4'
-      const vPath = `${userId}/${assignmentId}.${ext}`
-      const { data: vData, error: vErr } = await supabase.storage
-        .from('media')
-        .upload(vPath, videoFile, { upsert: true })
-      setUploadingVideo(prev => ({ ...prev, [assignmentId]: false }))
-      if (!vErr && vData) {
-        const { data: vUrlData } = supabase.storage.from('media').getPublicUrl(vData.path)
-        finalMediaUrl = vUrlData.publicUrl
+    // 画像ファイルアップロード（複数枚、最大5枚）
+    const uploadedImageUrls: string[] = []
+    const imgFiles = imageFiles[assignmentId] ?? []
+    if (imgFiles.length > 0 && userId) {
+      setUploadingImages(prev => ({ ...prev, [assignmentId]: true }))
+      for (let i = 0; i < imgFiles.length; i++) {
+        const f = imgFiles[i]
+        const ext = f.name.split('.').pop() ?? 'jpg'
+        const iPath = `images/${userId}/${assignmentId}/${i}.${ext}`
+        const { data: iData, error: iErr } = await supabase.storage
+          .from('media')
+          .upload(iPath, f, { upsert: true })
+        if (!iErr && iData) {
+          const { data: iUrlData } = supabase.storage.from('media').getPublicUrl(iData.path)
+          uploadedImageUrls.push(iUrlData.publicUrl)
+        }
       }
+      setUploadingImages(prev => ({ ...prev, [assignmentId]: false }))
     }
 
     const { error } = await supabase.from('task_assignments').update({
-      media_url:       finalMediaUrl,
+      image_urls:      uploadedImageUrls.length > 0 ? uploadedImageUrls : null,
       self_evaluation: selfEvals[assignmentId]   ?? '',
       retrospective:   retros[assignmentId]      ?? '',
       is_anonymous:    isAnonymous[assignmentId] ?? false,
@@ -716,7 +718,8 @@ export default function DashboardPage() {
         a.id === assignmentId
           ? { ...a, status: 'submitted', submitted_at: now,
               is_anonymous: isAnonymous[assignmentId] ?? false,
-              thumbnail_url: thumbUrl }
+              thumbnail_url: thumbUrl,
+              image_urls: uploadedImageUrls.length > 0 ? uploadedImageUrls : a.image_urls }
           : a
       ))
       // 初回提出のみポイント付与
@@ -1343,42 +1346,36 @@ export default function DashboardPage() {
                               🎬 最終提出
                               {todayPhase === 'final' && <span style={{ marginLeft: 8, background: '#6aac14', color: 'white', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>今日！</span>}
                             </span>
-                            {assignment.media_url && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
+                            {(assignment.image_urls && assignment.image_urls.length > 0) && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
                           </div>
                           {sec.final && (
                             <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                              <div>
-                                <label className="game-label">動画 / 画像</label>
-                                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                                  {(['url', 'file'] as const).map(mode => (
-                                    <button key={mode} type="button"
-                                      onClick={() => setMediaInputMode(p => ({ ...p, [assignment.id]: mode }))}
-                                      style={{ flex: 1, padding: '6px 0', borderRadius: 8, background: (mediaInputMode[assignment.id] ?? 'url') === mode ? '#6aac14' : '#f0fae0', border: '2px solid #6aac14', color: (mediaInputMode[assignment.id] ?? 'url') === mode ? '#fff' : '#3d6e00', cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
-                                      {mode === 'url' ? '🔗 URL（YouTube等）' : '📁 ファイルアップロード'}
-                                    </button>
-                                  ))}
+                              {assignment.task.allow_image_attachment !== false && (
+                                <div>
+                                  <label className="game-label">画像（最大5枚）</label>
+                                  <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>制作物のスクリーンショットや完成画像を添付してください</p>
+                                  <input type="file" accept="image/*" multiple
+                                    onChange={e => {
+                                      const files = Array.from(e.target.files ?? []).slice(0, 5)
+                                      setImageFiles(prev => ({ ...prev, [assignment.id]: files }))
+                                      setImagePreviews(prev => ({
+                                        ...prev,
+                                        [assignment.id]: files.map(f => URL.createObjectURL(f)),
+                                      }))
+                                    }}
+                                    style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
+                                  <p style={{ color: '#888', fontSize: 12, marginTop: 4 }}>⚠️ 1枚あたり10MBまで（jpg・png・gif・webp）</p>
+                                  {(imagePreviews[assignment.id] ?? []).length > 0 && (
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                                      {(imagePreviews[assignment.id] ?? []).map((src, i) => (
+                                        <img key={i} src={src} alt={`preview-${i}`}
+                                          style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '2px solid #c8e89a' }} />
+                                      ))}
+                                    </div>
+                                  )}
+                                  {uploadingImages[assignment.id] && <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>画像アップロード中...</p>}
                                 </div>
-                                {(mediaInputMode[assignment.id] ?? 'url') === 'url' ? (
-                                  <input className="game-input" type="url"
-                                    placeholder="https://youtube.com/watch?v=... または画像URL"
-                                    value={mediaUrls[assignment.id] ?? ''}
-                                    onChange={e => setMediaUrls(prev => ({ ...prev, [assignment.id]: e.target.value }))} />
-                                ) : (
-                                  <div>
-                                    <input type="file" accept="video/*,image/*"
-                                      onChange={e => {
-                                        const f = e.target.files?.[0] ?? null
-                                        setVideoFiles(prev => ({ ...prev, [assignment.id]: f }))
-                                        if (f) setVideoPreviews(prev => ({ ...prev, [assignment.id]: URL.createObjectURL(f) }))
-                                        else setVideoPreviews(prev => ({ ...prev, [assignment.id]: '' }))
-                                      }}
-                                      style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
-                                    <p style={{ color: '#888', fontSize: 12, marginTop: 4 }}>⚠️ 50 MB まで。長い動画は YouTube にアップして URL を使用推奨</p>
-                                    {videoPreviews[assignment.id] && <video src={videoPreviews[assignment.id]} controls style={{ marginTop: 8, width: '100%', maxHeight: 160, borderRadius: 8 }} />}
-                                    {uploadingVideo[assignment.id] && <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>動画アップロード中...</p>}
-                                  </div>
-                                )}
-                              </div>
+                              )}
                               <div>
                                 <label className="game-label">自己評価</label>
                                 <textarea className="game-input" rows={3}
@@ -1513,9 +1510,22 @@ export default function DashboardPage() {
                             )}
                           </div>
                         )}
-                        {a.media_url && (
+                        {a.image_urls && a.image_urls.length > 0 && (
                           <div>
-                            <p className="game-label" style={{ marginBottom: 4 }}>🎬 提出URL</p>
+                            <p className="game-label" style={{ marginBottom: 8 }}>🖼️ 提出画像</p>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {a.image_urls.map((url, i) => (
+                                <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                  <img src={url} alt={`image-${i + 1}`}
+                                    style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '2px solid #c8e89a' }} />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {(!a.image_urls || a.image_urls.length === 0) && a.media_url && (
+                          <div>
+                            <p className="game-label" style={{ marginBottom: 4 }}>🎬 提出URL（旧形式）</p>
                             <a href={a.media_url} target="_blank" rel="noopener noreferrer"
                               style={{ color: '#3d6e00', fontSize: 14, wordBreak: 'break-all' }}>
                               {a.media_url}
@@ -1757,7 +1767,20 @@ export default function DashboardPage() {
 
               <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '12px 0' }} />
 
-              {selectedPost.media_url && (() => {
+              {selectedPost.image_urls && selectedPost.image_urls.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <p className="game-label" style={{ marginBottom: 8 }}>🖼️ 提出画像</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {selectedPost.image_urls.map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt={`image-${i + 1}`}
+                          style={{ width: '100%', maxHeight: 300, objectFit: 'contain', borderRadius: 8, border: '2px solid #c8e89a', display: 'block' }} />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(!selectedPost.image_urls || selectedPost.image_urls.length === 0) && selectedPost.media_url && (() => {
                 const mediaType = detectMediaType(selectedPost.media_url!)
                 const embedUrl  = getYoutubeEmbedUrl(selectedPost.media_url!)
                 return (

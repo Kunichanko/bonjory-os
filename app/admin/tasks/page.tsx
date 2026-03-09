@@ -16,6 +16,7 @@ interface Task {
   is_active: boolean
   created_at: string
   progress_number: number | null
+  allow_image_attachment: boolean
 }
 
 const COURSE_OPTIONS = [
@@ -80,6 +81,7 @@ export default function AdminTasksPage() {
   const [targetCourse, setTargetCourse]       = useState('')
   const [targetStage, setTargetStage]         = useState('')
   const [progressNumber, setProgressNumber]   = useState('')
+  const [allowImageAttachment, setAllowImageAttachment] = useState(true)
 
   // 編集状態
   const [editingId, setEditingId]                         = useState<string | null>(null)
@@ -89,6 +91,7 @@ export default function AdminTasksPage() {
   const [editTargetCourse, setEditTargetCourse]           = useState('')
   const [editTargetStage, setEditTargetStage]             = useState('')
   const [editProgressNumber, setEditProgressNumber]       = useState('')
+  const [editAllowImageAttachment, setEditAllowImageAttachment] = useState(true)
   const [editSaving, setEditSaving]                       = useState(false)
   const [editError, setEditError]                         = useState<string | null>(null)
 
@@ -128,7 +131,7 @@ export default function AdminTasksPage() {
         const [{ data: taskList, error: listError }, { data: initList }] = await Promise.all([
           supabase
             .from('tasks')
-            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at, progress_number')
+            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at, progress_number, allow_image_attachment')
             .order('created_at', { ascending: false }),
           supabase.from('course_initial_tasks').select('course, task_id'),
         ])
@@ -169,6 +172,7 @@ export default function AdminTasksPage() {
         progress_number: progressNumber !== '' ? parseFloat(progressNumber) : null,
         created_by: authData?.user?.id,
         is_active: true,
+        allow_image_attachment: allowImageAttachment,
       })
       .select()
       .single()
@@ -183,6 +187,7 @@ export default function AdminTasksPage() {
       setTargetCourse('')
       setTargetStage('')
       setProgressNumber('')
+      setAllowImageAttachment(true)
       setSuccess('課題を作成しました！')
     }
     setSubmitting(false)
@@ -196,6 +201,7 @@ export default function AdminTasksPage() {
     setEditTargetCourse(task.target_course ?? '')
     setEditTargetStage(task.target_stage ?? '')
     setEditProgressNumber(task.progress_number != null ? String(task.progress_number) : '')
+    setEditAllowImageAttachment(task.allow_image_attachment ?? true)
     setEditError(null)
   }
 
@@ -218,6 +224,7 @@ export default function AdminTasksPage() {
         target_course: editTargetCourse || null,
         target_stage: editTargetStage || null,
         progress_number: editProgressNumber !== '' ? parseFloat(editProgressNumber) : null,
+        allow_image_attachment: editAllowImageAttachment,
       })
       .eq('id', editingId)
 
@@ -232,6 +239,7 @@ export default function AdminTasksPage() {
         target_course: editTargetCourse || null,
         target_stage: editTargetStage || null,
         progress_number: editProgressNumber !== '' ? parseFloat(editProgressNumber) : null,
+        allow_image_attachment: editAllowImageAttachment,
       } : t))
       setEditingId(null)
     }
@@ -413,6 +421,26 @@ export default function AdminTasksPage() {
               </div>
             </div>
 
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                <div
+                  onClick={() => setAllowImageAttachment(!allowImageAttachment)}
+                  style={{
+                    width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s',
+                    background: allowImageAttachment ? '#6aac14' : '#ccc', flexShrink: 0,
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 2, left: allowImageAttachment ? 18 : 2, width: 16, height: 16,
+                    borderRadius: '50%', background: 'white', transition: 'left 0.2s',
+                  }} />
+                </div>
+                <span style={{ fontSize: 13, color: allowImageAttachment ? '#2d5500' : '#888', fontWeight: allowImageAttachment ? 'bold' : 'normal' }}>
+                  画像の添付を許可する
+                </span>
+              </label>
+            </div>
+
             <button className="game-button" type="submit" disabled={submitting} style={{ marginTop: 4 }}>
               {submitting ? '作成中…' : '課題を作成'}
             </button>
@@ -532,6 +560,9 @@ export default function AdminTasksPage() {
                           {task.description_is_markdown && (
                             <span style={{ background: '#0288d1', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>MD</span>
                           )}
+                          {!task.allow_image_attachment && (
+                            <span style={{ background: '#e65100', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>画像添付不可</span>
+                          )}
                         </div>
                       </div>
 
@@ -588,6 +619,23 @@ export default function AdminTasksPage() {
                                   />
                                 </div>
                               </div>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                                <div
+                                  onClick={() => setEditAllowImageAttachment(!editAllowImageAttachment)}
+                                  style={{
+                                    width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s',
+                                    background: editAllowImageAttachment ? '#6aac14' : '#ccc', flexShrink: 0,
+                                  }}
+                                >
+                                  <div style={{
+                                    position: 'absolute', top: 2, left: editAllowImageAttachment ? 18 : 2, width: 16, height: 16,
+                                    borderRadius: '50%', background: 'white', transition: 'left 0.2s',
+                                  }} />
+                                </div>
+                                <span style={{ fontSize: 13, color: editAllowImageAttachment ? '#2d5500' : '#888', fontWeight: editAllowImageAttachment ? 'bold' : 'normal' }}>
+                                  画像の添付を許可する
+                                </span>
+                              </label>
                               {editError && <div className="game-error" style={{ fontSize: 12 }}>{editError}</div>}
                               <div style={{ display: 'flex', gap: 8 }}>
                                 <button
