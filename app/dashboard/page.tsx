@@ -83,8 +83,10 @@ interface AssignmentRecord {
   midterm_correction: string | null
   media_url: string | null
   image_urls: string[] | null
+  submission_comment: string | null
   self_evaluation: string | null
   retrospective: string | null
+  course_request: string | null
   submitted_at: string | null
   is_anonymous: boolean
   thumbnail_url: string | null
@@ -268,8 +270,10 @@ export default function DashboardPage() {
   const [midtermSuccess, setMidtermSuccess]       = useState<Record<string, boolean>>({})
 
   // 最終提出
+  const [submissionComments, setSubmissionComments] = useState<Record<string, string>>({})
   const [selfEvals, setSelfEvals]             = useState<Record<string, string>>({})
   const [retros, setRetros]                   = useState<Record<string, string>>({})
+  const [courseRequests, setCourseRequests]   = useState<Record<string, string>>({})
   const [isAnonymous, setIsAnonymous]         = useState<Record<string, boolean>>({})
   const [thumbnailFiles, setThumbnailFiles]   = useState<Record<string, File | null>>({})
   const [thumbPreviews, setThumbPreviews]     = useState<Record<string, string>>({})
@@ -398,7 +402,7 @@ export default function DashboardPage() {
           supabase.from('task_assignments')
             .select(`
               id, status, plan_text, midterm_progress, midterm_correction,
-              media_url, image_urls, self_evaluation, retrospective, submitted_at,
+              media_url, image_urls, submission_comment, self_evaluation, retrospective, course_request, submitted_at,
               is_anonymous, thumbnail_url, created_at, deadline_at,
               task:tasks(id, title, description, description_is_markdown, target_course, target_stage, allow_image_attachment)
             `)
@@ -517,22 +521,28 @@ export default function DashboardPage() {
           const plans: Record<string, string>   = {}
           const midProg: Record<string, string> = {}
           const midCorr: Record<string, string> = {}
+          const subComments: Record<string, string> = {}
           const evals: Record<string, string>   = {}
           const retro: Record<string, string>   = {}
+          const courseReqs: Record<string, string> = {}
           const anon: Record<string, boolean>   = {}
           assignmentData.forEach(a => {
-            plans[a.id]   = a.plan_text           ?? ''
-            midProg[a.id] = a.midterm_progress    ?? ''
-            midCorr[a.id] = a.midterm_correction  ?? ''
-            evals[a.id]   = a.self_evaluation     ?? ''
-            retro[a.id]   = a.retrospective       ?? ''
-            anon[a.id]    = a.is_anonymous        ?? false
+            plans[a.id]       = a.plan_text           ?? ''
+            midProg[a.id]     = a.midterm_progress    ?? ''
+            midCorr[a.id]     = a.midterm_correction  ?? ''
+            subComments[a.id] = a.submission_comment  ?? ''
+            evals[a.id]       = a.self_evaluation     ?? ''
+            retro[a.id]       = a.retrospective       ?? ''
+            courseReqs[a.id]  = a.course_request      ?? ''
+            anon[a.id]        = a.is_anonymous        ?? false
           })
           setPlanTexts(plans)
           setMidtermProgress(midProg)
           setMidtermCorrection(midCorr)
+          setSubmissionComments(subComments)
           setSelfEvals(evals)
           setRetros(retro)
+          setCourseRequests(courseReqs)
           setIsAnonymous(anon)
         }
 
@@ -701,14 +711,16 @@ export default function DashboardPage() {
     }
 
     const { error } = await supabase.from('task_assignments').update({
-      image_urls:      uploadedImageUrls.length > 0 ? uploadedImageUrls : null,
-      self_evaluation: selfEvals[assignmentId]   ?? '',
-      retrospective:   retros[assignmentId]      ?? '',
-      is_anonymous:    isAnonymous[assignmentId] ?? false,
-      thumbnail_url:   thumbUrl,
-      status:          'submitted',
-      submitted_at:    now,
-      updated_at:      now,
+      image_urls:         uploadedImageUrls.length > 0 ? uploadedImageUrls : null,
+      submission_comment: submissionComments[assignmentId] ?? '',
+      self_evaluation:    selfEvals[assignmentId]   ?? '',
+      retrospective:      retros[assignmentId]      ?? '',
+      course_request:     courseRequests[assignmentId] ?? '',
+      is_anonymous:       isAnonymous[assignmentId] ?? false,
+      thumbnail_url:      thumbUrl,
+      status:             'submitted',
+      submitted_at:       now,
+      updated_at:         now,
     }).eq('id', assignmentId)
 
     setSubmitting(prev => ({ ...prev, [assignmentId]: false }))
@@ -1377,6 +1389,14 @@ export default function DashboardPage() {
                                 </div>
                               )}
                               <div>
+                                <label className="game-label">📋 提出物を記載</label>
+                                <textarea className="game-input" rows={3}
+                                  placeholder="今回作ったものを説明してください。どんな機能を実装したか、工夫した点など..."
+                                  value={submissionComments[assignment.id] ?? ''}
+                                  onChange={e => setSubmissionComments(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                                  style={{ resize: 'vertical' }} />
+                              </div>
+                              <div>
                                 <label className="game-label">自己評価</label>
                                 <textarea className="game-input" rows={3}
                                   placeholder="今週の制作を振り返って、自分で評価してみよう..."
@@ -1412,6 +1432,17 @@ export default function DashboardPage() {
                                 <p style={{ color: '#888', fontSize: 12, marginTop: 6 }}>
                                   {isAnonymous[assignment.id] ? 'タイムラインには名前が表示されません' : 'タイムラインにあなたの名前と作品が公開されます'}
                                 </p>
+                              </div>
+                              <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 14 }}>
+                                <label className="game-label">💬 コースへの要望</label>
+                                <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>
+                                  やってみたいこと・興味のある分野・自分の技術の進捗感など、運営への要望を自由に書いてください。次の課題の参考にします。
+                                </p>
+                                <textarea className="game-input" rows={4}
+                                  placeholder="例：もっと〇〇を作ってみたい、今は△△が△割くらいできてきた気がする、□□が難しくて困っている..."
+                                  value={courseRequests[assignment.id] ?? ''}
+                                  onChange={e => setCourseRequests(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                                  style={{ resize: 'vertical' }} />
                               </div>
                               <button className="game-button" disabled={submitting[assignment.id]} onClick={() => submitWork(assignment.id)}>
                                 {submitting[assignment.id] ? '提出中…' : '🚀 提出する'}
@@ -1532,6 +1563,12 @@ export default function DashboardPage() {
                             </a>
                           </div>
                         )}
+                        {a.submission_comment && (
+                          <div>
+                            <p className="game-label" style={{ marginBottom: 4 }}>📋 提出物の説明</p>
+                            <p style={textBlockStyle}>{a.submission_comment}</p>
+                          </div>
+                        )}
                         {a.self_evaluation && (
                           <div>
                             <p className="game-label" style={{ marginBottom: 4 }}>⭐ 自己評価</p>
@@ -1547,6 +1584,12 @@ export default function DashboardPage() {
                         <p style={{ color: a.is_anonymous ? '#888' : '#6aac14', fontSize: 12 }}>
                           {a.is_anonymous ? '🙈 匿名投稿' : '👤 実名投稿'}
                         </p>
+                        {a.course_request && (
+                          <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 12 }}>
+                            <p className="game-label" style={{ marginBottom: 4 }}>💬 コースへの要望</p>
+                            <p style={textBlockStyle}>{a.course_request}</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

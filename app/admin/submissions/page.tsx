@@ -23,8 +23,10 @@ interface AssignmentDetail {
   midterm_correction: string | null
   media_url: string | null
   image_urls: string[] | null
+  submission_comment: string | null
   self_evaluation: string | null
   retrospective: string | null
+  course_request: string | null
   submitted_at: string | null
   is_anonymous: boolean
   thumbnail_url: string | null
@@ -93,7 +95,7 @@ export default function AdminSubmissionsPage() {
           supabase.from('task_assignments')
             .select(`
               id, user_id, status, plan_text, midterm_progress, midterm_correction,
-              media_url, image_urls, self_evaluation, retrospective, submitted_at,
+              media_url, image_urls, submission_comment, self_evaluation, retrospective, course_request, submitted_at,
               is_anonymous, thumbnail_url,
               task:tasks(id, title, target_course, target_stage)
             `)
@@ -418,6 +420,12 @@ export default function AdminSubmissionsPage() {
                                     <EmptyBlock label="提出画像" />
                                   )}
 
+                                  {a.submission_comment ? (
+                                    <DetailBlock icon="📋" label="提出物の説明" text={a.submission_comment} />
+                                  ) : (
+                                    <EmptyBlock label="提出物の説明" />
+                                  )}
+
                                   {a.self_evaluation ? (
                                     <DetailBlock icon="⭐" label="自己評価" text={a.self_evaluation} />
                                   ) : (
@@ -428,6 +436,12 @@ export default function AdminSubmissionsPage() {
                                     <DetailBlock icon="🔄" label="計画の振り返り" text={a.retrospective} />
                                   ) : (
                                     <EmptyBlock label="計画の振り返り" />
+                                  )}
+
+                                  {a.course_request && (
+                                    <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 12, marginTop: 4 }}>
+                                      <DetailBlock icon="💬" label="コースへの要望" text={a.course_request} />
+                                    </div>
                                   )}
                                 </div>
                               )}
