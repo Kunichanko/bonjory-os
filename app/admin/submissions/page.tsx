@@ -67,7 +67,7 @@ export default function AdminSubmissionsPage() {
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
-    dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
+    dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false, x_post_management: false,
   })
 
   useEffect(() => {

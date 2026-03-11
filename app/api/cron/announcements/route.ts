@@ -85,5 +85,54 @@ export async function GET(req: NextRequest) {
     totalSent += (subs?.length ?? 0) - goneEndpoints.length
   }
 
-  return NextResponse.json({ ok: true, processed: allAnns.length, sent: totalSent })
+  // X投稿予約通知チェック（scheduled_at が現在時刻以前かつ未通知）
+  const { data: scheduledXPosts } = await supabaseAdmin
+    .from('x_posts')
+    .select('*')
+    .eq('status', 'scheduled')
+    .lte('scheduled_at', now.toISOString())
+
+  let xNotified = 0
+  for (const post of scheduledXPosts ?? []) {
+    let subsQuery = supabaseAdmin.from('push_subscriptions').select('*')
+    if (post.notify_user_ids?.length > 0) {
+      subsQuery = subsQuery.in('user_id', post.notify_user_ids)
+    }
+    const { data: xSubs } = await subsQuery
+
+    const shortBody = post.content.slice(0, 60) + (post.content.length > 60 ? '…' : '')
+    const xPayload = {
+      title: '📣 X投稿の時間です！',
+      body: shortBody,
+      url: '/admin/x-posts',
+    }
+    const goneXEndpoints: string[] = []
+
+    await Promise.all((xSubs ?? []).map(async (sub: { endpoint: string; p256dh: string; auth: string }) => {
+      const result = await sendPushNotification(
+        { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
+        xPayload
+      )
+      if (result.gone) goneXEndpoints.push(sub.endpoint)
+    }))
+
+    if (goneXEndpoints.length > 0) {
+      await supabaseAdmin.from('push_subscriptions').delete().in('endpoint', goneXEndpoints)
+    }
+
+    await supabaseAdmin.from('x_posts').update({
+      status: 'notified',
+      notified_at: now.toISOString(),
+    }).eq('id', post.id)
+
+    xNotified += (xSubs?.length ?? 0) - goneXEndpoints.length
+  }
+
+  return NextResponse.json({
+    ok: true,
+    processed: allAnns.length,
+    sent: totalSent,
+    xPostsNotified: scheduledXPosts?.length ?? 0,
+    xSubscribersSent: xNotified,
+  })
 }
