@@ -402,9 +402,9 @@ export default function DashboardPage() {
           supabase.from('task_assignments')
             .select(`
               id, status, plan_text, midterm_progress, midterm_correction,
-              media_url, image_urls, submission_comment, self_evaluation, retrospective, course_request, submitted_at,
+              media_url, self_evaluation, retrospective, submitted_at,
               is_anonymous, thumbnail_url, created_at, deadline_at,
-              task:tasks(id, title, description, description_is_markdown, target_course, target_stage, allow_image_attachment)
+              task:tasks(id, title, description, description_is_markdown, target_course, target_stage)
             `)
             .eq('user_id', uid)
             .eq('is_assigned', true),
@@ -530,10 +530,10 @@ export default function DashboardPage() {
             plans[a.id]       = a.plan_text           ?? ''
             midProg[a.id]     = a.midterm_progress    ?? ''
             midCorr[a.id]     = a.midterm_correction  ?? ''
-            subComments[a.id] = a.submission_comment  ?? ''
+            subComments[a.id] = (a as any).submission_comment  ?? ''
             evals[a.id]       = a.self_evaluation     ?? ''
             retro[a.id]       = a.retrospective       ?? ''
-            courseReqs[a.id]  = a.course_request      ?? ''
+            courseReqs[a.id]  = (a as any).course_request      ?? ''
             anon[a.id]        = a.is_anonymous        ?? false
           })
           setPlanTexts(plans)
@@ -573,7 +573,7 @@ export default function DashboardPage() {
           .from('task_assignments')
           .select(`
             id, user_id, is_anonymous, thumbnail_url,
-            self_evaluation, retrospective, media_url, image_urls, submitted_at,
+            self_evaluation, retrospective, media_url, submitted_at,
             hidden_in_timeline, force_past_timeline,
             task:tasks(id, title, target_course, target_stage, created_at)
           `)
