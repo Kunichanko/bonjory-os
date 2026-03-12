@@ -99,6 +99,23 @@ export default function AdminTasksPage() {
   const [initialTasks, setInitialTasks]       = useState<Record<string, string>>({})
   const [initialSaving, setInitialSaving]     = useState<string | null>(null)
 
+  // AI 課題生成
+  const [aiOpen, setAiOpen]                             = useState(false)
+  const [aiCourse, setAiCourse]                         = useState('')
+  const [aiStage, setAiStage]                           = useState('')
+  const [aiTheme, setAiTheme]                           = useState('')
+  const [aiGenType, setAiGenType]                       = useState<'sequential' | 'individual' | 'event' | 'custom'>('individual')
+  const [aiInputTaskIds, setAiInputTaskIds]             = useState<string[]>([])
+  const [aiUseMarkdown, setAiUseMarkdown]               = useState(true)
+  const [aiAutoProgress, setAiAutoProgress]             = useState(true)
+  const [aiGenerating, setAiGenerating]                 = useState(false)
+  const [aiError, setAiError]                           = useState<string | null>(null)
+  const [aiResultTitle, setAiResultTitle]               = useState('')
+  const [aiResultDescription, setAiResultDescription]   = useState('')
+  const [aiResultMarkdown, setAiResultMarkdown]         = useState(true)
+  const [aiSubmitting, setAiSubmitting]                 = useState(false)
+  const [aiSuccess, setAiSuccess]                       = useState<string | null>(null)
+
   // アコーディオン & フィルター
   const [expandedId, setExpandedId]           = useState<string | null>(null)
   const [filterText, setFilterText]           = useState('')
@@ -143,7 +160,9 @@ export default function AdminTasksPage() {
           setInitialTasks(map)
         }
       } catch (err: any) {
-        console.error(err)
+        const msg = err?.message ?? err?.details ?? JSON.stringify(err)
+        console.error('tasks init error:', msg, err)
+        if (mounted) setError(`読み込みエラー: ${msg}`)
       } finally {
         if (mounted) setLoading(false)
       }
@@ -272,6 +291,88 @@ export default function AdminTasksPage() {
       setInitialTasks(prev => ({ ...prev, [course]: taskId }))
     }
     setInitialSaving(null)
+  }
+
+  function suggestProgressNumber(course: string, stage: string): string {
+    const filtered = tasks.filter(t =>
+      (!course || t.target_course === course) &&
+      (!stage  || t.target_stage  === stage)  &&
+      t.progress_number != null
+    )
+    if (filtered.length === 0) return '1'
+    const max = Math.max(...filtered.map(t => t.progress_number!))
+    return String(Math.round((max + 1) * 10) / 10)
+  }
+
+  async function handleGenerate() {
+    setAiError(null)
+    setAiSuccess(null)
+    setAiResultTitle('')
+    setAiResultDescription('')
+    setAiGenerating(true)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData?.session?.access_token
+      if (!token) throw new Error('ログインが必要です')
+
+      const inputTasks = tasks
+        .filter(t => aiInputTaskIds.includes(t.id))
+        .map(t => ({ title: t.title, description: t.description }))
+
+      const res = await fetch('/api/generate-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          course: aiCourse,
+          stage: aiStage,
+          theme: aiTheme,
+          generationType: aiGenType,
+          inputTasks,
+          useMarkdown: aiUseMarkdown,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '生成に失敗しました')
+      setAiResultTitle(json.title ?? '')
+      setAiResultDescription(json.description ?? '')
+      setAiResultMarkdown(aiUseMarkdown)
+    } catch (err: any) {
+      setAiError(err.message)
+    } finally {
+      setAiGenerating(false)
+    }
+  }
+
+  async function handleAiRegister() {
+    setAiError(null)
+    setAiSuccess(null)
+    setAiSubmitting(true)
+    const { data: authData } = await supabase.auth.getUser()
+    const progressNum = aiAutoProgress ? suggestProgressNumber(aiCourse, aiStage) : ''
+    const { data: newTask, error: insertError } = await supabase
+      .from('tasks')
+      .insert({
+        title: aiResultTitle,
+        description: aiResultDescription || null,
+        description_is_markdown: aiResultMarkdown,
+        target_course: aiCourse || null,
+        target_stage: aiStage || null,
+        progress_number: progressNum !== '' ? parseFloat(progressNum) : null,
+        created_by: authData?.user?.id,
+        is_active: true,
+        allow_image_attachment: true,
+      })
+      .select()
+      .single()
+    if (insertError) {
+      setAiError(insertError.message)
+    } else {
+      setTasks(prev => [newTask, ...prev])
+      setAiResultTitle('')
+      setAiResultDescription('')
+      setAiSuccess('課題を登録しました！')
+    }
+    setAiSubmitting(false)
   }
 
   async function toggleActive(taskId: string, current: boolean) {
@@ -450,6 +551,193 @@ export default function AdminTasksPage() {
           </form>
         </div>
 
+        {/* AI 課題生成 */}
+        <div className="game-card" style={{ padding: '0', marginBottom: 24, overflow: 'hidden' }}>
+          <div
+            onClick={() => setAiOpen(o => !o)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '18px 28px',
+              cursor: 'pointer', userSelect: 'none',
+            }}
+          >
+            <span style={{
+              fontSize: 13, color: aiOpen ? '#6aac14' : '#888',
+              transform: aiOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s', display: 'inline-block', flexShrink: 0,
+            }}>▶</span>
+            <span className="game-title" style={{ fontSize: 20, flex: 1 }}>AI課題生成 (Gemini)</span>
+            <span style={{ fontSize: 12, color: '#888', background: '#e8ffd4', padding: '2px 10px', borderRadius: 10, fontWeight: 'bold' }}>Beta</span>
+          </div>
+
+          {aiOpen && (
+            <div style={{ borderTop: '1px solid #d4f0a0', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* コース・ステージ */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <label className="game-label">対象コース</label>
+                  <select className="game-input" value={aiCourse} onChange={e => { setAiCourse(e.target.value); setAiInputTaskIds([]) }}>
+                    {COURSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <label className="game-label">対象ステージ</label>
+                  <select className="game-input" value={aiStage} onChange={e => { setAiStage(e.target.value); setAiInputTaskIds([]) }}>
+                    {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <label className="game-label">生成の種類</label>
+                  <select
+                    className="game-input"
+                    value={aiGenType}
+                    onChange={e => setAiGenType(e.target.value as typeof aiGenType)}
+                  >
+                    <option value="sequential">連続課題（過去課題の続き）</option>
+                    <option value="individual">個別課題（テーマ指定）</option>
+                    <option value="event">イベント課題（短時間・簡単）</option>
+                    <option value="custom">指定課題（プロンプト直接指定）</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* テーマ */}
+              <div>
+                <label className="game-label">
+                  {aiGenType === 'custom' ? 'プロンプト（自由入力）' : 'テーマ'}
+                </label>
+                <textarea
+                  className="game-input"
+                  value={aiTheme}
+                  onChange={e => setAiTheme(e.target.value)}
+                  rows={3}
+                  style={{ resize: 'vertical', fontSize: 14 }}
+                  placeholder={
+                    aiGenType === 'custom'
+                      ? '生成の指示を自由に記述してください...'
+                      : '例: ShaderGraphを使った光のエフェクト、256ポリゴンでキャラクターを作る...'
+                  }
+                />
+              </div>
+
+              {/* インプット課題（custom以外） */}
+              {aiGenType !== 'custom' && (
+                <div>
+                  <label className="game-label">
+                    インプット課題
+                    <span style={{ fontSize: 11, fontWeight: 'normal', color: '#888', marginLeft: 8 }}>
+                      多く選ぶほど生成精度が上がります
+                    </span>
+                  </label>
+                  {(() => {
+                    const filtered = tasks.filter(t =>
+                      (!aiCourse || t.target_course === aiCourse) &&
+                      (!aiStage  || t.target_stage  === aiStage)
+                    )
+                    if (filtered.length === 0) return (
+                      <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（該当する課題がありません）</p>
+                    )
+                    return (
+                      <div style={{
+                        maxHeight: 180, overflowY: 'auto', border: '1.5px solid #b8d870',
+                        borderRadius: 8, padding: '8px 12px', background: '#f8fff0',
+                        display: 'flex', flexDirection: 'column', gap: 4,
+                      }}>
+                        {filtered.map(t => (
+                          <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none', fontSize: 13, color: '#2d5500' }}>
+                            <input
+                              type="checkbox"
+                              checked={aiInputTaskIds.includes(t.id)}
+                              onChange={e => setAiInputTaskIds(prev =>
+                                e.target.checked ? [...prev, t.id] : prev.filter(id => id !== t.id)
+                              )}
+                              style={{ accentColor: '#6aac14', width: 15, height: 15, flexShrink: 0 }}
+                            />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {t.progress_number != null && <span style={{ color: '#6aac14', fontWeight: 'bold', marginRight: 4 }}>#{t.progress_number}</span>}
+                              {t.title}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+
+              {/* トグル */}
+              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                  <div
+                    onClick={() => setAiUseMarkdown(v => !v)}
+                    style={{ width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s', background: aiUseMarkdown ? '#6aac14' : '#ccc', flexShrink: 0 }}
+                  >
+                    <div style={{ position: 'absolute', top: 2, left: aiUseMarkdown ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                  </div>
+                  <span style={{ fontSize: 13, color: aiUseMarkdown ? '#2d5500' : '#888', fontWeight: aiUseMarkdown ? 'bold' : 'normal' }}>マークダウンで生成</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                  <div
+                    onClick={() => setAiAutoProgress(v => !v)}
+                    style={{ width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s', background: aiAutoProgress ? '#6aac14' : '#ccc', flexShrink: 0 }}
+                  >
+                    <div style={{ position: 'absolute', top: 2, left: aiAutoProgress ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                  </div>
+                  <span style={{ fontSize: 13, color: aiAutoProgress ? '#2d5500' : '#888', fontWeight: aiAutoProgress ? 'bold' : 'normal' }}>
+                    進行番号を自動振り分け
+                    {aiAutoProgress && <span style={{ color: '#6aac14', marginLeft: 6 }}>→ #{suggestProgressNumber(aiCourse, aiStage)}</span>}
+                  </span>
+                </label>
+              </div>
+
+              {/* 生成ボタン */}
+              <button
+                className="game-button"
+                onClick={handleGenerate}
+                disabled={aiGenerating || (!aiTheme.trim())}
+                style={{ background: '#3d6e00', borderColor: '#6aac14' }}
+              >
+                {aiGenerating ? '生成中…' : 'AIで課題を生成'}
+              </button>
+              {aiError && <div className="game-error" style={{ whiteSpace: 'pre-wrap' }}>{aiError}</div>}
+
+              {/* 生成結果 */}
+              {(aiResultTitle || aiResultDescription) && (
+                <div style={{ borderTop: '1px dashed #b8d870', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ fontSize: 13, color: '#3d6e00', margin: 0, fontWeight: 'bold' }}>生成結果（編集して登録してください）</p>
+                  <div>
+                    <label className="game-label">課題タイトル</label>
+                    <input
+                      className="game-input"
+                      value={aiResultTitle}
+                      onChange={e => setAiResultTitle(e.target.value)}
+                      style={{ fontSize: 15 }}
+                    />
+                  </div>
+                  <div>
+                    <label className="game-label">課題の説明</label>
+                    <textarea
+                      className="game-input"
+                      value={aiResultDescription}
+                      onChange={e => setAiResultDescription(e.target.value)}
+                      rows={8}
+                      style={{ resize: 'vertical', fontSize: 13 }}
+                    />
+                    <MarkdownToggle checked={aiResultMarkdown} onChange={setAiResultMarkdown} />
+                  </div>
+                  <button
+                    className="game-button"
+                    onClick={handleAiRegister}
+                    disabled={aiSubmitting || !aiResultTitle.trim()}
+                  >
+                    {aiSubmitting ? '登録中…' : 'このまま登録'}
+                  </button>
+                  {aiSuccess && <div className="game-success">{aiSuccess}</div>}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* 課題一覧 */}
         <div className="game-card" style={{ padding: '24px 28px' }}>
           <h2 className="game-title" style={{ fontSize: 22, marginBottom: 16 }}>課題一覧</h2>
@@ -586,9 +874,18 @@ export default function AdminTasksPage() {
                                 <textarea
                                   className="game-input"
                                   value={editDescription}
-                                  onChange={e => setEditDescription(e.target.value)}
+                                  onChange={e => {
+                                    setEditDescription(e.target.value)
+                                    e.target.style.height = 'auto'
+                                    e.target.style.height = e.target.scrollHeight + 'px'
+                                  }}
+                                  onFocus={e => {
+                                    e.target.style.height = 'auto'
+                                    e.target.style.height = e.target.scrollHeight + 'px'
+                                  }}
+                                  onBlur={e => { e.target.style.height = '' }}
                                   rows={4}
-                                  style={{ resize: 'vertical', fontSize: 13 }}
+                                  style={{ resize: 'vertical', fontSize: 13, minHeight: 100, overflow: 'hidden' }}
                                 />
                                 <MarkdownToggle checked={editIsMarkdown} onChange={setEditIsMarkdown} />
                               </div>
