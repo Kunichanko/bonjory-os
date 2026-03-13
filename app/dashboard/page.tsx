@@ -946,6 +946,19 @@ export default function DashboardPage() {
             過去のタイムライン
           </button>
 
+          {/* BON-TOPICS ニュース */}
+          <a href="/news" style={{ textDecoration: 'none', display: 'block' }}>
+            <button style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              width: '100%', padding: '12px 20px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
+            }}>
+              <span style={{ fontSize: 18 }}>📰</span>
+              BON-TOPICS
+            </button>
+          </a>
+
           {/* ダイレクトメッセージ - 全ユーザー */}
           <div style={{ position: 'relative' }}>
             <a href="/dm" style={{ textDecoration: 'none', display: 'block' }}>
@@ -1163,6 +1176,26 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
+
+          {/* ── BON-TOPICS バナー ──────────────────────── */}
+          <a href="/news" style={{ textDecoration: 'none' }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #2a4d00 0%, #1a3a00 100%)',
+              border: '3px solid #6aac14',
+              borderRadius: 14,
+              padding: '12px 20px',
+              display: 'flex', alignItems: 'center', gap: 12,
+              cursor: 'pointer',
+              boxShadow: '0 4px 0 #1a3a00',
+            }}>
+              <span style={{ fontSize: 28 }}>📰</span>
+              <div>
+                <p style={{ fontWeight: 'bold', color: '#d4f08a', fontSize: 16, margin: 0 }}>BON-TOPICS</p>
+                <p style={{ fontSize: 12, color: '#a8d870', margin: 0 }}>最新のニュースをチェック！</p>
+              </div>
+              <span style={{ marginLeft: 'auto', color: '#6aac14', fontSize: 20 }}>›</span>
+            </div>
+          </a>
 
           {/* ── ビュー切り替えタブ ───────────────────────── */}
           <div style={{ display: 'flex', gap: 4, background: '#1a3a00', borderRadius: 12, padding: 4 }}>
