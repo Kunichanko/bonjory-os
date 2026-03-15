@@ -280,6 +280,7 @@ export default function DashboardPage() {
   const [uploadingThumb, setUploadingThumb]   = useState<Record<string, boolean>>({})
   const [submitting, setSubmitting]           = useState<Record<string, boolean>>({})
   const [submitSuccess, setSubmitSuccess]     = useState<Record<string, boolean>>({})
+  const [submitError, setSubmitError]         = useState<Record<string, string>>({})
   // 画像アップロード（複数枚、最大5枚）
   const [imageFiles, setImageFiles]           = useState<Record<string, File[]>>({})
   const [imagePreviews, setImagePreviews]     = useState<Record<string, string[]>>({})
@@ -556,7 +557,12 @@ export default function DashboardPage() {
     }
 
     loadUser()
-    return () => { mounted = false }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') router.replace('/login')
+    })
+
+    return () => { mounted = false; subscription.unsubscribe() }
   }, [router])
 
   // ─── タイムライン読み込み ───────────────────────────────
@@ -670,6 +676,7 @@ export default function DashboardPage() {
 
     setSubmitting(prev => ({ ...prev, [assignmentId]: true }))
     setSubmitSuccess(prev => ({ ...prev, [assignmentId]: false }))
+    setSubmitError(prev => ({ ...prev, [assignmentId]: '' }))
 
     const now = new Date().toISOString()
 
@@ -724,6 +731,15 @@ export default function DashboardPage() {
     }).eq('id', assignmentId)
 
     setSubmitting(prev => ({ ...prev, [assignmentId]: false }))
+    if (error) {
+      const msg = (error as any)?.message ?? JSON.stringify(error)
+      if (msg.includes('JWT') || msg.includes('token') || msg.includes('session')) {
+        setSubmitError(prev => ({ ...prev, [assignmentId]: 'セッションが切れています。ページを再読み込みしてください。' }))
+      } else {
+        setSubmitError(prev => ({ ...prev, [assignmentId]: `提出に失敗しました: ${msg}` }))
+      }
+      return
+    }
     if (!error) {
       setSubmitSuccess(prev => ({ ...prev, [assignmentId]: true }))
       setAssignments(prev => prev.map(a =>
@@ -1448,6 +1464,7 @@ export default function DashboardPage() {
                                 {submitting[assignment.id] ? '提出中…' : '🚀 提出する'}
                               </button>
                               {submitSuccess[assignment.id] && <div className="game-success">提出完了！お疲れさまでした 🎉</div>}
+                              {submitError[assignment.id] && <div className="game-error">{submitError[assignment.id]}</div>}
                             </div>
                           )}
                         </div>
