@@ -358,3 +358,10 @@ body {
 .milestone-active {
   animation: pulseDot 2s ease-in-out infinite;
 }
+
+/* BON-TOPICS カルーセル */
+.bon-carousel-track {
+  display: flex;
+  transition: transform 0.4s ease;
+  will-change: transform;
+}

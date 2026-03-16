@@ -6,6 +6,7 @@ import supabase from '../../lib/supabase'
 import { marked } from 'marked'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
 import SlimeIcon from '../components/SlimeIcon'
+import BonTopics from '../components/BonTopics'
 
 // ─── 定数・型 ─────────────────────────────────────────────
 
@@ -39,9 +40,10 @@ const MILESTONES = [
   { key: 'final',   phase: 'final',   day: '日', label: '最終提出',  desc: '日曜日：動画・画像・自己評価をタイムラインに投稿しましょう。' },
 ]
 
-type ViewId = 'tasks' | 'history' | 'timeline' | 'past_timeline'
+type ViewId = 'tasks' | 'history' | 'timeline' | 'past_timeline' | 'news'
 
 const NAV_ITEMS: { id: ViewId; icon: string; label: string }[] = [
+  { id: 'news',     icon: '📰', label: 'BON-TOPICS' },
   { id: 'tasks',    icon: '📋', label: '今週の課題' },
   { id: 'history',  icon: '📚', label: '過去の課題' },
   { id: 'timeline', icon: '🌐', label: 'タイムライン' },
@@ -231,7 +233,7 @@ export default function DashboardPage() {
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
-    dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
+    dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false, news_management: false,
   })
 
   // スピーチ
@@ -1178,6 +1180,11 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
+
+          {/* ══ VIEW: BON-TOPICS ══════════════════════════ */}
+          {currentView === 'news' && userId && (
+            <BonTopics userId={userId} userCourse={course} />
+          )}
 
           {/* ══ VIEW: 今週の課題 ════════════════════════════ */}
           {currentView === 'tasks' && (
