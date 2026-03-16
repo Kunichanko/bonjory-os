@@ -6,6 +6,7 @@ import supabase from '../../lib/supabase'
 import { marked } from 'marked'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
 import SlimeIcon from '../components/SlimeIcon'
+import { AnimatePresence, motion } from 'framer-motion'
 
 // ─── 定数・型 ─────────────────────────────────────────────
 
@@ -138,6 +139,14 @@ interface Comment {
   profile: { username: string | null } | null
 }
 
+interface NotifLog {
+  id: string
+  title: string
+  body: string
+  url: string | null
+  created_at: string
+}
+
 // ─── メディア判定ヘルパー ───────────────────────────────────
 
 function getYoutubeEmbedUrl(url: string): string | null {
@@ -186,8 +195,8 @@ async function subscribePush() {
 
   const reg = await navigator.serviceWorker.ready
   const existingSub = await reg.pushManager.getSubscription()
-  if (existingSub) await existingSub.unsubscribe()
-  const sub = await reg.pushManager.subscribe({
+  // 既存の購読があれば再利用し、毎回新しいendpointを作らない
+  const sub = existingSub ?? await reg.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(vapidKey).buffer as ArrayBuffer,
   })
@@ -232,6 +241,7 @@ export default function DashboardPage() {
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
+    dev_management: false,
   })
 
   // スピーチ
@@ -245,6 +255,9 @@ export default function DashboardPage() {
   // DM未読
   const [dmUnreadCount, setDmUnreadCount]           = useState(0)
   const [dmManageUnreadCount, setDmManageUnreadCount] = useState(0)
+  const [notifOpen, setNotifOpen]   = useState(false)
+  const [notifLogs, setNotifLogs]   = useState<NotifLog[]>([])
+  const [notifUnread, setNotifUnread] = useState(0)
   const [positionNames, setPositionNames] = useState<string[]>([])
 
   // サイドバー
@@ -546,6 +559,22 @@ export default function DashboardPage() {
           setIsAnonymous(anon)
         }
 
+        // 通知ログ読み込み
+        const { data: logs } = await supabase
+          .from('notification_logs')
+          .select('id, title, body, url, created_at')
+          .order('created_at', { ascending: false })
+          .limit(50)
+        if (mounted) {
+          setNotifLogs((logs ?? []) as NotifLog[])
+          const lastOpened = typeof window !== 'undefined'
+            ? localStorage.getItem('notif_last_opened') : null
+          const unread = (logs ?? []).filter(l =>
+            !lastOpened || new Date(l.created_at) > new Date(lastOpened)
+          ).length
+          setNotifUnread(unread)
+        }
+
         // プッシュ通知サブスクリプション登録（エラーは無視）
         subscribePush().catch(() => {})
       } catch {
@@ -573,7 +602,7 @@ export default function DashboardPage() {
           .from('task_assignments')
           .select(`
             id, user_id, is_anonymous, thumbnail_url,
-            self_evaluation, retrospective, media_url, submitted_at,
+            self_evaluation, retrospective, media_url, image_urls, submitted_at,
             hidden_in_timeline, force_past_timeline,
             task:tasks(id, title, target_course, target_stage, created_at)
           `)
@@ -999,6 +1028,19 @@ export default function DashboardPage() {
               )}
             </div>
           )}
+
+          {/* 不具合・要望 - 全ユーザー */}
+          <a href="/reports" style={{ textDecoration: 'none', display: 'block' }}>
+            <button style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              width: '100%', padding: '12px 20px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
+            }}>
+              <span style={{ fontSize: 18 }}>🐛</span>
+              不具合・要望
+            </button>
+          </a>
         </nav>
 
         {(userRole === 'admin' || FEATURE_LIST.some(f => effectivePerms[f.id])) && (
@@ -1065,6 +1107,146 @@ export default function DashboardPage() {
             }} />
           )}
         </div>
+
+        {/* ベルアイコン */}
+        <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 99, display: 'inline-block' }}>
+          <button
+            onClick={() => {
+              const opening = !notifOpen
+              setNotifOpen(opening)
+              if (opening) {
+                localStorage.setItem('notif_last_opened', new Date().toISOString())
+                setNotifUnread(0)
+              }
+            }}
+            style={{
+              background: '#1a3a00', border: '2px solid #3d6e00',
+              borderRadius: 8, padding: '6px 10px',
+              cursor: 'pointer', fontSize: 20, lineHeight: 1,
+            }}
+          >
+            <span style={{ filter: 'grayscale(1) brightness(10)', display: 'inline-block' }}>🔔</span>
+          </button>
+          {notifUnread > 0 && (
+            <span style={{
+              position: 'absolute', top: 2, right: 2,
+              width: 8, height: 8, borderRadius: '50%',
+              background: 'red', border: '1.5px solid white',
+              display: 'block',
+            }} />
+          )}
+        </div>
+
+        {/* ── 通知センター オーバーレイ ──────────────────── */}
+        {notifOpen && (
+          <div
+            onClick={() => setNotifOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 149 }}
+          />
+        )}
+
+        {/* ── 通知センター グリーンシャッター ───────────── */}
+        <AnimatePresence>
+          {notifOpen && (
+            <motion.div
+              key="notif-shutter"
+              initial={{ y: '-100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '-100%' }}
+              transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+              style={{
+                position: 'fixed', top: -200, left: 0, right: 0,
+                height: 'calc(50vh + 200px)',
+                background: '#1a3a00',
+                borderBottom: '4px solid #6aac14',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                zIndex: 150,
+                display: 'flex', flexDirection: 'column',
+                paddingTop: 200,
+              }}
+            >
+              {/* ヘッダー */}
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                padding: '14px 20px',
+                borderBottom: '1px solid #3d6e00',
+                flexShrink: 0,
+              }}>
+                <span style={{ color: '#6aac14', fontWeight: 'bold', fontSize: 16 }}>
+                  🔔 通知センター
+                </span>
+                <button
+                  onClick={() => setNotifOpen(false)}
+                  style={{
+                    marginLeft: 'auto',
+                    background: 'none', border: 'none',
+                    color: '#a8d870', fontSize: 20, cursor: 'pointer', lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* 通知リスト */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+                <AnimatePresence initial={false}>
+                  {notifLogs.length === 0 ? (
+                    <p style={{ color: '#a8d870', textAlign: 'center', marginTop: 24, fontSize: 14 }}>
+                      通知はありません
+                    </p>
+                  ) : notifLogs.map(log => (
+                    <motion.div
+                      key={log.id}
+                      layout
+                      initial={{ opacity: 0, x: -16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 24, height: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0 }}
+                      transition={{ duration: 0.18 }}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                        background: '#2d5500',
+                        border: '1px solid #3d6e00',
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        marginBottom: 8,
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {log.url ? (
+                          <a href={log.url} style={{ textDecoration: 'none' }}>
+                            <p style={{ color: '#a8d870', fontWeight: 'bold', fontSize: 14, margin: 0 }}>{log.title}</p>
+                          </a>
+                        ) : (
+                          <p style={{ color: '#a8d870', fontWeight: 'bold', fontSize: 14, margin: 0 }}>{log.title}</p>
+                        )}
+                        <p style={{ color: '#7ab83a', fontSize: 13, margin: '3px 0 0', wordBreak: 'break-all' }}>{log.body}</p>
+                        <p style={{ color: '#5a8a1a', fontSize: 11, margin: '4px 0 0' }}>
+                          {new Date(log.created_at).toLocaleString('ja-JP')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          await supabase.from('notification_logs')
+                            .update({ deleted_at: new Date().toISOString() })
+                            .eq('id', log.id)
+                          setNotifLogs(prev => prev.filter(l => l.id !== log.id))
+                        }}
+                        style={{
+                          background: 'none', border: 'none',
+                          color: '#5a8a1a', fontSize: 16, cursor: 'pointer',
+                          padding: '2px 4px', flexShrink: 0, lineHeight: 1,
+                        }}
+                      >
+                        🗑
+                      </button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── ランクウィジェット ─────────────────────────── */}
         {currentRank && (

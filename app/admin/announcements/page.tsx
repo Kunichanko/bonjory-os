@@ -73,6 +73,10 @@ export default function AnnouncementsPage() {
   const [submitting, setSubmitting]           = useState(false)
   const [sendingId, setSendingId]             = useState<string | null>(null)
 
+  // 通知リセット state
+  const [resetTargetId, setResetTargetId]   = useState('')
+  const [resetting, setResetting]           = useState(false)
+
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -181,7 +185,6 @@ export default function AnnouncementsPage() {
 
   async function sendNow(announcementId: string) {
     setSendingId(announcementId)
-    setError(null)
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData?.session?.access_token
@@ -195,13 +198,17 @@ export default function AnnouncementsPage() {
       })
       const result = await res.json()
       if (!res.ok) {
-        setError(result.error ?? '送信に失敗しました')
+        const detail = result.detail ? ` — ${result.detail}` : ''
+        setError(`${result.error ?? '送信に失敗しました'}${detail}`)
       } else {
-        showSuccess(`送信完了（${result.sent}件）`)
+        const warnings = result.pushErrors?.length
+          ? ` (pushエラー ${result.pushErrors.length}件: ${result.pushErrors[0]})`
+          : ''
+        showSuccess(`送信完了（${result.sent}/${result.total}件）${warnings}`)
         await refreshList()
       }
-    } catch {
-      setError('送信エラーが発生しました')
+    } catch (e) {
+      setError(`送信エラー: ${e instanceof Error ? e.message : String(e)}`)
     }
     setSendingId(null)
   }
@@ -218,6 +225,27 @@ export default function AnnouncementsPage() {
   async function deleteAnnouncement(id: string) {
     await supabase.from('announcements').delete().eq('id', id)
     setAnnouncements(prev => prev.filter(a => a.id !== id))
+  }
+
+  async function resetNotifications() {
+    if (!resetTargetId) return
+    const target = allProfiles.find(p => p.id === resetTargetId)
+    if (!confirm(`${target?.username ?? resetTargetId} の通知登録・ログを全削除しますか？`)) return
+    setResetting(true)
+    const { data: sessionData } = await supabase.auth.getSession()
+    const token = sessionData?.session?.access_token
+    const res = await fetch('/api/admin/reset-notifications', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ targetUserId: resetTargetId }),
+    })
+    setResetting(false)
+    if (res.ok) {
+      setSuccess(`${target?.username ?? resetTargetId} の通知をリセットしました`)
+    } else {
+      const data = await res.json()
+      setError(data.error ?? 'リセットに失敗しました')
+    }
   }
 
   if (loading) {
@@ -256,7 +284,20 @@ export default function AnnouncementsPage() {
           </div>
         </div>
 
-        {error   && <div className="game-error" style={{ marginBottom: 16 }}>{error}</div>}
+        {error && (
+          <div className="game-error" style={{
+            marginBottom: 16,
+            wordBreak: 'break-all',
+            whiteSpace: 'pre-wrap',
+            display: 'flex', alignItems: 'flex-start', gap: 10,
+          }}>
+            <span style={{ flex: 1 }}>{error}</span>
+            <button
+              onClick={() => setError(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', fontSize: 18, lineHeight: 1, flexShrink: 0, padding: 0 }}
+            >✕</button>
+          </div>
+        )}
         {success && (
           <div style={{
             background: '#d4f0a0', color: '#1a4a00', border: '2px solid #6aac14',
@@ -404,6 +445,36 @@ export default function AnnouncementsPage() {
               style={{ width: 'auto', padding: '10px 28px', fontSize: 16, alignSelf: 'flex-start' }}
             >
               {submitting ? '作成中…' : '作成する'}
+            </button>
+          </div>
+        </div>
+
+        {/* 通知リセット */}
+        <div className="game-card" style={{ padding: '20px 28px', marginBottom: 24 }}>
+          <h2 className="game-title" style={{ fontSize: 20, marginBottom: 4 }}>🔕 通知リセット</h2>
+          <p style={{ color: '#5a8a1a', fontSize: 13, marginBottom: 16 }}>
+            指定した部員のプッシュ通知登録と通知ログをすべて削除します。
+            複数デバイスのエントリが蓄積している場合もこちらで解消できます。
+          </p>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select
+              className="game-input"
+              style={{ flex: 1, minWidth: 160 }}
+              value={resetTargetId}
+              onChange={e => setResetTargetId(e.target.value)}
+            >
+              <option value="">部員を選択...</option>
+              {allProfiles.map(p => (
+                <option key={p.id} value={p.id}>{p.username ?? p.id}</option>
+              ))}
+            </select>
+            <button
+              className="game-button"
+              style={{ width: 'auto', padding: '10px 24px', fontSize: 15, opacity: resetting || !resetTargetId ? 0.6 : 1 }}
+              disabled={resetting || !resetTargetId}
+              onClick={resetNotifications}
+            >
+              {resetting ? 'リセット中...' : 'リセット実行'}
             </button>
           </div>
         </div>
