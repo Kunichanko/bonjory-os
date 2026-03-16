@@ -82,6 +82,23 @@ export async function GET(req: NextRequest) {
       : { sent_at: now.toISOString() }
     await supabaseAdmin.from('announcements').update(updateData).eq('id', ann.id)
 
+    // 通知ログを挿入
+    const { data: allProfiles } = await supabaseAdmin.from('profiles').select('id')
+    const targetIds: string[] = ann.type === 'personal' && ann.target_user_ids?.length
+      ? ann.target_user_ids
+      : (allProfiles ?? []).map((p: { id: string }) => p.id)
+    if (targetIds.length > 0) {
+      await supabaseAdmin.from('notification_logs').insert(
+        targetIds.map((uid: string) => ({
+          user_id: uid,
+          announcement_id: ann.id,
+          title: ann.title,
+          body: ann.body,
+          url: ann.url ?? null,
+        }))
+      )
+    }
+
     totalSent += (subs?.length ?? 0) - goneEndpoints.length
   }
 
