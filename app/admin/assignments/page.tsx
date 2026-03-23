@@ -40,6 +40,7 @@ interface TaskOption {
   title: string
   target_course: string | null
   progress_number: number | null
+  deadline_days: number
 }
 
 const STATUS_LABELS: Record<string, { label: string; bg: string; color: string }> = {
@@ -155,14 +156,14 @@ export default function AssignmentsPage() {
         if (mounted) { setUserRole(me.role); setEffectivePerms(perms) }
 
         const [profilesRes, activeRes, reservedRes, tasksRes] = await Promise.all([
-          supabase.from('profiles').select('id, username, course, stage, auto_assign_enabled').order('created_at'),
+          supabase.from('profiles').select('id, username, course, stage, auto_assign_enabled').is('withdrawn_at', null).order('created_at'),
           supabase.from('task_assignments')
             .select('id, task_id, user_id, status, created_at, deadline_at, task:tasks(id, title, progress_number)')
             .eq('is_assigned', true),
           supabase.from('reserved_assignments')
             .select('id, user_id, task_id, activate_at, type, task:tasks(title)'),
           supabase.from('tasks')
-            .select('id, title, target_course, progress_number')
+            .select('id, title, target_course, progress_number, deadline_days')
             .eq('is_active', true)
             .order('progress_number', { ascending: true, nullsFirst: false }),
         ])
@@ -246,8 +247,13 @@ export default function AssignmentsPage() {
     setModalError(null)
 
     if (modalType === 'normal') {
+      const task = allTasks.find(t => t.id === taskId)
+      const deadlineDays = task?.deadline_days ?? 7
+      const deadlineDate = new Date()
+      deadlineDate.setDate(deadlineDate.getDate() + deadlineDays)
+      deadlineDate.setHours(23, 59, 59, 0)
       const { data, error } = await supabase.from('task_assignments')
-        .insert({ task_id: taskId, user_id: modalUserId, is_assigned: true, status: 'assigned' })
+        .insert({ task_id: taskId, user_id: modalUserId, is_assigned: true, status: 'assigned', deadline_at: deadlineDate.toISOString() })
         .select('id, task_id, user_id, status, created_at, deadline_at, task:tasks(id, title, progress_number)')
         .single()
       if (error) { setModalError(error.message); setModalSaving(false); return }

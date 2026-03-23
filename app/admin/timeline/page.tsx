@@ -130,7 +130,7 @@ export default function AdminTimelinePage() {
           .order('submitted_at', { ascending: false })
 
         const { data: profilesData } = await supabase
-          .from('profiles').select('id, username, course, stage')
+          .from('profiles').select('id, username, course, stage').is('withdrawn_at', null)
 
         if (!mounted) return
 

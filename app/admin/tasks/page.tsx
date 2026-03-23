@@ -17,6 +17,7 @@ interface Task {
   created_at: string
   progress_number: number | null
   allow_image_attachment: boolean
+  deadline_days: number
 }
 
 const COURSE_OPTIONS = [
@@ -82,6 +83,7 @@ export default function AdminTasksPage() {
   const [targetStage, setTargetStage]         = useState('')
   const [progressNumber, setProgressNumber]   = useState('')
   const [allowImageAttachment, setAllowImageAttachment] = useState(true)
+  const [deadlineDays, setDeadlineDays]       = useState(7)
 
   // 編集状態
   const [editingId, setEditingId]                         = useState<string | null>(null)
@@ -92,6 +94,7 @@ export default function AdminTasksPage() {
   const [editTargetStage, setEditTargetStage]             = useState('')
   const [editProgressNumber, setEditProgressNumber]       = useState('')
   const [editAllowImageAttachment, setEditAllowImageAttachment] = useState(true)
+  const [editDeadlineDays, setEditDeadlineDays] = useState(7)
   const [editSaving, setEditSaving]                       = useState(false)
   const [editError, setEditError]                         = useState<string | null>(null)
 
@@ -150,7 +153,7 @@ export default function AdminTasksPage() {
         const [{ data: taskList, error: listError }, { data: initList }] = await Promise.all([
           supabase
             .from('tasks')
-            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at, progress_number, allow_image_attachment')
+            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at, progress_number, allow_image_attachment, deadline_days')
             .order('created_at', { ascending: false }),
           supabase.from('course_initial_tasks').select('course, task_id'),
         ])
@@ -194,6 +197,7 @@ export default function AdminTasksPage() {
         created_by: authData?.user?.id,
         is_active: true,
         allow_image_attachment: allowImageAttachment,
+        deadline_days: deadlineDays,
       })
       .select()
       .single()
@@ -209,6 +213,7 @@ export default function AdminTasksPage() {
       setTargetStage('')
       setProgressNumber('')
       setAllowImageAttachment(true)
+      setDeadlineDays(7)
       setSuccess('課題を作成しました！')
     }
     setSubmitting(false)
@@ -223,6 +228,7 @@ export default function AdminTasksPage() {
     setEditTargetStage(task.target_stage ?? '')
     setEditProgressNumber(task.progress_number != null ? String(task.progress_number) : '')
     setEditAllowImageAttachment(task.allow_image_attachment ?? true)
+    setEditDeadlineDays(task.deadline_days ?? 7)
     setEditError(null)
   }
 
@@ -246,6 +252,7 @@ export default function AdminTasksPage() {
         target_stage: editTargetStage || null,
         progress_number: editProgressNumber !== '' ? parseFloat(editProgressNumber) : null,
         allow_image_attachment: editAllowImageAttachment,
+        deadline_days: editDeadlineDays,
       })
       .eq('id', editingId)
 
@@ -261,6 +268,7 @@ export default function AdminTasksPage() {
         target_stage: editTargetStage || null,
         progress_number: editProgressNumber !== '' ? parseFloat(editProgressNumber) : null,
         allow_image_attachment: editAllowImageAttachment,
+        deadline_days: editDeadlineDays,
       } : t))
       setEditingId(null)
     }
@@ -363,6 +371,7 @@ export default function AdminTasksPage() {
         created_by: authData?.user?.id,
         is_active: true,
         allow_image_attachment: true,
+        deadline_days: 7,
       })
       .select()
       .single()
@@ -520,6 +529,16 @@ export default function AdminTasksPage() {
                   value={progressNumber}
                   onChange={e => setProgressNumber(e.target.value)}
                   placeholder="例: 1.0"
+                />
+              </div>
+              <div style={{ width: 100 }}>
+                <label className="game-label">締切日数</label>
+                <input
+                  className="game-input"
+                  type="number"
+                  min={1}
+                  value={deadlineDays}
+                  onChange={e => setDeadlineDays(Math.max(1, parseInt(e.target.value) || 7))}
                 />
               </div>
             </div>
@@ -914,6 +933,17 @@ export default function AdminTasksPage() {
                                     value={editProgressNumber}
                                     onChange={e => setEditProgressNumber(e.target.value)}
                                     placeholder="1.0"
+                                    style={{ fontSize: 13 }}
+                                  />
+                                </div>
+                                <div style={{ width: 90 }}>
+                                  <label className="game-label" style={{ fontSize: 12 }}>締切日数</label>
+                                  <input
+                                    className="game-input"
+                                    type="number"
+                                    min={1}
+                                    value={editDeadlineDays}
+                                    onChange={e => setEditDeadlineDays(Math.max(1, parseInt(e.target.value) || 7))}
                                     style={{ fontSize: 13 }}
                                   />
                                 </div>

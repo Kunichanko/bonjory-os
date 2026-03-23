@@ -165,7 +165,7 @@ export default function FinancePage() {
       supabase.from('finance_income_sources').select('*').order('name'),
       supabase.from('finance_expense_categories').select('*').order('name'),
       supabase.from('finance_planned_expenses').select('*, finance_expense_categories(name)').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id, username').order('username'),
+      supabase.from('profiles').select('id, username').is('withdrawn_at', null).order('username'),
     ])
     const firstError = e1 ?? e2 ?? e3
     if (firstError) setError(`データ読み込みエラー: ${firstError.message}`)

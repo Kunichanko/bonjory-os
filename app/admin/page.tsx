@@ -118,7 +118,7 @@ export default function AdminPage() {
         if (mounted) setUserRole(me.role)
 
         const [profilesRes, tasksRes, assignmentsRes, positionsRes, ppRes] = await Promise.all([
-          supabase.from('profiles').select('id, username, email, course, stage').order('created_at', { ascending: true }),
+          supabase.from('profiles').select('id, username, email, course, stage').is('withdrawn_at', null).order('created_at', { ascending: true }),
           supabase.from('tasks').select('id, title, target_course').eq('is_active', true),
           supabase.from('task_assignments').select('id, task_id, user_id, status, created_at, deadline_at, task:tasks(title)').eq('is_assigned', true),
           supabase.from('positions').select('id, name, permissions').order('created_at', { ascending: true }),

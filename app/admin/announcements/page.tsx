@@ -106,7 +106,7 @@ export default function AnnouncementsPage() {
 
         const [annsRes, profilesRes] = await Promise.all([
           supabase.from('announcements').select('*').order('created_at', { ascending: false }),
-          supabase.from('profiles').select('id, username').order('username'),
+          supabase.from('profiles').select('id, username').is('withdrawn_at', null).order('username'),
         ])
 
         if (mounted) {

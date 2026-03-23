@@ -38,24 +38,21 @@ export async function GET(req: NextRequest) {
   let activated = 0
 
   // ─── 1. 自動アサイン生成 ───────────────────────────────
-  // auto_assign_enabled=true のユーザー
   const { data: autoProfiles } = await supabaseAdmin
     .from('profiles')
     .select('id, course')
     .eq('auto_assign_enabled', true)
 
   for (const profile of (autoProfiles ?? [])) {
-    // そのユーザーに pending の reserved_assignment があるかチェック
     const { count: reservedCount } = await supabaseAdmin
       .from('reserved_assignments')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', profile.id)
-    if ((reservedCount ?? 0) > 0) continue // 予約済みなら自動アサインをスキップ
+    if ((reservedCount ?? 0) > 0) continue
 
-    // 提出済みアサインの最新を取得
     const { data: submitted } = await supabaseAdmin
       .from('task_assignments')
-      .select('id, created_at, deadline_at, task:tasks(id, progress_number, target_course)')
+      .select('id, created_at, deadline_at, task:tasks(id, progress_number, target_course, deadline_days)')
       .eq('user_id', profile.id)
       .eq('is_assigned', true)
       .eq('status', 'submitted')
@@ -64,13 +61,12 @@ export async function GET(req: NextRequest) {
       .single()
     if (!submitted) continue
 
-    const submittedTask = (submitted as unknown as { task: { id: string; progress_number: number | null; target_course: string | null } }).task
+    const submittedTask = (submitted as unknown as { task: { id: string; progress_number: number | null; target_course: string | null; deadline_days: number } }).task
     if (submittedTask.progress_number == null) continue
 
-    // 次の課題を progress_number 順で取得（同コース優先、全コース対象も含む）
     const { data: nextTask } = await supabaseAdmin
       .from('tasks')
-      .select('id, progress_number, target_course')
+      .select('id, progress_number, target_course, deadline_days')
       .gt('progress_number', submittedTask.progress_number)
       .or(`target_course.eq.${profile.course},target_course.is.null`)
       .eq('is_active', true)
@@ -79,14 +75,12 @@ export async function GET(req: NextRequest) {
       .single()
     if (!nextTask) continue
 
-    // activate_at = 現アサインのdeadline翌月曜日
-    const deadline = getAssignmentDeadline(
-      (submitted as unknown as { created_at: string }).created_at,
-      (submitted as unknown as { deadline_at: string | null }).deadline_at
-    )
-    const activateAt = getNextMonday(deadline)
+    // activate_at = 今日 + 提出済み課題の deadline_days + 7日猶予
+    const submittedDeadlineDays = submittedTask.deadline_days ?? 7
+    const activateDateObj = new Date(nowJST)
+    activateDateObj.setDate(activateDateObj.getDate() + submittedDeadlineDays + 7)
+    const activateAt = activateDateObj.toISOString().slice(0, 10)
 
-    // reserved_assignments に INSERT（UNIQUE(user_id, task_id) で重複防止）
     const { error } = await supabaseAdmin
       .from('reserved_assignments')
       .insert({
@@ -100,24 +94,38 @@ export async function GET(req: NextRequest) {
   }
 
   // ─── 2. 予約アサイン実行 ───────────────────────────────
-  // activate_at <= today の reserved_assignments を取得
+  // activate_at によるフィルターを外し、ループ内で二重条件チェック
   const { data: readyReservations } = await supabaseAdmin
     .from('reserved_assignments')
-    .select('id, user_id, task_id, trigger_assignment_id')
-    .lte('activate_at', todayStr)
+    .select('id, user_id, task_id, trigger_assignment_id, activate_at, task:tasks(deadline_days)')
 
   for (const reservation of (readyReservations ?? [])) {
-    // trigger_assignment が submitted かチェック
+    const activatePassed = reservation.activate_at <= todayStr
+    let triggerEarly = false
+
     if (reservation.trigger_assignment_id) {
       const { data: trigger } = await supabaseAdmin
         .from('task_assignments')
-        .select('status')
+        .select('status, submitted_at')
         .eq('id', reservation.trigger_assignment_id)
         .single()
       if (!trigger || trigger.status !== 'submitted') continue
+
+      // 提出から7日経過していれば早期アクティベート
+      if (trigger.submitted_at) {
+        const earlyDate = new Date(trigger.submitted_at)
+        earlyDate.setDate(earlyDate.getDate() + 7)
+        triggerEarly = earlyDate.toISOString().slice(0, 10) <= todayStr
+      }
     }
 
-    // task_assignments に INSERT
+    if (!activatePassed && !triggerEarly) continue
+
+    // 新しい課題の締切 = activate_at + task.deadline_days
+    const taskDeadlineDays = (reservation as unknown as { task: { deadline_days: number } | null }).task?.deadline_days ?? 7
+    const activateBase = new Date(reservation.activate_at + 'T00:00:00Z')
+    activateBase.setUTCDate(activateBase.getUTCDate() + taskDeadlineDays)
+
     const { error: insertError } = await supabaseAdmin
       .from('task_assignments')
       .insert({
@@ -125,10 +133,10 @@ export async function GET(req: NextRequest) {
         task_id: reservation.task_id,
         is_assigned: true,
         status: 'assigned',
+        deadline_at: activateBase.toISOString(),
       })
-    if (insertError) continue // unique constraint violation などはスキップ
+    if (insertError) continue
 
-    // reserved_assignments から DELETE
     await supabaseAdmin.from('reserved_assignments').delete().eq('id', reservation.id)
     activated++
   }

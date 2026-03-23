@@ -29,17 +29,6 @@ const STATUS_INFO: Record<string, { label: string; emoji: string; bg: string; co
   submitted:   { label: '提出済',     emoji: '✅', bg: '#c8f0c0', color: '#1a6e00' },
 }
 
-function getWeekPhase(day: number): 'task' | 'midterm' | 'final' {
-  if (day === 0) return 'final'
-  if (day >= 1 && day <= 3) return 'task'
-  return 'midterm'
-}
-
-const MILESTONES = [
-  { key: 'task',    phase: 'task',    day: '月', label: '課題開始',  desc: '月曜日：今週の課題が配信されます。制作計画を入力しましょう。' },
-  { key: 'midterm', phase: 'midterm', day: '木', label: '中間報告',  desc: '木曜日：進捗と日曜までの修正計画を報告しましょう。' },
-  { key: 'final',   phase: 'final',   day: '日', label: '最終提出',  desc: '日曜日：動画・画像・自己評価をタイムラインに投稿しましょう。' },
-]
 
 type ViewId = 'tasks' | 'history' | 'timeline' | 'past_timeline' | 'news'
 
@@ -52,20 +41,9 @@ const NAV_ITEMS: { id: ViewId; icon: string; label: string }[] = [
 
 // ─── タイムライン分類ユーティリティ ───────────────────────
 
-function getMostRecentMonday(date: Date): Date {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = day === 0 ? 6 : day - 1
-  d.setDate(d.getDate() - diff)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function isCurrentTimeline(taskCreatedAt: string): boolean {
-  const taskMonday = getMostRecentMonday(new Date(taskCreatedAt))
-  const nowMonday  = getMostRecentMonday(new Date())
-  const cutoff     = new Date(nowMonday.getTime() - 14 * 24 * 60 * 60 * 1000)
-  return taskMonday >= cutoff
+function isCurrentTimeline(item: TimelineItem): boolean {
+  if (!item.submitted_at) return false
+  return Date.now() - new Date(item.submitted_at).getTime() < 14 * 24 * 60 * 60 * 1000
 }
 
 interface AssignmentTask {
@@ -76,6 +54,8 @@ interface AssignmentTask {
   target_course: string | null
   target_stage: string | null
   allow_image_attachment: boolean
+  deadline_days: number
+  progress_number: number | null
 }
 
 interface AssignmentRecord {
@@ -220,6 +200,56 @@ async function subscribePush() {
   })
 }
 
+// ─── DotProgressBar ───────────────────────────────────────
+
+const DOW_JP = ['日', '月', '火', '水', '木', '金', '土']
+
+function DotProgressBar({ assignment }: { assignment: AssignmentRecord }) {
+  const n = (assignment.task as AssignmentTask & { deadline_days?: number }).deadline_days ?? 7
+  const created = new Date(assignment.created_at)
+  const msPerDay = 24 * 60 * 60 * 1000
+  const daysSince = Math.floor((Date.now() - created.getTime()) / msPerDay)
+  const currentPos = Math.min(Math.max(daysSince, 0), n - 1)
+  const midIdx = n <= 2 ? -1 : n % 2 === 0 ? n / 2 - 1 : Math.floor(n / 2)
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <p style={{ fontSize: 12, fontWeight: 'bold', color: '#3d6e00', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {assignment.task.title}
+      </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+        {Array.from({ length: n }).map((_, i) => {
+          const isEdge    = i === 0 || i === n - 1
+          const isMid     = i === midIdx
+          const isCurrent = i === currentPos
+          const isPast    = i < currentPos
+          const size = isEdge ? 26 : isMid ? 20 : 14
+          const bg   = isPast ? '#3d6e00' : isCurrent ? '#6aac14' : '#c8e89a'
+          const dotDate = new Date(created)
+          dotDate.setDate(created.getDate() + i)
+          const dow = DOW_JP[dotDate.getDay()]
+          return (
+            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+              {i < n - 1 && (
+                <div style={{ position: 'absolute', top: size / 2 - 1.5, left: '50%', width: '100%', height: 3, background: isPast ? '#3d6e00' : '#c8e89a', zIndex: 0 }} />
+              )}
+              <div style={{
+                width: size, height: size, borderRadius: '50%', background: bg,
+                border: isCurrent ? '3px solid #2a4d00' : '2px solid #8dc832',
+                zIndex: 1, position: 'relative', flexShrink: 0,
+                boxShadow: isCurrent ? '0 0 0 3px rgba(106,172,20,0.3)' : 'none',
+              }} />
+              <span style={{ fontSize: 9, color: '#6aac14', marginTop: 2, fontWeight: isCurrent ? 'bold' : 'normal' }}>
+                {dow}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── コンポーネント ────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -254,12 +284,17 @@ export default function DashboardPage() {
   const [slimeSpeechFull, setSlimeSpeechFull] = useState('')
   const [speechVisible, setSpeechVisible] = useState(false)
 
+  // 次の課題
+  const [nextTaskMap, setNextTaskMap]     = useState<Record<string, { id: string; title: string; deadline_days: number } | null>>({})
+  const [claimingNext, setClaimingNext]   = useState<Record<string, boolean>>({})
+
   // DM未読
   const [dmUnreadCount, setDmUnreadCount]           = useState(0)
   const [dmManageUnreadCount, setDmManageUnreadCount] = useState(0)
   const [notifOpen, setNotifOpen]   = useState(false)
   const [notifLogs, setNotifLogs]   = useState<NotifLog[]>([])
   const [notifUnread, setNotifUnread] = useState(0)
+  const [dismissedNotifIds, setDismissedNotifIds] = useState<Set<string>>(new Set())
   const [positionNames, setPositionNames] = useState<string[]>([])
 
   // サイドバー
@@ -320,8 +355,6 @@ export default function DashboardPage() {
   const [postingComment, setPostingComment] = useState<Record<string, boolean>>({})
 
   const router = useRouter()
-  const today      = new Date().getDay()
-  const todayPhase = getWeekPhase(today)
 
   // ─── スピーチループ ─────────────────────────────────────
 
@@ -412,7 +445,7 @@ export default function DashboardPage() {
 
         const [profileRes, assignmentRes, ranksRes, commentLimitRes, speechBlocksRes, speechLinesRes, gimmickSettingsRes] = await Promise.all([
           supabase.from('profiles')
-            .select('username, course, stage, total_points, cool_points, role')
+            .select('username, course, stage, total_points, cool_points, role, withdrawn_at, confirmed_withdrawn_at')
             .eq('id', uid)
             .single(),
           supabase.from('task_assignments')
@@ -420,7 +453,7 @@ export default function DashboardPage() {
               id, status, plan_text, midterm_progress, midterm_correction,
               media_url, self_evaluation, retrospective, submitted_at,
               is_anonymous, thumbnail_url, created_at, deadline_at,
-              task:tasks(id, title, description, description_is_markdown, target_course, target_stage)
+              task:tasks(id, title, description, description_is_markdown, target_course, target_stage, deadline_days, progress_number)
             `)
             .eq('user_id', uid)
             .eq('is_assigned', true),
@@ -439,6 +472,14 @@ export default function DashboardPage() {
         if (!mounted) return
 
         const profile = profileRes.data
+
+        // 退部チェック
+        if (profile?.confirmed_withdrawn_at || profile?.withdrawn_at) {
+          await supabase.auth.signOut()
+          router.replace('/login')
+          return
+        }
+
         setUsername(profile?.username ?? null)
         setCourse(profile?.course ?? null)
         setStage(profile?.stage ?? null)
@@ -569,11 +610,26 @@ export default function DashboardPage() {
           .order('created_at', { ascending: false })
           .limit(50)
         if (mounted) {
-          setNotifLogs((logs ?? []) as NotifLog[])
+          const fetchedLogs = (logs ?? []) as NotifLog[]
+          setNotifLogs(fetchedLogs)
+
+          // localStorage から dismissed IDs を読み込み（存在しない ID は pruneする）
+          const lsKey = `notif_dismissed_${uid}`
+          const stored = typeof window !== 'undefined' ? localStorage.getItem(lsKey) : null
+          const storedIds: string[] = stored ? JSON.parse(stored) : []
+          const validIds = new Set(fetchedLogs.map(l => l.id))
+          const pruned = storedIds.filter(id => validIds.has(id))
+          if (pruned.length !== storedIds.length && typeof window !== 'undefined') {
+            localStorage.setItem(lsKey, JSON.stringify(pruned))
+          }
+          const dismissedSet = new Set(pruned)
+          setDismissedNotifIds(dismissedSet)
+
           const lastOpened = typeof window !== 'undefined'
             ? localStorage.getItem('notif_last_opened') : null
-          const unread = (logs ?? []).filter(l =>
-            !lastOpened || new Date(l.created_at) > new Date(lastOpened)
+          const unread = fetchedLogs.filter(l =>
+            !dismissedSet.has(l.id) &&
+            (!lastOpened || new Date(l.created_at) > new Date(lastOpened))
           ).length
           setNotifUnread(unread)
         }
@@ -597,6 +653,10 @@ export default function DashboardPage() {
   }, [router])
 
   // ─── タイムライン読み込み ───────────────────────────────
+
+  useEffect(() => {
+    if (userId) loadNextTasks(userId, assignments, course)
+  }, [assignments, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (currentView !== 'timeline' && currentView !== 'past_timeline') return
@@ -661,11 +721,48 @@ export default function DashboardPage() {
         id, status, plan_text, midterm_progress, midterm_correction,
         media_url, self_evaluation, retrospective, submitted_at,
         is_anonymous, thumbnail_url, created_at, deadline_at,
-        task:tasks(id, title, description, description_is_markdown, target_course, target_stage)
+        task:tasks(id, title, description, description_is_markdown, target_course, target_stage, deadline_days, progress_number)
       `)
       .eq('user_id', userId)
       .eq('is_assigned', true)
     if (data) setAssignments(data as unknown as AssignmentRecord[])
+  }
+
+  async function loadNextTasks(uid: string, assigns: AssignmentRecord[], userCourse: string | null) {
+    const submitted = assigns.filter(a => a.status === 'submitted')
+    if (submitted.length === 0) { setNextTaskMap({}); return }
+    const assignedIds = new Set(assigns.map(a => a.task.id))
+    const map: Record<string, { id: string; title: string; deadline_days: number } | null> = {}
+    for (const a of submitted) {
+      const pn = a.task.progress_number
+      if (pn == null) { map[a.id] = null; continue }
+      const orFilter = userCourse ? `target_course.eq.${userCourse},target_course.is.null` : 'target_course.is.null'
+      const { data } = await supabase.from('tasks')
+        .select('id, title, deadline_days, progress_number')
+        .gt('progress_number', pn)
+        .or(orFilter)
+        .eq('is_active', true)
+        .order('progress_number')
+        .limit(5)
+      map[a.id] = (data ?? []).find(t => !assignedIds.has(t.id)) ?? null
+    }
+    setNextTaskMap(map)
+  }
+
+  async function claimNextTask(assignmentId: string) {
+    const next = nextTaskMap[assignmentId]
+    if (!next || !userId) return
+    setClaimingNext(prev => ({ ...prev, [assignmentId]: true }))
+    const dl = new Date()
+    dl.setDate(dl.getDate() + next.deadline_days)
+    dl.setHours(23, 59, 59, 0)
+    await supabase.from('task_assignments').insert({
+      user_id: userId, task_id: next.id,
+      is_assigned: true, status: 'assigned',
+      deadline_at: dl.toISOString(),
+    })
+    await refreshAssignments()
+    setClaimingNext(prev => ({ ...prev, [assignmentId]: false }))
   }
 
   async function savePlan(assignmentId: string) {
@@ -901,7 +998,6 @@ export default function DashboardPage() {
     )
   }
 
-  const currentMilestone     = MILESTONES.find(m => m.phase === todayPhase)!
   const activeAssignments    = assignments.filter(a => a.status !== 'submitted')
 
   function getDeadlineLabel(a: AssignmentRecord): string {
@@ -940,8 +1036,8 @@ export default function DashboardPage() {
   }
 
   const visibleTimeline = timeline.filter(i => !i.hidden_in_timeline)
-  const currentTimeline = applyTimelineFilters(visibleTimeline.filter(i => !i.force_past_timeline && isCurrentTimeline(i.task.created_at)))
-  const pastTimeline    = applyTimelineFilters(visibleTimeline.filter(i => i.force_past_timeline || !isCurrentTimeline(i.task.created_at)))
+  const currentTimeline = applyTimelineFilters(visibleTimeline.filter(i => !i.force_past_timeline && isCurrentTimeline(i)))
+  const pastTimeline    = applyTimelineFilters(visibleTimeline.filter(i => i.force_past_timeline || !isCurrentTimeline(i)))
 
   // ─── レンダリング ──────────────────────────────────────
 
@@ -1077,6 +1173,18 @@ export default function DashboardPage() {
 
         {(userRole === 'admin' || FEATURE_LIST.some(f => effectivePerms[f.id])) && (
           <div style={{ padding: '12px 16px', borderTop: '1px solid #3d6e00', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {userRole === 'admin' && (
+              <a href="/admin/tokkyuu" style={{ textDecoration: 'none' }}>
+                <button style={{
+                  width: '100%', padding: '8px 0',
+                  background: '#3a0000', border: '2px solid #c0392b',
+                  borderRadius: 8, color: '#ffaaaa',
+                  fontSize: 13, cursor: 'pointer', fontWeight: 'bold',
+                }}>
+                  🚨 特級管理
+                </button>
+              </a>
+            )}
             {userRole === 'admin' && (
               <a href="/admin/positions" style={{ textDecoration: 'none' }}>
                 <button style={{
@@ -1222,11 +1330,11 @@ export default function DashboardPage() {
               {/* 通知リスト */}
               <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
                 <AnimatePresence initial={false}>
-                  {notifLogs.length === 0 ? (
+                  {notifLogs.filter(l => !dismissedNotifIds.has(l.id)).length === 0 ? (
                     <p style={{ color: '#a8d870', textAlign: 'center', marginTop: 24, fontSize: 14 }}>
                       通知はありません
                     </p>
-                  ) : notifLogs.map(log => (
+                  ) : notifLogs.filter(l => !dismissedNotifIds.has(l.id)).map(log => (
                     <motion.div
                       key={log.id}
                       layout
@@ -1258,11 +1366,18 @@ export default function DashboardPage() {
                         </p>
                       </div>
                       <button
-                        onClick={async () => {
-                          await supabase.from('notification_logs')
-                            .update({ deleted_at: new Date().toISOString() })
-                            .eq('id', log.id)
-                          setNotifLogs(prev => prev.filter(l => l.id !== log.id))
+                        onClick={() => {
+                          setDismissedNotifIds(prev => {
+                            const next = new Set(prev)
+                            next.add(log.id)
+                            if (userId && typeof window !== 'undefined') {
+                              localStorage.setItem(
+                                `notif_dismissed_${userId}`,
+                                JSON.stringify([...next])
+                              )
+                            }
+                            return next
+                          })
                         }}
                         style={{
                           background: 'none', border: 'none',
@@ -1401,45 +1516,39 @@ export default function DashboardPage() {
           {/* ══ VIEW: 今週の課題 ════════════════════════════ */}
           {currentView === 'tasks' && (
             <>
-              <div className="game-card" style={{ padding: '28px 32px' }}>
-                <h2 className="game-title" style={{ fontSize: 20, marginBottom: 24 }}>今週のサイクル</h2>
-                <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 20 }}>
-                  {MILESTONES.map((m, idx) => {
-                    const isActive = m.phase === todayPhase
-                    const isPast   = MILESTONES.findIndex(x => x.phase === todayPhase) > idx
-                    return (
-                      <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                        {idx < MILESTONES.length - 1 && (
-                          <div style={{
-                            position: 'absolute', top: 16, left: '50%', width: '100%', height: 4,
-                            background: isPast ? '#6aac14' : '#c8e89a', zIndex: 0,
-                          }} />
-                        )}
-                        <div className={isActive ? 'milestone-active' : ''} style={{
-                          width: 32, height: 32, borderRadius: '50%',
-                          background: isActive ? '#6aac14' : isPast ? '#3d6e00' : '#c8e89a',
-                          border: `4px solid ${isActive ? '#3d6e00' : isPast ? '#2a4d00' : '#8dc832'}`,
-                          zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 14, fontWeight: 'bold', color: 'white',
-                          boxShadow: isActive ? '0 0 0 4px rgba(106,172,20,0.3)' : 'none',
-                        }}>
-                          {m.day}
-                        </div>
-                        <p style={{
-                          marginTop: 8, fontSize: 12,
-                          fontWeight: 'bold',
-                          color: isActive ? '#3d6e00' : '#6aac14', textAlign: 'center',
-                        }}>
-                          {m.label}
-                        </p>
-                      </div>
-                    )
-                  })}
+              {activeAssignments.length > 0 && (
+                <div className="game-card" style={{ padding: '20px 24px' }}>
+                  <h2 className="game-title" style={{ fontSize: 18, marginBottom: 16 }}>進捗</h2>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: activeAssignments.length > 1 ? '1fr 1fr' : '1fr',
+                    gap: 16,
+                  }}>
+                    {activeAssignments.map(a => (
+                      <DotProgressBar key={a.id} assignment={a} />
+                    ))}
+                  </div>
                 </div>
-                <div style={{ background: '#f0fae0', border: '2px solid #6aac14', borderRadius: 12, padding: '12px 16px' }}>
-                  <p style={{ color: '#3d6e00', fontSize: 14, fontWeight: 'bold' }}>{currentMilestone.desc}</p>
-                </div>
-              </div>
+              )}
+
+              {/* 提出済み → 次の課題ボタン */}
+              {assignments.filter(a => a.status === 'submitted').map(a => {
+                const next = nextTaskMap[a.id]
+                if (!next) return null
+                return (
+                  <div key={a.id} className="game-card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12, color: '#6aac14', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.task.title} を提出済み</p>
+                      <p style={{ fontWeight: 'bold', color: '#2d5500', margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>次: {next.title}</p>
+                    </div>
+                    <button className="game-button" disabled={!!claimingNext[a.id]}
+                      onClick={() => claimNextTask(a.id)}
+                      style={{ whiteSpace: 'nowrap', flexShrink: 0, padding: '8px 16px', fontSize: 13 }}>
+                      {claimingNext[a.id] ? '...' : '次の課題を受け取る'}
+                    </button>
+                  </div>
+                )
+              })}
 
               {activeAssignments.length === 0 && assignments.length === 0 ? (
                 <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
@@ -1449,7 +1558,7 @@ export default function DashboardPage() {
               ) : activeAssignments.length === 0 ? (
                 <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
                   <p style={{ fontSize: 28, marginBottom: 8 }}>🎉</p>
-                  <p style={{ color: '#6aac14', fontSize: 16 }}>今週の課題はすべて提出済みです！</p>
+                  <p style={{ color: '#6aac14', fontSize: 16 }}>課題はすべて提出済みです！</p>
                 </div>
               ) : activeAssignments.map(assignment => {
                 const si = STATUS_INFO[assignment.status]
@@ -1539,7 +1648,6 @@ export default function DashboardPage() {
                             <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.midterm ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
                             <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>
                               🔍 中間報告
-                              {todayPhase === 'midterm' && <span style={{ marginLeft: 8, background: '#6aac14', color: 'white', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>今日！</span>}
                             </span>
                             {assignment.midterm_progress && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
                           </div>
@@ -1575,7 +1683,6 @@ export default function DashboardPage() {
                             <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.final ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
                             <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>
                               🎬 最終提出
-                              {todayPhase === 'final' && <span style={{ marginLeft: 8, background: '#6aac14', color: 'white', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>今日！</span>}
                             </span>
                             {(assignment.image_urls && assignment.image_urls.length > 0) && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
                           </div>

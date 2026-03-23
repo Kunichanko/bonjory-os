@@ -87,7 +87,7 @@ export default function DevManagePage() {
       }
 
       const [profilesRes, reportsRes, tasksRes] = await Promise.all([
-        supabase.from('profiles').select('id, username').order('username'),
+        supabase.from('profiles').select('id, username').is('withdrawn_at', null).order('username'),
         supabase.from('bug_reports').select('*, profiles(username)').order('created_at', { ascending: false }),
         supabase.from('dev_tasks').select('*, dev_task_assignees(user_id), bug_reports(summary)').order('created_at', { ascending: false }),
       ])

@@ -118,6 +118,7 @@ export default function NewsAdminPage() {
   const [aiTaskCourse, setAiTaskCourse] = useState('')
   const [aiTaskStage, setAiTaskStage]   = useState('')
   const [aiTaskIds, setAiTaskIds]       = useState<string[]>([])
+  const [aiStationOpen, setAiStationOpen] = useState(true)
 
   // ── 保存 ──────────────────────────────────────────
   const [saving, setSaving]     = useState(false)
@@ -424,7 +425,7 @@ export default function NewsAdminPage() {
         </div>
 
         {/* 上段: 編集フォーム + AIステーション */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start', marginBottom: 16 }}>
+        <div className="news-admin-grid">
 
           {/* ── 編集フォーム ── */}
           <div className="game-card" style={{ padding: '20px 24px' }}>
@@ -607,8 +608,16 @@ export default function NewsAdminPage() {
 
           {/* ── AIステーション ── */}
           <div className="game-card" style={{ padding: '20px 24px' }}>
-            <h2 style={{ fontSize: 16, color: '#3d6e00', fontWeight: 'bold', marginBottom: 16 }}>🤖 AIステーション</h2>
+            <button
+              onClick={() => setAiStationOpen(v => !v)}
+              style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: aiStationOpen ? 16 : 0 }}
+            >
+              <h2 style={{ fontSize: 16, color: '#3d6e00', fontWeight: 'bold', margin: 0 }}>🤖 AIステーション</h2>
+              <span style={{ fontSize: 18, color: '#6aac14', lineHeight: 1 }}>{aiStationOpen ? '▲' : '▼'}</span>
+            </button>
 
+            {aiStationOpen && <>
             {aiError && <div className="game-error" style={{ marginBottom: 12 }}>{aiError}</div>}
 
             {/* トークンスライダー */}
@@ -743,6 +752,7 @@ export default function NewsAdminPage() {
               style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
               {aiLoading && !aiPrompt.trim() && aiInput.trim() ? '生成中…' : '📋 D. マークダウン出力'}
             </button>
+            </>}
           </div>
 
         </div>{/* /上段グリッド */}

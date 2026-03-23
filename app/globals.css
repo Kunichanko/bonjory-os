@@ -405,3 +405,17 @@ body {
 .bon-modal-content {
   animation: bon-block-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
 }
+
+/* ─── News Admin レスポンシブグリッド ──────────────── */
+.news-admin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+@media (max-width: 640px) {
+  .news-admin-grid {
+    grid-template-columns: 1fr;
+  }
+}
