@@ -12,6 +12,7 @@ export type PermissionKey =
   | 'gimmick_management'
   | 'assignment_management'
   | 'dev_management'
+  | 'news_management'
 
 export const FEATURE_LIST: { id: PermissionKey; label: string; path: string; icon: string }[] = [
   { id: 'course_management',     label: '部員・コース管理', path: '/admin',                  icon: '👥' },
@@ -24,6 +25,7 @@ export const FEATURE_LIST: { id: PermissionKey; label: string; path: string; ico
   { id: 'announcement_management', label: 'アナウンス管理', path: '/admin/announcements',   icon: '📢' },
   { id: 'gimmick_management',    label: 'ギミック管理',     path: '/admin/gimmick',          icon: '🎭' },
   { id: 'dev_management',        label: '開発者管理',       path: '/admin/dev',              icon: '🛠' },
+  { id: 'news_management',       label: 'ニュース管理',     path: '/admin/news',             icon: '📰' },
 ]
 
 const EMPTY_PERMS: Record<PermissionKey, boolean> = {
@@ -38,6 +40,7 @@ const EMPTY_PERMS: Record<PermissionKey, boolean> = {
   announcement_management: false,
   gimmick_management:      false,
   dev_management:          false,
+  news_management:         false,
 }
 
 /** 指定ユーザーの有効な権限（全役職の OR）を返す */
