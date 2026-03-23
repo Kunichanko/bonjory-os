@@ -37,11 +37,16 @@ interface BonTopic {
 interface TaskOption {
   id: string
   title: string
+  description: string | null
   target_course: string
   target_stage: string
 }
 
-const COURSE_OPTIONS = ['Unityコース', 'Blenderコース', 'Webコース', 'その他']
+const COURSE_OPTIONS = [
+  { label: 'Unityコース', value: 'Unity' },
+  { label: 'Blenderコース', value: 'Blender' },
+  { label: 'Webコース', value: 'Web' },
+]
 const ASPECT_PRESETS = [
   { label: '横長 (16:9)', value: 16 / 9 },
   { label: '正方形 (1:1)', value: 1 },
@@ -75,7 +80,7 @@ export default function NewsAdminPage() {
     course_management: false, task_management: false, point_settings: false,
     submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, assignment_management: false,
-    gimmick_management: false, news_management: false,
+    gimmick_management: false, news_management: false, dev_management: false,
   })
 
   const [topics, setTopics]   = useState<BonTopic[]>([])
@@ -101,6 +106,19 @@ export default function NewsAdminPage() {
   const [croppedBlob, setCroppedBlob]       = useState<Blob | null>(null)
   const [croppedAspect, setCroppedAspect]   = useState(16 / 9)
 
+  // ── AIステーション ────────────────────────────────
+  const [aiCandidates, setAiCandidates] = useState<string[]>([])
+  const [aiSearchTerm, setAiSearchTerm] = useState('')
+  const [aiMaxTokens, setAiMaxTokens]   = useState(2000)
+  const [aiInput, setAiInput]           = useState('')
+  const [aiPrompt, setAiPrompt]         = useState('')
+  const [aiOutput, setAiOutput]         = useState('')
+  const [aiLoading, setAiLoading]       = useState(false)
+  const [aiError, setAiError]           = useState<string | null>(null)
+  const [aiTaskCourse, setAiTaskCourse] = useState('')
+  const [aiTaskStage, setAiTaskStage]   = useState('')
+  const [aiTaskIds, setAiTaskIds]       = useState<string[]>([])
+
   // ── 保存 ──────────────────────────────────────────
   const [saving, setSaving]     = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -118,7 +136,7 @@ export default function NewsAdminPage() {
         supabase.from('profiles').select('role').eq('id', uid).single(),
         getEffectivePermissions(uid),
         supabase.from('bon_topics').select('*').order('created_at', { ascending: false }),
-        supabase.from('tasks').select('id, title, target_course, target_stage').order('created_at', { ascending: false }),
+        supabase.from('tasks').select('id, title, description, target_course, target_stage').order('created_at', { ascending: false }),
       ])
 
       const role = profileRes.data?.role ?? null
@@ -223,6 +241,77 @@ export default function NewsAdminPage() {
     setCroppedAspect(croppedAreaPixels.width / croppedAreaPixels.height)
     setThumbPreview(URL.createObjectURL(blob))
     setCropOpen(false)
+  }
+
+  // ── AIステーション関数 ────────────────────────────
+  async function callGenerateNews(body: object) {
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token ?? ''
+    const res = await fetch('/api/generate-news', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const e = await res.json()
+      throw new Error(e.error ?? 'APIエラー')
+    }
+    return res.json()
+  }
+
+  async function handleResearch() {
+    if (!aiSearchTerm.trim()) return
+    setAiLoading(true); setAiError(null)
+    try {
+      const data = await callGenerateNews({ mode: 'research', searchTerm: aiSearchTerm, maxTokens: aiMaxTokens }) as { candidates: string[] }
+      setAiCandidates(data.candidates)
+    } catch (e: unknown) { setAiError((e as Error).message) }
+    finally { setAiLoading(false) }
+  }
+
+  async function handleSelectCandidate(t: string) {
+    setAiLoading(true); setAiError(null)
+    try {
+      const data = await callGenerateNews({ mode: 'detail', title: t, maxTokens: aiMaxTokens }) as { text: string }
+      setAiInput(data.text); setAiCandidates([])
+    } catch (e: unknown) { setAiError((e as Error).message) }
+    finally { setAiLoading(false) }
+  }
+
+  async function handleGenerateFromTask() {
+    if (aiTaskIds.length === 0) return
+    setAiLoading(true); setAiError(null)
+    try {
+      const selectedTasks = allTasks
+        .filter(t => aiTaskIds.includes(t.id))
+        .map(t => ({ title: t.title, description: t.description }))
+      const data = await callGenerateNews({
+        mode: 'task', course: aiTaskCourse, stage: aiTaskStage,
+        tasks: selectedTasks, maxTokens: aiMaxTokens,
+      }) as { text: string }
+      setAiInput(data.text)
+    } catch (e: unknown) { setAiError((e as Error).message) }
+    finally { setAiLoading(false) }
+  }
+
+  async function handleRefine() {
+    if (!aiInput.trim() || !aiPrompt.trim()) return
+    setAiLoading(true); setAiError(null)
+    try {
+      const data = await callGenerateNews({ mode: 'refine', input: aiInput, prompt: aiPrompt, maxTokens: aiMaxTokens }) as { text: string }
+      setAiOutput(data.text)
+    } catch (e: unknown) { setAiError((e as Error).message) }
+    finally { setAiLoading(false) }
+  }
+
+  async function handleMarkdown() {
+    if (!aiInput.trim()) return
+    setAiLoading(true); setAiError(null)
+    try {
+      const data = await callGenerateNews({ mode: 'markdown', input: aiInput, maxTokens: aiMaxTokens }) as { text: string }
+      setAiOutput(data.text)
+    } catch (e: unknown) { setAiError((e as Error).message) }
+    finally { setAiLoading(false) }
   }
 
   // ── 保存 ──────────────────────────────────────────
@@ -334,7 +423,8 @@ export default function NewsAdminPage() {
           <p style={{ fontSize: 12, color: '#6aac14', margin: 0 }}>BON-TOPICSの記事を作成・編集します</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, alignItems: 'start' }}>
+        {/* 上段: 編集フォーム + AIステーション */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start', marginBottom: 16 }}>
 
           {/* ── 編集フォーム ── */}
           <div className="game-card" style={{ padding: '20px 24px' }}>
@@ -402,10 +492,10 @@ export default function NewsAdminPage() {
               <label style={labelStyle}>対象コース <span style={{ fontWeight: 'normal', color: '#6aac14' }}>(未選択=全コース向け)</span></label>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 {COURSE_OPTIONS.map(c => (
-                  <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, cursor: 'pointer', color: '#3d6e00' }}>
-                    <input type="checkbox" checked={targetCourses.includes(c)}
-                      onChange={e => setTargetCourses(prev => e.target.checked ? [...prev, c] : prev.filter(x => x !== c))} />
-                    {c}
+                  <label key={c.value} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, cursor: 'pointer', color: '#3d6e00' }}>
+                    <input type="checkbox" checked={targetCourses.includes(c.value)}
+                      onChange={e => setTargetCourses(prev => e.target.checked ? [...prev, c.value] : prev.filter(x => x !== c.value))} />
+                    {c.label}
                   </label>
                 ))}
               </div>
@@ -515,13 +605,156 @@ export default function NewsAdminPage() {
             </div>
           </div>
 
-          {/* ── 記事一覧 ── */}
-          <div className="game-card" style={{ padding: '16px 20px' }}>
-            <h2 style={{ fontSize: 15, color: '#3d6e00', fontWeight: 'bold', marginBottom: 12 }}>記事一覧 ({topics.length}件)</h2>
-            {topics.length === 0 && <p style={{ color: '#6aac14', fontSize: 13 }}>記事がありません</p>}
+          {/* ── AIステーション ── */}
+          <div className="game-card" style={{ padding: '20px 24px' }}>
+            <h2 style={{ fontSize: 16, color: '#3d6e00', fontWeight: 'bold', marginBottom: 16 }}>🤖 AIステーション</h2>
+
+            {aiError && <div className="game-error" style={{ marginBottom: 12 }}>{aiError}</div>}
+
+            {/* トークンスライダー */}
+            <div style={sectionGap}>
+              <label style={labelStyle}>生成トークン上限: <strong>{aiMaxTokens.toLocaleString()}</strong></label>
+              <input type="range" min={500} max={8000} step={500} value={aiMaxTokens}
+                onChange={e => setAiMaxTokens(Number(e.target.value))}
+                style={{ width: '100%', marginBottom: 2 }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#6aac14' }}>
+                <span>500（短め）</span><span>8,000（長め）</span>
+              </div>
+            </div>
+
+            {/* A. キーワードリサーチ */}
+            <div style={sectionGap}>
+              <label style={labelStyle}>A. キーワードリサーチ</label>
+              <input className="game-input" value={aiSearchTerm}
+                onChange={e => setAiSearchTerm(e.target.value)}
+                placeholder="例: Claude Code 並列開発、Unity 6 新機能…"
+                style={{ width: '100%', fontSize: 13, marginBottom: 8 }}
+                onKeyDown={e => { if (e.key === 'Enter' && aiSearchTerm.trim()) handleResearch() }} />
+              <button className="game-button" onClick={handleResearch}
+                disabled={aiLoading || !aiSearchTerm.trim()}
+                style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
+                {aiLoading && aiCandidates.length === 0 ? '生成中…' : '🔍 リサーチ'}
+              </button>
+              {aiCandidates.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <p style={{ fontSize: 12, color: '#3d6e00', marginBottom: 6 }}>タイトル候補（クリックで詳細生成）:</p>
+                  {aiCandidates.map((c, i) => (
+                    <button key={i} onClick={() => handleSelectCandidate(c)} disabled={aiLoading}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 4, padding: '6px 10px',
+                        border: '1px solid #6aac14', borderRadius: 6, background: '#f0fae0', color: '#1a3a00',
+                        cursor: 'pointer', fontSize: 13 }}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* B. 課題ベース記事生成 */}
+            <div style={sectionGap}>
+              <label style={labelStyle}>B. 課題ベース記事生成</label>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <select className="game-input" style={{ flex: 1, fontSize: 12 }}
+                  value={aiTaskCourse}
+                  onChange={e => { setAiTaskCourse(e.target.value); setAiTaskIds([]) }}>
+                  <option value="">全コース</option>
+                  {['Unity', 'Blender', 'Web'].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select className="game-input" style={{ flex: 1, fontSize: 12 }}
+                  value={aiTaskStage}
+                  onChange={e => { setAiTaskStage(e.target.value); setAiTaskIds([]) }}>
+                  <option value="">全ステージ</option>
+                  {['Foundation', 'Development', 'Production'].map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              {(() => {
+                const filtered = allTasks.filter(t =>
+                  (!aiTaskCourse || t.target_course === aiTaskCourse) &&
+                  (!aiTaskStage  || t.target_stage  === aiTaskStage)
+                )
+                return (
+                  <>
+                    <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid #c8e89a', borderRadius: 6, padding: '6px 8px', background: '#f8fef0', marginBottom: 8 }}>
+                      {filtered.length === 0
+                        ? <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>対象課題なし</p>
+                        : filtered.map(t => (
+                          <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2d5500', cursor: 'pointer', marginBottom: 4 }}>
+                            <input type="checkbox"
+                              checked={aiTaskIds.includes(t.id)}
+                              onChange={e => setAiTaskIds(prev => e.target.checked ? [...prev, t.id] : prev.filter(id => id !== t.id))} />
+                            {t.title}
+                          </label>
+                        ))
+                      }
+                    </div>
+                    <button className="game-button" onClick={handleGenerateFromTask}
+                      disabled={aiLoading || aiTaskIds.length === 0}
+                      style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
+                      {aiLoading && aiTaskIds.length > 0 ? '生成中…' : `📋 課題ベースで記事生成${aiTaskIds.length > 0 ? `（${aiTaskIds.length}件）` : ''}`}
+                    </button>
+                  </>
+                )
+              })()}
+            </div>
+
+            {/* C. 入力ゾーン */}
+            <div style={sectionGap}>
+              <label style={labelStyle}>C. 入力ゾーン</label>
+              <textarea value={aiInput} onChange={e => setAiInput(e.target.value)} rows={8}
+                className="game-input" style={{ width: '100%', fontSize: 12, resize: 'vertical' }}
+                placeholder="リサーチ結果 or 直接入力…" />
+            </div>
+
+            {/* プロンプト + 実行 */}
+            <div style={sectionGap}>
+              <label style={labelStyle}>プロンプト（修正指示）</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}
+                  className="game-input" style={{ flex: 1, fontSize: 13 }}
+                  placeholder="例: もっと初心者向けに、箇条書きを増やして…"
+                  onKeyDown={e => { if (e.key === 'Enter') handleRefine() }} />
+                <button className="game-button" onClick={handleRefine}
+                  disabled={aiLoading || !aiInput.trim() || !aiPrompt.trim()}
+                  style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>
+                  {aiLoading && aiPrompt.trim() ? '生成中…' : '実行'}
+                </button>
+              </div>
+            </div>
+
+            {/* 出力ゾーン */}
+            <div style={sectionGap}>
+              <label style={labelStyle}>出力ゾーン</label>
+              <textarea readOnly value={aiOutput} rows={8}
+                style={{ width: '100%', fontSize: 12, background: '#f0fae0', border: '2px solid #c8e89a',
+                  borderRadius: 8, padding: '8px 10px', resize: 'vertical', color: '#1a3a00', boxSizing: 'border-box' }}
+                placeholder="出力結果がここに表示されます" />
+              {aiOutput && (
+                <button onClick={() => { setAiInput(aiOutput); setAiPrompt(''); setAiOutput('') }}
+                  style={{ marginTop: 6, padding: '6px 14px', border: '2px solid #3d6e00', borderRadius: 6,
+                    background: '#3d6e00', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 'bold' }}>
+                  ✓ 確定（入力に適用）
+                </button>
+              )}
+            </div>
+
+            {/* D. マークダウン出力 */}
+            <button className="game-button" onClick={handleMarkdown}
+              disabled={aiLoading || !aiInput.trim()}
+              style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
+              {aiLoading && !aiPrompt.trim() && aiInput.trim() ? '生成中…' : '📋 D. マークダウン出力'}
+            </button>
+          </div>
+
+        </div>{/* /上段グリッド */}
+
+        {/* 下段: 記事一覧（全幅） */}
+        <div className="game-card" style={{ padding: '16px 20px' }}>
+          <h2 style={{ fontSize: 15, color: '#3d6e00', fontWeight: 'bold', marginBottom: 12 }}>記事一覧 ({topics.length}件)</h2>
+          {topics.length === 0 && <p style={{ color: '#6aac14', fontSize: 13 }}>記事がありません</p>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
             {topics.map(t => (
-              <div key={t.id} style={{ border: '1px solid #c8e89a', borderRadius: 8, padding: 8, marginBottom: 8, background: '#f8fef0' }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <div key={t.id} style={{ border: '1px solid #c8e89a', borderRadius: 8, padding: 8, background: '#f8fef0' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
                   {t.thumbnail_url && (
                     <img src={t.thumbnail_url} alt="" style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
                   )}
@@ -530,7 +763,7 @@ export default function NewsAdminPage() {
                     <p style={{ fontSize: 11, color: '#6aac14', margin: 0 }}>{new Date(t.created_at).toLocaleDateString('ja-JP')}</p>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: t.is_published ? '#c8f0c0' : '#f0d0c0', color: t.is_published ? '#1a6e00' : '#8a3000' }}>
                     {t.is_published ? '公開中' : '非公開'}
                   </span>
@@ -540,7 +773,7 @@ export default function NewsAdminPage() {
                   </button>
                   <button onClick={() => startEdit(t)}
                     style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #3d6e00', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#3d6e00' }}>編集</button>
-                  {(isAdmin) && (
+                  {isAdmin && (
                     <button onClick={() => handleDelete(t.id)}
                       style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #e74c3c', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#e74c3c' }}>削除</button>
                   )}
