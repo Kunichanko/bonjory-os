@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import supabase from '../../lib/supabase'
 import { marked } from 'marked'
 
@@ -32,6 +33,7 @@ interface BonTopic {
 interface Props {
   userId: string
   userCourse: string | null
+  onAssign?: () => void
 }
 
 function cardHeight(ratio: number) {
@@ -45,7 +47,7 @@ function formatDate(iso: string) {
   return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
-export default function BonTopics({ userId, userCourse }: Props) {
+export default function BonTopics({ userId, userCourse, onAssign }: Props) {
   const [topics, setTopics]       = useState<BonTopic[]>([])
   const [loading, setLoading]     = useState(true)
   const [carouselIdx, setCarouselIdx] = useState(0)
@@ -53,6 +55,7 @@ export default function BonTopics({ userId, userCourse }: Props) {
   const [queuedTaskId, setQueuedTaskId] = useState<string | null>(null)
   const [assignMsg, setAssignMsg] = useState<string | null>(null)
   const [assigning, setAssigning] = useState(false)
+  const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null)
   const carouselTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const msgTimer      = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -60,6 +63,22 @@ export default function BonTopics({ userId, userCourse }: Props) {
     setQueuedTaskId(localStorage.getItem('bonTopicsQueuedTaskId'))
     loadTopics()
   }, [])
+
+  // モーダル開閉時のスクロールバーガタつき防止
+  useEffect(() => {
+    if (selected) {
+      const sw = window.innerWidth - document.documentElement.clientWidth
+      document.body.style.paddingRight = `${sw}px`
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.paddingRight = ''
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.paddingRight = ''
+      document.body.style.overflow = ''
+    }
+  }, [selected])
 
   async function loadTopics() {
     const { data } = await supabase
@@ -113,6 +132,7 @@ export default function BonTopics({ userId, userCourse }: Props) {
       localStorage.setItem('bonTopicsQueuedTaskId', taskId)
       setQueuedTaskId(taskId)
       showMsg(`「${taskTitle}」をアサインしました！ダッシュボードに追加されました。`)
+      onAssign?.()
     } else {
       showMsg('アサインに失敗しました')
     }
@@ -152,7 +172,7 @@ export default function BonTopics({ userId, userCourse }: Props) {
                 {t.thumbnail_url && (
                   <img src={t.thumbnail_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                 )}
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75) 40%, transparent 100%)' }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.4) 40%, transparent 100%)' }} />
                 <div style={{ position: 'absolute', bottom: 16, left: 16, right: 16 }}>
                   <p style={{ color: '#fff', fontWeight: 'bold', fontSize: 18, margin: '0 0 4px', textShadow: '1px 1px 4px rgba(0,0,0,0.8)', lineHeight: 1.3 }}>{t.title}</p>
                   <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, margin: 0 }}>{formatDate(t.created_at)}</p>
@@ -179,7 +199,7 @@ export default function BonTopics({ userId, userCourse }: Props) {
             {t.thumbnail_url && (
               <img src={t.thumbnail_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
             )}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.7) 50%, transparent 100%)' }} />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.4) 50%, transparent 100%)' }} />
             <div style={{ position: 'absolute', bottom: 8, left: 8, right: 8 }}>
               <p style={{ color: '#fff', fontWeight: 'bold', fontSize: 13, margin: '0 0 2px', lineHeight: 1.2, textShadow: '1px 1px 3px rgba(0,0,0,0.9)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{t.title}</p>
               <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 10, margin: 0 }}>{formatDate(t.created_at)}</p>
@@ -189,21 +209,24 @@ export default function BonTopics({ userId, userCourse }: Props) {
       </div>
 
       {/* ── 記事モーダル ── */}
-      {selected && (
+      {selected && createPortal(
         <>
-          <div onClick={() => setSelected(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200 }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 201, width: '92vw', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: 14, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}>
+          {/* 背景オーバーレイ＋クリックで閉じるラッパー */}
+          <div
+            className="bon-modal-overlay"
+            onClick={(e) => { if (e.target === e.currentTarget) { setSelected(null); setZoomedImageUrl(null) } }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 8, paddingBottom: 16 }}>
+          <div className="bon-modal" style={{ width: '92vw', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: 14, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}>
             {/* 閉じるボタン */}
-            <button onClick={() => setSelected(null)}
+            <button onClick={() => { setSelected(null); setZoomedImageUrl(null) }}
               style={{ position: 'sticky', top: 8, right: 8, float: 'right', zIndex: 10, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontSize: 16, lineHeight: '30px', textAlign: 'center' }}>×</button>
 
             {/* サムネイル */}
             {selected.thumbnail_url && (
-              <img src={selected.thumbnail_url} alt="" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />
+              <img src={selected.thumbnail_url} alt="" className="bon-modal-thumbnail" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', display: 'block' }} />
             )}
 
-            <div style={{ padding: '16px 18px 24px' }}>
+            <div className="bon-modal-content" style={{ padding: '16px 18px 24px' }}>
               {/* タイトル */}
               <h2 style={{ color: selected.title_color === '#ffffff' ? '#1a3a00' : selected.title_color, fontSize: 20, fontWeight: 'bold', margin: '0 0 6px', lineHeight: 1.3 }}>{selected.title}</h2>
               <p style={{ color: '#888', fontSize: 12, margin: '0 0 12px' }}>
@@ -231,9 +254,10 @@ export default function BonTopics({ userId, userCourse }: Props) {
                   )}
 
                   {block.type === 'image' && block.image_url && (
-                    <div style={{ textAlign: 'center', marginBottom: 16 }}>
+                    <div style={{ marginBottom: 16 }}>
                       <img src={block.image_url} alt=""
-                        style={{ width: 160, height: 160, borderRadius: '50%', objectFit: 'cover', border: '3px solid #c8e89a' }} />
+                        onClick={() => setZoomedImageUrl(block.image_url!)}
+                        style={{ width: '100%', borderRadius: 8, objectFit: 'cover', display: 'block', cursor: 'zoom-in' }} />
                     </div>
                   )}
 
@@ -273,7 +297,18 @@ export default function BonTopics({ userId, userCourse }: Props) {
               ))}
             </div>
           </div>
-        </>
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* ── 画像ズーム ── */}
+      {zoomedImageUrl && createPortal(
+        <div onClick={() => setZoomedImageUrl(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
+          <img src={zoomedImageUrl} alt="" style={{ maxWidth: '95vw', maxHeight: '90vh', borderRadius: 8, objectFit: 'contain' }} />
+        </div>,
+        document.body
       )}
     </div>
   )

@@ -365,3 +365,43 @@ body {
   transition: transform 0.4s ease;
   will-change: transform;
 }
+
+/* BON-TOPICS モーダル */
+@keyframes bon-overlay-in {
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to   { opacity: 1; backdrop-filter: blur(8px); }
+}
+
+@keyframes bon-modal-in {
+  0%   { opacity: 0; transform: scale(0.72) translateY(48px); filter: blur(10px); }
+  65%  { opacity: 1; transform: scale(1.04) translateY(-6px); filter: blur(0); }
+  82%  { transform: scale(0.98) translateY(2px); }
+  100% { opacity: 1; transform: scale(1)    translateY(0);    filter: blur(0); }
+}
+
+@keyframes bon-thumbnail-in {
+  from { opacity: 0; transform: scaleY(0.5); filter: blur(6px); }
+  to   { opacity: 1; transform: scaleY(1);   filter: blur(0); }
+}
+
+@keyframes bon-block-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.bon-modal-overlay {
+  animation: bon-overlay-in 0.35s ease forwards;
+}
+
+.bon-modal {
+  animation: bon-modal-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.bon-modal-thumbnail {
+  transform-origin: top center;
+  animation: bon-thumbnail-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.bon-modal-content {
+  animation: bon-block-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+}

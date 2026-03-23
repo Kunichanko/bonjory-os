@@ -619,6 +619,20 @@ export default function DashboardPage() {
 
   // ─── ハンドラ ───────────────────────────────────────────
 
+  async function refreshAssignments() {
+    if (!userId) return
+    const { data } = await supabase.from('task_assignments')
+      .select(`
+        id, status, plan_text, midterm_progress, midterm_correction,
+        media_url, self_evaluation, retrospective, submitted_at,
+        is_anonymous, thumbnail_url, created_at, deadline_at,
+        task:tasks(id, title, description, description_is_markdown, target_course, target_stage)
+      `)
+      .eq('user_id', userId)
+      .eq('is_assigned', true)
+    if (data) setAssignments(data as unknown as AssignmentRecord[])
+  }
+
   async function savePlan(assignmentId: string) {
     setSavingPlan(prev => ({ ...prev, [assignmentId]: true }))
     setPlanSuccess(prev => ({ ...prev, [assignmentId]: false }))
@@ -1183,7 +1197,7 @@ export default function DashboardPage() {
 
           {/* ══ VIEW: BON-TOPICS ══════════════════════════ */}
           {currentView === 'news' && userId && (
-            <BonTopics userId={userId} userCourse={course} />
+            <BonTopics userId={userId} userCourse={course} onAssign={refreshAssignments} />
           )}
 
           {/* ══ VIEW: 今週の課題 ════════════════════════════ */}
