@@ -213,35 +213,43 @@ function DotProgressBar({ assignment }: { assignment: AssignmentRecord }) {
   const midIdx = n <= 2 ? -1 : n % 2 === 0 ? n / 2 - 1 : Math.floor(n / 2)
 
   return (
-    <div style={{ marginBottom: 4 }}>
-      <p style={{ fontSize: 12, fontWeight: 'bold', color: '#3d6e00', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+    <div>
+      <p style={{ fontSize: 14, fontWeight: 'bold', color: '#2d5500', marginBottom: 12 }}>
         {assignment.task.title}
       </p>
-      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
         {Array.from({ length: n }).map((_, i) => {
           const isEdge    = i === 0 || i === n - 1
           const isMid     = i === midIdx
           const isCurrent = i === currentPos
           const isPast    = i < currentPos
-          const size = isEdge ? 26 : isMid ? 20 : 14
+          const size = isEdge ? 28 : isMid ? 22 : 16
           const bg   = isPast ? '#3d6e00' : isCurrent ? '#6aac14' : '#c8e89a'
           const dotDate = new Date(created)
           dotDate.setDate(created.getDate() + i)
           const dow = DOW_JP[dotDate.getDay()]
+          const fontSize = isEdge ? 10 : isMid ? 9 : 7
           return (
-            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+            <div key={i} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
               {i < n - 1 && (
-                <div style={{ position: 'absolute', top: size / 2 - 1.5, left: '50%', width: '100%', height: 3, background: isPast ? '#3d6e00' : '#c8e89a', zIndex: 0 }} />
+                <div style={{
+                  position: 'absolute', top: '50%', left: '50%',
+                  width: '100%', height: 3,
+                  transform: 'translateY(-50%)',
+                  background: isPast ? '#3d6e00' : '#c8e89a', zIndex: 0,
+                }} />
               )}
               <div style={{
                 width: size, height: size, borderRadius: '50%', background: bg,
                 border: isCurrent ? '3px solid #2a4d00' : '2px solid #8dc832',
                 zIndex: 1, position: 'relative', flexShrink: 0,
                 boxShadow: isCurrent ? '0 0 0 3px rgba(106,172,20,0.3)' : 'none',
-              }} />
-              <span style={{ fontSize: 9, color: '#6aac14', marginTop: 2, fontWeight: isCurrent ? 'bold' : 'normal' }}>
-                {dow}
-              </span>
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <span style={{ fontSize, color: 'white', fontWeight: 'bold', lineHeight: 1, userSelect: 'none' }}>
+                  {dow}
+                </span>
+              </div>
             </div>
           )
         })}
@@ -1517,13 +1525,9 @@ export default function DashboardPage() {
           {currentView === 'tasks' && (
             <>
               {activeAssignments.length > 0 && (
-                <div className="game-card" style={{ padding: '20px 24px' }}>
-                  <h2 className="game-title" style={{ fontSize: 18, marginBottom: 16 }}>進捗</h2>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: activeAssignments.length > 1 ? '1fr 1fr' : '1fr',
-                    gap: 16,
-                  }}>
+                <div className="game-card" style={{ padding: '28px 32px' }}>
+                  <h2 className="game-title" style={{ fontSize: 20, marginBottom: 24 }}>今週のサイクル</h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                     {activeAssignments.map(a => (
                       <DotProgressBar key={a.id} assignment={a} />
                     ))}
