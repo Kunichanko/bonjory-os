@@ -12,12 +12,14 @@ interface TimelinePost {
   user_id: string
   is_anonymous: boolean
   thumbnail_url: string | null
+  image_urls: string[] | null
   media_url: string | null
   self_evaluation: string | null
   retrospective: string | null
   submitted_at: string | null
   hidden_in_timeline: boolean
   force_past_timeline: boolean
+  force_current_timeline: boolean
   task: {
     id: string
     title: string
@@ -121,9 +123,9 @@ export default function AdminTimelinePage() {
         const { data: postsData } = await supabase
           .from('task_assignments')
           .select(`
-            id, user_id, is_anonymous, thumbnail_url, media_url,
+            id, user_id, is_anonymous, thumbnail_url, image_urls, media_url,
             self_evaluation, retrospective, submitted_at,
-            hidden_in_timeline, force_past_timeline,
+            hidden_in_timeline, force_past_timeline, force_current_timeline,
             task:tasks(id, title, target_course, target_stage, created_at)
           `)
           .eq('status', 'submitted')
@@ -158,8 +160,8 @@ export default function AdminTimelinePage() {
 
   const filteredPosts = useMemo(() => {
     let list = posts.filter(p => tab === 'current'
-      ? !p.force_past_timeline && isCurrentTimeline(p.task.created_at)
-      : p.force_past_timeline || !isCurrentTimeline(p.task.created_at)
+      ? !p.force_past_timeline && (p.force_current_timeline || isCurrentTimeline(p.task.created_at))
+      : p.force_past_timeline || (!p.force_current_timeline && !isCurrentTimeline(p.task.created_at))
     )
     if (filterCourse) list = list.filter(p => p.task.target_course === filterCourse)
     if (filterStage)  list = list.filter(p => p.task.target_stage === filterStage)
@@ -192,6 +194,16 @@ export default function AdminTimelinePage() {
       .update({ force_past_timeline: !current })
       .eq('id', postId)
     if (!error) setPosts(prev => prev.map(p => p.id === postId ? { ...p, force_past_timeline: !current } : p))
+    setUpdating(prev => { const n = { ...prev }; delete n[postId]; return n })
+  }
+
+  async function setForceCurrent(postId: string, val: boolean) {
+    setUpdating(prev => ({ ...prev, [postId]: true }))
+    const { error } = await supabase
+      .from('task_assignments')
+      .update({ force_current_timeline: val })
+      .eq('id', postId)
+    if (!error) setPosts(prev => prev.map(p => p.id === postId ? { ...p, force_current_timeline: val } : p))
     setUpdating(prev => { const n = { ...prev }; delete n[postId]; return n })
   }
 
@@ -288,8 +300,8 @@ export default function AdminTimelinePage() {
     )
   }
 
-  const currentCount = posts.filter(p => !p.force_past_timeline && isCurrentTimeline(p.task.created_at)).length
-  const pastCount    = posts.filter(p => p.force_past_timeline || !isCurrentTimeline(p.task.created_at)).length
+  const currentCount = posts.filter(p => !p.force_past_timeline && (p.force_current_timeline || isCurrentTimeline(p.task.created_at))).length
+  const pastCount    = posts.filter(p => p.force_past_timeline || (!p.force_current_timeline && !isCurrentTimeline(p.task.created_at))).length
 
   // ─── レンダリング ────────────────────────────────────────
 
@@ -463,8 +475,8 @@ export default function AdminTimelinePage() {
                     padding: '14px 20px', textAlign: 'left',
                     display: 'flex', alignItems: 'center', gap: 12,
                   }}>
-                    {post.thumbnail_url ? (
-                      <img src={post.thumbnail_url} alt={post.task.title}
+                    {(post.thumbnail_url ?? post.image_urls?.[0]) ? (
+                      <img src={(post.thumbnail_url ?? post.image_urls![0])!} alt={post.task.title}
                         style={{ width: 72, height: 54, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
                     ) : (
                       <div style={{
@@ -500,6 +512,9 @@ export default function AdminTimelinePage() {
                         {post.force_past_timeline && (
                           <span style={{ background: '#0288d1', color: 'white', borderRadius: 6, padding: '1px 6px', fontSize: 10, fontWeight: 'bold' }}>強制・過去</span>
                         )}
+                        {post.force_current_timeline && (
+                          <span style={{ background: '#e65c00', color: 'white', borderRadius: 6, padding: '1px 6px', fontSize: 10, fontWeight: 'bold' }}>強制・現在</span>
+                        )}
                       </div>
                     </div>
                     <span style={{ color: '#6aac14', fontSize: 18 }}>{isOpen ? '▲' : '▼'}</span>
@@ -524,17 +539,39 @@ export default function AdminTimelinePage() {
                             }}>
                             {updating[post.id] ? '更新中…' : post.hidden_in_timeline ? '表示に戻す' : '非表示にする'}
                           </button>
-                          <button
-                            onClick={() => toggleForcePast(post.id, post.force_past_timeline)}
-                            disabled={updating[post.id]}
-                            style={{
-                              padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
-                              border: `2px solid ${post.force_past_timeline ? '#6aac14' : '#0288d1'}`,
-                              background: post.force_past_timeline ? '#f0fce0' : 'none',
-                              color: post.force_past_timeline ? '#2d5500' : '#0288d1',
-                            }}>
-                            {updating[post.id] ? '更新中…' : post.force_past_timeline ? '最新に戻す' : '過去に移動'}
-                          </button>
+                          {tab === 'past' ? (
+                            post.force_past_timeline ? (
+                              <button
+                                onClick={() => toggleForcePast(post.id, true)}
+                                disabled={updating[post.id]}
+                                style={{ padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', border: '2px solid #6aac14', background: '#f0fce0', color: '#2d5500' }}>
+                                {updating[post.id] ? '更新中…' : '最新に戻す'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setForceCurrent(post.id, true)}
+                                disabled={updating[post.id]}
+                                style={{ padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', border: '2px solid #e65c00', background: 'none', color: '#e65c00' }}>
+                                {updating[post.id] ? '更新中…' : '現在に戻す'}
+                              </button>
+                            )
+                          ) : (
+                            post.force_current_timeline ? (
+                              <button
+                                onClick={() => setForceCurrent(post.id, false)}
+                                disabled={updating[post.id]}
+                                style={{ padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', border: '2px solid #6aac14', background: '#f0fce0', color: '#2d5500' }}>
+                                {updating[post.id] ? '更新中…' : '強制解除'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => toggleForcePast(post.id, false)}
+                                disabled={updating[post.id]}
+                                style={{ padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', border: '2px solid #0288d1', background: 'none', color: '#0288d1' }}>
+                                {updating[post.id] ? '更新中…' : '過去に移動'}
+                              </button>
+                            )
+                          )}
                         </div>
                       )}
 
@@ -587,8 +624,8 @@ export default function AdminTimelinePage() {
                       )}
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
-                        {post.thumbnail_url && (
-                          <img src={post.thumbnail_url} alt={post.task.title}
+                        {(post.thumbnail_url ?? post.image_urls?.[0]) && (
+                          <img src={(post.thumbnail_url ?? post.image_urls![0])!} alt={post.task.title}
                             style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8 }} />
                         )}
                         {post.media_url && (

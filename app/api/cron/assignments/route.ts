@@ -103,12 +103,12 @@ export async function GET(req: NextRequest) {
   // activate_at <= today の reserved_assignments を取得
   const { data: readyReservations } = await supabaseAdmin
     .from('reserved_assignments')
-    .select('id, user_id, task_id, trigger_assignment_id')
+    .select('id, user_id, task_id, trigger_assignment_id, type')
     .lte('activate_at', todayStr)
 
   for (const reservation of (readyReservations ?? [])) {
-    // trigger_assignment が submitted かチェック
-    if (reservation.trigger_assignment_id) {
+    // auto タイプのみ trigger チェック（reserved は activate_at 到達で即時有効化）
+    if (reservation.type === 'auto' && reservation.trigger_assignment_id) {
       const { data: trigger } = await supabaseAdmin
         .from('task_assignments')
         .select('status')

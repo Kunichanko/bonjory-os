@@ -385,7 +385,6 @@ export default function AssignmentsPage() {
             const isSelected = selectedIds.has(profile.id)
             const active = activeMap[profile.id] ?? []
             const reserved = reservedMap[profile.id] ?? []
-            const currentTask = active.find(a => a.status !== 'submitted') ?? null
 
             return (
               <div
@@ -420,22 +419,26 @@ export default function AssignmentsPage() {
                   )}
                 </div>
 
-                {/* 現在の課題 */}
+                {/* アサイン済み課題一覧 */}
                 <div style={{ marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, color: '#888', fontWeight: 'bold' }}>現在の課題: </span>
-                  {currentTask ? (() => {
-                    const s = STATUS_LABELS[currentTask.status]
-                    const deadline = getAssignmentDeadline(currentTask)
-                    const dl = `${deadline.getMonth() + 1}/${deadline.getDate()}(日)`
-                    return (
-                      <span style={{ fontSize: 13 }}>
-                        <span style={{ background: s.bg, color: s.color, borderRadius: 8, padding: '2px 8px', fontWeight: 'bold', fontSize: 12, marginRight: 6 }}>{s.label}</span>
-                        <span style={{ color: '#2d5500', fontWeight: 'bold' }}>{currentTask.task.title}</span>
-                        <span style={{ color: '#888', fontSize: 12, marginLeft: 6 }}>期限: {dl}</span>
-                      </span>
-                    )
-                  })() : (
+                  <span style={{ fontSize: 12, color: '#888', fontWeight: 'bold' }}>アサイン済み課題: </span>
+                  {active.length === 0 ? (
                     <span style={{ color: '#aaa', fontSize: 13 }}>なし</span>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+                      {active.map(a => {
+                        const s = STATUS_LABELS[a.status]
+                        const deadline = getAssignmentDeadline(a)
+                        const dl = `${deadline.getMonth() + 1}/${deadline.getDate()}(日)`
+                        return (
+                          <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, flexWrap: 'wrap' }}>
+                            <span style={{ background: s.bg, color: s.color, borderRadius: 8, padding: '2px 8px', fontWeight: 'bold', fontSize: 12, whiteSpace: 'nowrap' }}>{s.label}</span>
+                            <span style={{ color: '#2d5500', fontWeight: 'bold' }}>{a.task.title}</span>
+                            <span style={{ color: '#888', fontSize: 12, whiteSpace: 'nowrap' }}>期限: {dl}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
 

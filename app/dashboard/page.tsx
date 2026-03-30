@@ -110,6 +110,7 @@ interface TimelineItem {
   submitted_at: string | null
   hidden_in_timeline: boolean
   force_past_timeline: boolean
+  force_current_timeline: boolean
   task: {
     id: string
     title: string
@@ -611,7 +612,7 @@ export default function DashboardPage() {
           .select(`
             id, user_id, is_anonymous, thumbnail_url,
             self_evaluation, retrospective, media_url, image_urls, submitted_at,
-            hidden_in_timeline, force_past_timeline,
+            hidden_in_timeline, force_past_timeline, force_current_timeline,
             task:tasks(id, title, target_course, target_stage, created_at)
           `)
           .eq('status', 'submitted')
@@ -940,8 +941,8 @@ export default function DashboardPage() {
   }
 
   const visibleTimeline = timeline.filter(i => !i.hidden_in_timeline)
-  const currentTimeline = applyTimelineFilters(visibleTimeline.filter(i => !i.force_past_timeline && isCurrentTimeline(i.task.created_at)))
-  const pastTimeline    = applyTimelineFilters(visibleTimeline.filter(i => i.force_past_timeline || !isCurrentTimeline(i.task.created_at)))
+  const currentTimeline = applyTimelineFilters(visibleTimeline.filter(i => !i.force_past_timeline && (i.force_current_timeline || isCurrentTimeline(i.task.created_at))))
+  const pastTimeline    = applyTimelineFilters(visibleTimeline.filter(i => i.force_past_timeline || (!i.force_current_timeline && !isCurrentTimeline(i.task.created_at))))
 
   // ─── レンダリング ──────────────────────────────────────
 
@@ -1893,8 +1894,8 @@ export default function DashboardPage() {
                         onClick={() => { setSelectedPost(item); loadComments(item.id) }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
                         <div className="game-card timeline-card" style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
-                          {item.thumbnail_url ? (
-                            <img src={item.thumbnail_url} alt={item.task.title}
+                          {(item.thumbnail_url ?? item.image_urls?.[0]) ? (
+                            <img src={(item.thumbnail_url ?? item.image_urls![0])!} alt={item.task.title}
                               style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
                           ) : (
                             <div style={{
@@ -1930,8 +1931,8 @@ export default function DashboardPage() {
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
                         <div className="game-card timeline-card" style={{ padding: 0, overflow: 'hidden' }}>
                           <div style={{ display: 'flex', alignItems: 'stretch' }}>
-                            {item.thumbnail_url ? (
-                              <img src={item.thumbnail_url} alt={item.task.title}
+                            {(item.thumbnail_url ?? item.image_urls?.[0]) ? (
+                              <img src={(item.thumbnail_url ?? item.image_urls![0])!} alt={item.task.title}
                                 style={{ width: 90, height: 80, objectFit: 'cover', flexShrink: 0 }} />
                             ) : (
                               <div style={{

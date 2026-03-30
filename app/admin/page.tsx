@@ -188,7 +188,7 @@ export default function AdminPage() {
     if (!task) return
 
     const { data: inserted, error } = await supabase.from('task_assignments')
-      .insert({ task_id: taskId, user_id: userId })
+      .insert({ task_id: taskId, user_id: userId, is_assigned: true, status: 'assigned' })
       .select('id, created_at, deadline_at')
       .single()
     if (!error && inserted) {
