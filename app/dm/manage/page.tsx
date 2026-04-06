@@ -345,10 +345,10 @@ export default function DmManagePage() {
         </div>
 
         {/* 会話一覧 + メッセージ */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* 会話一覧 */}
-          <div className="game-card" style={{ padding: '16px', width: 280, flexShrink: 0 }}>
+          <div className="game-card" style={{ padding: '16px' }}>
             <p className="game-label" style={{ marginBottom: 10 }}>受信DM一覧</p>
             {conversations.length === 0 ? (
               <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>

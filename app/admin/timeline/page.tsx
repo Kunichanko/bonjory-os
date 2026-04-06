@@ -45,8 +45,9 @@ function getMostRecentMonday(date: Date): Date {
   return d
 }
 
-function isCurrentTimeline(taskCreatedAt: string): boolean {
-  const taskMonday = getMostRecentMonday(new Date(taskCreatedAt))
+function isCurrentTimeline(submittedAt: string | null): boolean {
+  if (!submittedAt) return false
+  const taskMonday = getMostRecentMonday(new Date(submittedAt))
   const nowMonday  = getMostRecentMonday(new Date())
   const cutoff     = new Date(nowMonday.getTime() - 14 * 24 * 60 * 60 * 1000)
   return taskMonday >= cutoff
@@ -160,8 +161,8 @@ export default function AdminTimelinePage() {
 
   const filteredPosts = useMemo(() => {
     let list = posts.filter(p => tab === 'current'
-      ? !p.force_past_timeline && (p.force_current_timeline || isCurrentTimeline(p.task.created_at))
-      : p.force_past_timeline || (!p.force_current_timeline && !isCurrentTimeline(p.task.created_at))
+      ? !p.force_past_timeline && (p.force_current_timeline || isCurrentTimeline(p.submitted_at))
+      : p.force_past_timeline || (!p.force_current_timeline && !isCurrentTimeline(p.submitted_at))
     )
     if (filterCourse) list = list.filter(p => p.task.target_course === filterCourse)
     if (filterStage)  list = list.filter(p => p.task.target_stage === filterStage)
@@ -300,8 +301,8 @@ export default function AdminTimelinePage() {
     )
   }
 
-  const currentCount = posts.filter(p => !p.force_past_timeline && (p.force_current_timeline || isCurrentTimeline(p.task.created_at))).length
-  const pastCount    = posts.filter(p => p.force_past_timeline || (!p.force_current_timeline && !isCurrentTimeline(p.task.created_at))).length
+  const currentCount = posts.filter(p => !p.force_past_timeline && (p.force_current_timeline || isCurrentTimeline(p.submitted_at))).length
+  const pastCount    = posts.filter(p => p.force_past_timeline || (!p.force_current_timeline && !isCurrentTimeline(p.submitted_at))).length
 
   // ─── レンダリング ────────────────────────────────────────
 

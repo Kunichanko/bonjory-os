@@ -61,8 +61,9 @@ function getMostRecentMonday(date: Date): Date {
   return d
 }
 
-function isCurrentTimeline(taskCreatedAt: string): boolean {
-  const taskMonday = getMostRecentMonday(new Date(taskCreatedAt))
+function isCurrentTimeline(submittedAt: string | null): boolean {
+  if (!submittedAt) return false
+  const taskMonday = getMostRecentMonday(new Date(submittedAt))
   const nowMonday  = getMostRecentMonday(new Date())
   const cutoff     = new Date(nowMonday.getTime() - 14 * 24 * 60 * 60 * 1000)
   return taskMonday >= cutoff
@@ -105,6 +106,7 @@ interface TimelineItem {
   thumbnail_url: string | null
   self_evaluation: string | null
   retrospective: string | null
+  submission_comment: string | null
   media_url: string | null
   image_urls: string[] | null
   submitted_at: string | null
@@ -258,8 +260,9 @@ export default function DashboardPage() {
   // DM未読
   const [dmUnreadCount, setDmUnreadCount]           = useState(0)
   const [dmManageUnreadCount, setDmManageUnreadCount] = useState(0)
-  const [notifOpen, setNotifOpen]   = useState(false)
-  const [notifLogs, setNotifLogs]   = useState<NotifLog[]>([])
+  const [notifOpen, setNotifOpen]         = useState(false)
+  const [notifLogs, setNotifLogs]         = useState<NotifLog[]>([])
+  const [notifVisibleCount, setNotifVisibleCount] = useState(3)
   const [notifUnread, setNotifUnread] = useState(0)
   const [positionNames, setPositionNames] = useState<string[]>([])
 
@@ -611,7 +614,7 @@ export default function DashboardPage() {
           .from('task_assignments')
           .select(`
             id, user_id, is_anonymous, thumbnail_url,
-            self_evaluation, retrospective, media_url, image_urls, submitted_at,
+            self_evaluation, retrospective, submission_comment, media_url, image_urls, submitted_at,
             hidden_in_timeline, force_past_timeline, force_current_timeline,
             task:tasks(id, title, target_course, target_stage, created_at)
           `)
@@ -941,8 +944,8 @@ export default function DashboardPage() {
   }
 
   const visibleTimeline = timeline.filter(i => !i.hidden_in_timeline)
-  const currentTimeline = applyTimelineFilters(visibleTimeline.filter(i => !i.force_past_timeline && (i.force_current_timeline || isCurrentTimeline(i.task.created_at))))
-  const pastTimeline    = applyTimelineFilters(visibleTimeline.filter(i => i.force_past_timeline || (!i.force_current_timeline && !isCurrentTimeline(i.task.created_at))))
+  const currentTimeline = applyTimelineFilters(visibleTimeline.filter(i => !i.force_past_timeline && (i.force_current_timeline || isCurrentTimeline(i.submitted_at))))
+  const pastTimeline    = applyTimelineFilters(visibleTimeline.filter(i => i.force_past_timeline || (!i.force_current_timeline && !isCurrentTimeline(i.submitted_at))))
 
   // ─── レンダリング ──────────────────────────────────────
 
@@ -1150,6 +1153,7 @@ export default function DashboardPage() {
               if (opening) {
                 localStorage.setItem('notif_last_opened', new Date().toISOString())
                 setNotifUnread(0)
+                setNotifVisibleCount(3)
               }
             }}
             style={{
@@ -1227,7 +1231,7 @@ export default function DashboardPage() {
                     <p style={{ color: '#a8d870', textAlign: 'center', marginTop: 24, fontSize: 14 }}>
                       通知はありません
                     </p>
-                  ) : notifLogs.map(log => (
+                  ) : notifLogs.slice(0, notifVisibleCount).map(log => (
                     <motion.div
                       key={log.id}
                       layout
@@ -1276,6 +1280,19 @@ export default function DashboardPage() {
                     </motion.div>
                   ))}
                 </AnimatePresence>
+                {notifLogs.length > notifVisibleCount && (
+                  <button
+                    onClick={() => setNotifVisibleCount(c => c + 3)}
+                    style={{
+                      width: '100%', padding: '8px 0',
+                      background: 'none', border: '1px solid #3d6e00',
+                      borderRadius: 8, color: '#6aac14',
+                      fontSize: 13, cursor: 'pointer', marginBottom: 8,
+                    }}
+                  >
+                    さらに読み込む
+                  </button>
+                )}
               </div>
             </motion.div>
           )}
@@ -2072,6 +2089,13 @@ export default function DashboardPage() {
                   </div>
                 )
               })()}
+
+              {selectedPost.submission_comment && (
+                <div style={{ marginBottom: 14 }}>
+                  <p className="game-label" style={{ marginBottom: 4 }}>📋 提出物</p>
+                  <p style={textBlockStyle}>{selectedPost.submission_comment}</p>
+                </div>
+              )}
 
               {selectedPost.self_evaluation && (
                 <div style={{ marginBottom: 14 }}>

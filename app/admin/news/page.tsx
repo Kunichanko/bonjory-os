@@ -424,7 +424,7 @@ export default function NewsAdminPage() {
         </div>
 
         {/* 上段: 編集フォーム + AIステーション */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start', marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
 
           {/* ── 編集フォーム ── */}
           <div className="game-card" style={{ padding: '20px 24px' }}>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
@@ -14,6 +14,16 @@ interface Profile {
   email: string | null
   course: Course
   stage: Stage
+  cool_points: number
+  created_at: string
+}
+
+interface RankSetting {
+  id: string
+  name: string
+  min_points: number
+  color: string
+  rank_order: number
 }
 
 interface Task {
@@ -29,6 +39,7 @@ interface Assignment {
   status: 'assigned' | 'in_progress' | 'submitted'
   created_at: string
   deadline_at: string | null
+  submitted_at: string | null
   task: { title: string }
 }
 
@@ -74,6 +85,11 @@ const STATUS_LABELS: Record<string, { label: string; bg: string; color: string }
   submitted:   { label: '提出済',     bg: '#3d6e00', color: '#fff' },
 }
 
+function getRankForPoints(points: number, ranks: RankSetting[]): RankSetting | null {
+  const sorted = [...ranks].sort((a, b) => a.min_points - b.min_points)
+  return [...sorted].reverse().find(r => points >= r.min_points) ?? sorted[0] ?? null
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const [profiles, setProfiles]         = useState<Profile[]>([])
@@ -81,6 +97,7 @@ export default function AdminPage() {
   const [assignments, setAssignments]   = useState<Record<string, Assignment[]>>({})
   const [allPositions, setAllPositions] = useState<Position[]>([])
   const [profilePositions, setProfilePositions] = useState<Record<string, ProfilePosition[]>>({})
+  const [rankSettings, setRankSettings] = useState<RankSetting[]>([])
   const [addingPosition, setAddingPosition] = useState<Record<string, string>>({})
   const [expandedId, setExpandedId]     = useState<string | null>(null)
   const [addingTask, setAddingTask]     = useState<Record<string, string>>({})
@@ -88,6 +105,8 @@ export default function AdminPage() {
   const [saving, setSaving]             = useState<Record<string, string>>({})
   const [errors, setErrors]             = useState<Record<string, string>>({})
   const [userRole, setUserRole]         = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [sortOrder, setSortOrder]       = useState<'points' | 'registered' | 'recent_submit'>('points')
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false, assignment_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
@@ -95,6 +114,28 @@ export default function AdminPage() {
     dev_management: false,
  news_management: false,
   })
+
+  const sortedProfiles = useMemo(() => {
+    const copy = [...profiles]
+    if (sortOrder === 'points') {
+      return copy.sort((a, b) => b.cool_points - a.cool_points)
+    } else if (sortOrder === 'registered') {
+      return copy.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    } else {
+      // recent_submit: ユーザーごとの最新 submitted_at 降順
+      const latestSubmit = (userId: string) => {
+        const times = (assignments[userId] ?? [])
+          .map(a => a.submitted_at ? new Date(a.submitted_at).getTime() : 0)
+        return times.length ? Math.max(...times) : 0
+      }
+      return copy.sort((a, b) => latestSubmit(b.id) - latestSubmit(a.id))
+    }
+  }, [profiles, sortOrder, assignments])
+
+  function handleSortChange(val: 'points' | 'registered' | 'recent_submit') {
+    setSortOrder(val)
+    if (currentUserId) localStorage.setItem(`admin_member_sort_${currentUserId}`, val)
+  }
 
   useEffect(() => {
     let mounted = true
@@ -115,20 +156,29 @@ export default function AdminPage() {
           const perms = await getEffectivePermissions(authData.user.id)
           if (mounted) setEffectivePerms(perms)
         }
-        if (mounted) setUserRole(me.role)
+        if (mounted) {
+          setUserRole(me.role)
+          setCurrentUserId(authData.user.id)
+          const saved = localStorage.getItem(`admin_member_sort_${authData.user.id}`)
+          if (saved === 'points' || saved === 'registered' || saved === 'recent_submit') {
+            setSortOrder(saved)
+          }
+        }
 
-        const [profilesRes, tasksRes, assignmentsRes, positionsRes, ppRes] = await Promise.all([
-          supabase.from('profiles').select('id, username, email, course, stage').order('created_at', { ascending: true }),
+        const [profilesRes, tasksRes, assignmentsRes, positionsRes, ppRes, ranksRes] = await Promise.all([
+          supabase.from('profiles').select('id, username, email, course, stage, cool_points, created_at').order('created_at', { ascending: true }),
           supabase.from('tasks').select('id, title, target_course').eq('is_active', true),
-          supabase.from('task_assignments').select('id, task_id, user_id, status, created_at, deadline_at, task:tasks(title)').eq('is_assigned', true),
+          supabase.from('task_assignments').select('id, task_id, user_id, status, created_at, deadline_at, submitted_at, task:tasks(title)').eq('is_assigned', true),
           supabase.from('positions').select('id, name, permissions').order('created_at', { ascending: true }),
           supabase.from('profile_positions').select('profile_id, position_id, positions(name)'),
+          supabase.from('rank_settings').select('id, name, min_points, color, rank_order').order('rank_order'),
         ])
 
         if (!mounted) return
-        setProfiles(profilesRes.data ?? [])
+        setProfiles((profilesRes.data ?? []).map(p => ({ ...p, cool_points: p.cool_points ?? 0, created_at: p.created_at ?? '' })))
         setAllTasks(tasksRes.data ?? [])
         setAllPositions((positionsRes.data ?? []) as Position[])
+        setRankSettings((ranksRes.data ?? []) as RankSetting[])
 
         // userId → Assignment[] のマップを構築
         const map: Record<string, Assignment[]> = {}
@@ -187,14 +237,30 @@ export default function AdminPage() {
     const task = allTasks.find(t => t.id === taskId)
     if (!task) return
 
-    const { data: inserted, error } = await supabase.from('task_assignments')
-      .insert({ task_id: taskId, user_id: userId, is_assigned: true, status: 'assigned' })
+    // 既存行（論理削除済み）があれば復元、なければ新規挿入
+    const { data: existing } = await supabase.from('task_assignments')
       .select('id, created_at, deadline_at')
-      .single()
-    if (!error && inserted) {
+      .eq('task_id', taskId).eq('user_id', userId)
+      .maybeSingle()
+
+    let result: { id: string; created_at: string; deadline_at: string | null } | null = null
+    if (existing) {
+      const { error } = await supabase.from('task_assignments')
+        .update({ is_assigned: true, status: 'assigned' })
+        .eq('id', existing.id)
+      if (!error) result = existing
+    } else {
+      const { data: inserted, error } = await supabase.from('task_assignments')
+        .insert({ task_id: taskId, user_id: userId, is_assigned: true, status: 'assigned' })
+        .select('id, created_at, deadline_at')
+        .single()
+      if (!error) result = inserted
+    }
+
+    if (result) {
       setAssignments(prev => ({
         ...prev,
-        [userId]: [...(prev[userId] ?? []), { id: inserted.id, task_id: taskId, user_id: userId, status: 'assigned', created_at: inserted.created_at, deadline_at: inserted.deadline_at, task: { title: task.title } }],
+        [userId]: [...(prev[userId] ?? []), { id: result!.id, task_id: taskId, user_id: userId, status: 'assigned', created_at: result!.created_at, deadline_at: result!.deadline_at, submitted_at: null, task: { title: task.title } }],
       }))
       setAddingTask(prev => { const next = { ...prev }; delete next[userId]; return next })
     }
@@ -325,10 +391,28 @@ export default function AdminPage() {
 
         {/* 部員テーブル */}
         <div className="game-card" style={{ padding: '24px 28px', overflowX: 'auto' }}>
+          {/* 並び順 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <span style={{ color: '#a8d870', fontSize: 13, whiteSpace: 'nowrap' }}>並び順:</span>
+            {([['points', 'ポイント順'], ['registered', '登録日順'], ['recent_submit', '最近提出順']] as const).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => handleSortChange(val)}
+                style={{
+                  padding: '4px 12px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+                  border: '2px solid #6aac14', fontWeight: 'bold',
+                  background: sortOrder === val ? '#6aac14' : 'transparent',
+                  color: sortOrder === val ? '#fff' : '#6aac14',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '3px solid #3d6e00' }}>
-                {['ユーザー名', 'コース', 'ステージ', '役職', '課題状況', 'アサイン'].map(h => (
+                {['ユーザー名', 'コース', 'ステージ', '役職', 'ポイント/ランク', '課題状況', 'アサイン'].map(h => (
                   <th key={h} className="game-label" style={{ display: 'table-cell', textAlign: 'left', padding: '8px 12px', fontSize: 13 }}>
                     {h}
                   </th>
@@ -336,14 +420,14 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody>
-              {profiles.length === 0 && (
+              {sortedProfiles.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: 40, color: '#6aac14', fontSize: 16 }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: 40, color: '#6aac14', fontSize: 16 }}>
                     部員が見つかりません
                   </td>
                 </tr>
               )}
-              {profiles.map((profile, idx) => {
+              {sortedProfiles.map((profile, idx) => {
                 const memberAssignments = assignments[profile.id] ?? []
                 const isExpanded = expandedId === profile.id
                 // 部員のコースに合う課題＋全コース対象の課題
@@ -351,12 +435,13 @@ export default function AdminPage() {
                   (t.target_course === null || t.target_course === profile.course) &&
                   !memberAssignments.some(a => a.task_id === t.id)
                 )
+                const rank = getRankForPoints(profile.cool_points, rankSettings)
 
                 return (
                   <Fragment key={profile.id}>
                     <tr
                       style={{
-                        borderBottom: isExpanded ? 'none' : (idx < profiles.length - 1 ? '1px solid #c8e89a' : 'none'),
+                        borderBottom: isExpanded ? 'none' : (idx < sortedProfiles.length - 1 ? '1px solid #c8e89a' : 'none'),
                         background: idx % 2 === 0 ? '#f8fff0' : '#ffffff',
                       }}
                     >
@@ -415,6 +500,24 @@ export default function AdminPage() {
                               {pp.position_name}
                             </span>
                           ))}
+                        </div>
+                      </td>
+
+                      {/* ポイント/ランク */}
+                      <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          <span style={{ fontSize: 13, fontWeight: 'bold', color: '#2d5500' }}>
+                            {profile.cool_points} pt
+                          </span>
+                          {rank && (
+                            <span style={{
+                              display: 'inline-block', fontSize: 11, fontWeight: 'bold',
+                              background: rank.color, color: '#fff',
+                              borderRadius: 8, padding: '1px 7px',
+                            }}>
+                              {rank.name}
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -497,15 +600,17 @@ export default function AdminPage() {
                                           style={{ padding: '2px 7px', borderRadius: 6, border: '1px solid #6aac14', background: '#e8ffd4', color: '#2d5500', cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}
                                           title="+1週間"
                                         >+7日</button>
-                                        <button
-                                          onClick={() => removeAssignment(profile.id, a.task_id)}
-                                          style={{
-                                            background: 'none', border: 'none', cursor: 'pointer',
-                                            color: '#c0392b', fontWeight: 'bold', fontSize: 14, padding: '0 2px',
-                                          }}
-                                        >
-                                          ✕
-                                        </button>
+                                        {a.status !== 'submitted' && (
+                                          <button
+                                            onClick={() => removeAssignment(profile.id, a.task_id)}
+                                            style={{
+                                              background: 'none', border: 'none', cursor: 'pointer',
+                                              color: '#c0392b', fontWeight: 'bold', fontSize: 14, padding: '0 2px',
+                                            }}
+                                          >
+                                            ✕
+                                          </button>
+                                        )}
                                       </div>
                                     )
                                   })}
