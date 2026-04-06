@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
+import { getEffectivePermissions } from '../../lib/permissions'
 
 interface DmRequestType {
   id: string
@@ -52,7 +53,9 @@ export default function DmPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 新規DM作成
+  const [isManager, setIsManager]         = useState(false)
   const [managers, setManagers]           = useState<ManagerProfile[]>([])
+  const [allProfiles, setAllProfiles]     = useState<ManagerProfile[]>([])
   const [requestTypes, setRequestTypes]   = useState<DmRequestType[]>([])
   const [newManagerId, setNewManagerId]   = useState('')
   const [newTypeId, setNewTypeId]         = useState('')
@@ -76,6 +79,21 @@ export default function DmPage() {
         const { data: managerData } = await supabase.rpc('get_dm_managers')
         const managerList: ManagerProfile[] = (managerData ?? []) as ManagerProfile[]
 
+        // 自分が dm_management 権限を持つか確認
+        const perms = await getEffectivePermissions(uid)
+        const hasManagerPerm = perms.dm_management
+
+        // dm_management 権限ありなら全部員を取得
+        let profileList: ManagerProfile[] = []
+        if (hasManagerPerm) {
+          const { data: allData } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .neq('id', uid)
+            .order('username', { ascending: true })
+          profileList = (allData ?? []) as ManagerProfile[]
+        }
+
         // 要件タイプ
         const { data: typesData } = await supabase
           .from('dm_request_types')
@@ -83,7 +101,9 @@ export default function DmPage() {
           .order('created_at', { ascending: true })
 
         if (!mounted) return
+        setIsManager(hasManagerPerm)
         setManagers(managerList)
+        setAllProfiles(profileList)
         setRequestTypes((typesData ?? []) as DmRequestType[])
 
         await loadConversations(uid, (typesData ?? []) as DmRequestType[])
@@ -234,11 +254,12 @@ export default function DmPage() {
     setCreating(true)
     setCreateError(null)
 
+    // dm_management 権限あり→自分が manager_id、相手が member_id（管理ページで表示される）
     const { data, error } = await supabase
       .from('dm_conversations')
       .insert({
-        member_id: userId,
-        manager_id: newManagerId,
+        member_id: isManager ? newManagerId : userId,
+        manager_id: isManager ? userId : newManagerId,
         request_type_id: newTypeId || null,
       })
       .select('id, member_id, manager_id, request_type_id, created_at, updated_at')
@@ -286,7 +307,7 @@ export default function DmPage() {
             <div>
               <h1 className="game-title" style={{ fontSize: 28 }}>💬 DM送信</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 13 }}>
-                DM管理者に連絡できます
+                {isManager ? '全部員にDMを送信できます' : 'DM管理者に連絡できます'}
                 {unreadTotal > 0 && (
                   <span style={{
                     marginLeft: 8, background: 'red', color: 'white',
@@ -315,7 +336,7 @@ export default function DmPage() {
                 disabled={creating}
               >
                 <option value="">-- 選択してください --</option>
-                {managers.map(m => (
+                {(isManager ? allProfiles : managers).map(m => (
                   <option key={m.id} value={m.id}>{m.username ?? '名無し'}</option>
                 ))}
               </select>
@@ -344,7 +365,7 @@ export default function DmPage() {
               {creating ? '作成中…' : '作成'}
             </button>
           </div>
-          {managers.length === 0 && (
+          {!isManager && managers.length === 0 && (
             <p style={{ color: '#888', fontSize: 12, marginTop: 8 }}>
               ※ 現在DM管理者がいません。
             </p>

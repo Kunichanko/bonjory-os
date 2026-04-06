@@ -24,6 +24,7 @@ interface SpeechLine {
 interface GimmickSettings {
   block_interval_min_sec: number
   block_interval_max_sec: number
+  sakura_enabled: boolean
 }
 
 const EMPTY_PERMS: Record<PermissionKey, boolean> = {
@@ -42,7 +43,7 @@ export default function GimmickPage() {
   const [blocks, setBlocks] = useState<SpeechBlock[]>([])
   const [lines, setLines] = useState<SpeechLine[]>([])
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null)
-  const [settings, setSettings] = useState<GimmickSettings>({ block_interval_min_sec: 10, block_interval_max_sec: 30 })
+  const [settings, setSettings] = useState<GimmickSettings>({ block_interval_min_sec: 10, block_interval_max_sec: 30, sakura_enabled: false })
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsMsg, setSettingsMsg] = useState<string | null>(null)
   const [defaultTypeSpeedSec, setDefaultTypeSpeedSec] = useState(0.05)
@@ -74,7 +75,7 @@ export default function GimmickPage() {
     const [blocksRes, linesRes, settingsRes] = await Promise.all([
       supabase.from('speech_blocks').select('id, label, sort_order, is_active').order('sort_order'),
       supabase.from('speech_lines').select('id, block_id, text, type_speed_ms, display_ms, sort_order').order('sort_order'),
-      supabase.from('gimmick_settings').select('block_interval_min_sec, block_interval_max_sec').single(),
+      supabase.from('gimmick_settings').select('block_interval_min_sec, block_interval_max_sec, sakura_enabled').single(),
     ])
     if (!mounted) return
     setBlocks(blocksRes.data ?? [])
@@ -93,6 +94,12 @@ export default function GimmickPage() {
     setSettings(s => ({ ...s, block_interval_min_sec: min, block_interval_max_sec: max }))
     setSettingsMsg(error ? `エラー: ${error.message}` : '保存しました')
     setTimeout(() => setSettingsMsg(null), 2500)
+  }
+
+  async function toggleSakura() {
+    const newVal = !settings.sakura_enabled
+    setSettings(s => ({ ...s, sakura_enabled: newVal }))
+    await supabase.from('gimmick_settings').update({ sakura_enabled: newVal }).eq('id', 1)
   }
 
   // ── ブロック操作 ─────────────────────────────────────────
@@ -213,6 +220,18 @@ export default function GimmickPage() {
           <p style={{ color: '#a8d870', fontSize: 12, marginTop: 8 }}>
             ブロック間の間隔をランダムで決定します（最小〜最大秒）
           </p>
+
+          <hr style={{ border: 'none', borderTop: '1px solid #c8e89a', margin: '16px 0' }} />
+          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>🌸 エフェクト</h2>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={settings.sakura_enabled}
+              onChange={toggleSakura}
+              style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#6aac14' }}
+            />
+            <span style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 14 }}>桜吹雪（全員のダッシュボードに表示）</span>
+          </label>
 
           <hr style={{ border: 'none', borderTop: '1px solid #c8e89a', margin: '16px 0' }} />
           <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>新規一言のデフォルト値</h2>

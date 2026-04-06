@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 import { marked } from 'marked'
@@ -252,7 +252,7 @@ export default function DashboardPage() {
   // スピーチ
   const [speechBlocks, setSpeechBlocks] = useState<{ id: string; is_active: boolean; sort_order: number }[]>([])
   const [speechLines, setSpeechLines]   = useState<{ id: string; block_id: string; text: string; type_speed_ms: number; display_ms: number; sort_order: number }[]>([])
-  const [gimmickSettings, setGimmickSettings] = useState({ block_interval_min_sec: 10, block_interval_max_sec: 30 })
+  const [gimmickSettings, setGimmickSettings] = useState({ block_interval_min_sec: 10, block_interval_max_sec: 30, sakura_enabled: false })
   const [slimeSpeech, setSlimeSpeech]     = useState('')
   const [slimeSpeechFull, setSlimeSpeechFull] = useState('')
   const [speechVisible, setSpeechVisible] = useState(false)
@@ -437,7 +437,7 @@ export default function DashboardPage() {
             .single(),
           supabase.from('speech_blocks').select('id, is_active, sort_order').order('sort_order'),
           supabase.from('speech_lines').select('id, block_id, text, type_speed_ms, display_ms, sort_order').order('sort_order'),
-          supabase.from('gimmick_settings').select('block_interval_min_sec, block_interval_max_sec').single(),
+          supabase.from('gimmick_settings').select('block_interval_min_sec, block_interval_max_sec, sakura_enabled').single(),
         ])
 
         if (!mounted) return
@@ -897,6 +897,15 @@ export default function DashboardPage() {
 
   // ─── ローディング ──────────────────────────────────────
 
+  const sakuraPetals = useMemo(() => Array.from({ length: 28 }, (_, i) => ({
+    id: i,
+    left: Math.random() * 100,
+    size: 14 + Math.random() * 10,
+    duration: 6 + Math.random() * 8,
+    delay: Math.random() * 10,
+    drift: (Math.random() - 0.5) * 120,
+  })), [])
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -922,7 +931,6 @@ export default function DashboardPage() {
   }
   const submittedAssignments = assignments.filter(a => a.status === 'submitted')
 
-  // ランク計算：rank_order ではなく min_points でソートして正確に判定
   const sortedByPoints = [...rankSettings].sort((a, b) => a.min_points - b.min_points)
   const currentRank    = [...sortedByPoints].reverse().find(r => coolPoints >= r.min_points) ?? sortedByPoints[0] ?? null
   const nextRank       = currentRank
@@ -1173,6 +1181,30 @@ export default function DashboardPage() {
             }} />
           )}
         </div>
+
+        {/* ── 桜吹雪 ──────────────────────────────────────── */}
+        {gimmickSettings.sakura_enabled && (
+          <>
+            <style>{`
+              @keyframes sakura-fall {
+                0%   { transform: translateY(-30px) translateX(0px) rotate(0deg); opacity: 1; }
+                100% { transform: translateY(105vh) translateX(var(--drift)) rotate(540deg); opacity: 0.4; }
+              }
+            `}</style>
+            <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999, overflow: 'hidden' }}>
+              {sakuraPetals.map(p => (
+                <div key={p.id} style={{
+                  position: 'absolute',
+                  top: '-30px',
+                  left: `${p.left}%`,
+                  fontSize: `${p.size}px`,
+                  animation: `sakura-fall ${p.duration}s ${p.delay}s linear infinite`,
+                  ['--drift' as string]: `${p.drift}px`,
+                }}>🌸</div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* ── 通知センター オーバーレイ ──────────────────── */}
         {notifOpen && (
