@@ -246,7 +246,7 @@ export default function DashboardPage() {
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
-    dev_management: false, news_management: false,
+    dev_management: false, news_management: false, debug: false,
   })
 
   // スピーチ
@@ -1071,6 +1071,21 @@ export default function DashboardPage() {
                 </span>
               )}
             </div>
+          )}
+
+          {/* デバッグ報告 - debug権限のみ */}
+          {(userRole === 'admin' || effectivePerms.debug) && (
+            <a href="/debug" style={{ textDecoration: 'none', display: 'block' }}>
+              <button style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                width: '100%', padding: '12px 20px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
+              }}>
+                <span style={{ fontSize: 18 }}>🐞</span>
+                デバッグ報告
+              </button>
+            </a>
           )}
 
           {/* 不具合・要望 - 全ユーザー */}
