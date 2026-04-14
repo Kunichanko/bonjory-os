@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from 'react'
+import { CheckSquare } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
@@ -364,7 +365,7 @@ export default function AssignmentsPage() {
                 color: showSelectedOnly ? 'white' : '#3d6e00',
               }}
             >
-              ☑ 選択済みのみ
+              <CheckSquare size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }}/>選択済みのみ
             </button>
           </div>
           {selectedIds.size > 0 && (

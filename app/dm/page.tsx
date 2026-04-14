@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 import { getEffectivePermissions } from '../../lib/permissions'
+import { MessageCircle, Send } from 'lucide-react'
 
 interface DmRequestType {
   id: string
@@ -305,7 +306,7 @@ export default function DmPage() {
         <div className="game-card" style={{ padding: '20px 28px', marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h1 className="game-title" style={{ fontSize: 28 }}>💬 DM送信</h1>
+              <h1 className="game-title" style={{ fontSize: 28, display: 'flex', alignItems: 'center', gap: 8 }}><MessageCircle size={24}/>DM送信</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 13 }}>
                 {isManager ? '全部員にDMを送信できます' : 'DM管理者に連絡できます'}
                 {unreadTotal > 0 && (
@@ -514,11 +515,11 @@ export default function DmPage() {
                   />
                   <button
                     className="game-button"
-                    style={{ width: 'auto', padding: '0 20px', fontSize: 20 }}
+                    style={{ width: 'auto', padding: '0 20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                     onClick={sendMessage}
                     disabled={sending || !msgInput.trim()}
                   >
-                    ➤
+                    <Send size={18}/>
                   </button>
                 </div>
               </>

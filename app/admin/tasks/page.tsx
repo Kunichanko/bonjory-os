@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { marked } from 'marked'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
+import { Film, Tag } from 'lucide-react'
 
 interface Task {
   id: string
@@ -433,15 +434,15 @@ export default function AdminTasksPage() {
               )}
               {(userRole === 'admin' || effectivePerms.timeline_management) && (
                 <a href="/admin/timeline">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                    🎬 タイムライン管理
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Film size={14}/>タイムライン管理
                   </button>
                 </a>
               )}
               {userRole === 'admin' && (
                 <a href="/admin/positions">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                    🏷 役職管理
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Tag size={14}/>役職管理
                   </button>
                 </a>
               )}

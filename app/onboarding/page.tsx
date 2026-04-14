@@ -3,6 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
+import {
+  ClipboardList, Flame, CheckCircle2,
+  Globe, BookOpen, Star, Snowflake,
+  Calendar, Smartphone, ChevronRight,
+  User, Shield, Gamepad2, Palette,
+  Check, Rocket, Bell,
+} from 'lucide-react'
 
 const C = {
   bg:     '#1a3a00',
@@ -41,9 +48,9 @@ const STEPS = [
     illustration: (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, padding: '8px 0' }}>
         {[
-          { day: '月', label: '課題開始', emoji: '📋', color: '#e8f5e9' },
-          { day: '木', label: '中間報告', emoji: '🔥', color: '#fff8e1' },
-          { day: '日', label: '最終提出', emoji: '✅', color: '#e3f2fd' },
+          { day: '月', label: '課題開始', icon: <ClipboardList size={24} color={C.dark}/>, color: '#e8f5e9' },
+          { day: '木', label: '中間報告', icon: <Flame size={24} color="#e65100"/>, color: '#fff8e1' },
+          { day: '日', label: '最終提出', icon: <CheckCircle2 size={24} color="#0277bd"/>, color: '#e3f2fd' },
         ].map((item, i) => (
           <div key={item.day} style={{ display: 'flex', alignItems: 'center' }}>
             <div style={{
@@ -54,7 +61,7 @@ const STEPS = [
               textAlign: 'center',
               minWidth: 80,
             }}>
-              <div style={{ fontSize: 24 }}>{item.emoji}</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>{item.icon}</div>
               <div style={{ fontWeight: 700, color: C.dark, fontSize: 18 }}>{item.day}</div>
               <div style={{ fontSize: 11, color: C.dark, marginTop: 2 }}>{item.label}</div>
             </div>
@@ -81,9 +88,9 @@ const STEPS = [
     illustration: (
       <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', padding: '8px 0' }}>
         {[
-          { icon: '📋', label: '今週の課題', desc: '制作計画・中間報告・最終提出' },
-          { icon: '🌐', label: 'タイムライン', desc: '全部員の作品を閲覧・コメント' },
-          { icon: '📚', label: '過去の課題', desc: '自分の提出履歴を振り返り' },
+          { icon: <ClipboardList size={28} color={C.dark}/>, label: '今週の課題', desc: '制作計画・中間報告・最終提出' },
+          { icon: <Globe size={28} color={C.dark}/>, label: 'タイムライン', desc: '全部員の作品を閲覧・コメント' },
+          { icon: <BookOpen size={28} color={C.dark}/>, label: '過去の課題', desc: '自分の提出履歴を振り返り' },
         ].map(item => (
           <div key={item.label} style={{
             border: `2px solid ${C.border}`,
@@ -93,7 +100,7 @@ const STEPS = [
             background: '#f8fff0',
             flex: '1 1 120px',
           }}>
-            <div style={{ fontSize: 28 }}>{item.icon}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>{item.icon}</div>
             <div style={{ fontWeight: 700, color: C.dark, fontSize: 13, marginTop: 4 }}>{item.label}</div>
             <div style={{ fontSize: 11, color: '#5a8a00', marginTop: 2 }}>{item.desc}</div>
           </div>
@@ -120,7 +127,7 @@ const STEPS = [
           background: '#fffde7',
           flex: 1,
         }}>
-          <div style={{ fontSize: 32 }}>⭐</div>
+          <div style={{ display: 'flex', justifyContent: 'center' }}><Star size={32} color="#f57f17"/></div>
           <div style={{ fontWeight: 700, color: '#f57f17', fontSize: 14, marginTop: 4 }}>トータルポイント</div>
           <div style={{ fontSize: 11, color: '#7f6000', marginTop: 2 }}>課題提出・活動参加で獲得</div>
         </div>
@@ -132,7 +139,7 @@ const STEPS = [
           background: '#e1f5fe',
           flex: 1,
         }}>
-          <div style={{ fontSize: 32 }}>❄️</div>
+          <div style={{ display: 'flex', justifyContent: 'center' }}><Snowflake size={32} color="#0288d1"/></div>
           <div style={{ fontWeight: 700, color: '#01579b', fontSize: 14, marginTop: 4 }}>クールポイント</div>
           <div style={{ fontSize: 11, color: '#01579b', marginTop: 2 }}>特に優れた作品で獲得</div>
         </div>
@@ -152,15 +159,15 @@ const STEPS = [
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 10, width: '100%' }}>
           {[
-            { icon: '📅', label: '提出日に通知', desc: '締め切りを見逃さない', color: '#fff8e1', border: '#f9a825' },
-            { icon: '📲', label: 'ホーム画面に追加', desc: 'アプリのように起動', color: '#e8f5e9', border: '#388e3c' },
-            { icon: '👆', label: '1タップで移動', desc: '通知からすぐページへ', color: '#e3f2fd', border: '#0288d1' },
+            { icon: <Calendar size={26} color="#f57f17"/>, label: '提出日に通知', desc: '締め切りを見逃さない', color: '#fff8e1', border: '#f9a825' },
+            { icon: <Smartphone size={26} color="#388e3c"/>, label: 'ホーム画面に追加', desc: 'アプリのように起動', color: '#e8f5e9', border: '#388e3c' },
+            { icon: <ChevronRight size={26} color="#0288d1"/>, label: '1タップで移動', desc: '通知からすぐページへ', color: '#e3f2fd', border: '#0288d1' },
           ].map(item => (
             <div key={item.label} style={{
               flex: 1, border: `2px solid ${item.border}`, borderRadius: 10,
               padding: '10px 8px', textAlign: 'center', background: item.color,
             }}>
-              <div style={{ fontSize: 26 }}>{item.icon}</div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>{item.icon}</div>
               <div style={{ fontWeight: 700, color: '#2d5500', fontSize: 12, marginTop: 4 }}>{item.label}</div>
               <div style={{ fontSize: 10, color: '#5a8a00', marginTop: 2 }}>{item.desc}</div>
             </div>
@@ -171,7 +178,7 @@ const STEPS = [
     body: (
       <div style={{ color: C.dark, lineHeight: 1.8 }}>
         <p style={{ margin: '0 0 8px' }}>
-          ダッシュボードの「🔔 通知を有効にする」から通知を許可すると：
+          ダッシュボードの「<Bell size={13} style={{ display: 'inline', verticalAlign: 'middle' }}/> 通知を有効にする」から通知を許可すると：
         </p>
         <ul style={{ margin: 0, paddingLeft: 20 }}>
           <li><strong>木曜・日曜の提出日</strong>に事前リマインドが届きます</li>
@@ -194,7 +201,7 @@ const STEPS = [
           width: '100%',
         }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 20 }}>👤</span>
+            <User size={20} color={C.dark}/>
             <div>
               <div style={{ fontWeight: 700, color: C.dark, fontSize: 13 }}>部員</div>
               <div style={{ fontSize: 12, color: '#5a8a00' }}>「相談があります！」</div>
@@ -211,7 +218,7 @@ const STEPS = [
           width: '100%',
         }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 20 }}>🛡️</span>
+            <Shield size={20} color="#1b5e20"/>
             <div>
               <div style={{ fontWeight: 700, color: '#1b5e20', fontSize: 13 }}>DM管理者</div>
               <div style={{ fontSize: 12, color: '#388e3c' }}>受信して返信</div>
@@ -231,9 +238,9 @@ const STEPS = [
 ]
 
 const COURSES = [
-  { value: 'Unity',   label: 'Unityコース',   emoji: '🎮', desc: 'Unity を使ったゲーム制作を学ぶ' },
-  { value: 'Blender', label: 'Blenderコース', emoji: '🎨', desc: 'Blender を使った3DCG制作を学ぶ' },
-  { value: 'Web',     label: 'Web開発コース', emoji: '🌐', desc: 'HTML/CSS/JS などWeb技術をAIコーディングで学ぶ' },
+  { value: 'Unity',   label: 'Unityコース',   Icon: Gamepad2, desc: 'Unity を使ったゲーム制作を学ぶ' },
+  { value: 'Blender', label: 'Blenderコース', Icon: Palette,  desc: 'Blender を使った3DCG制作を学ぶ' },
+  { value: 'Web',     label: 'Web開発コース', Icon: Globe,    desc: 'HTML/CSS/JS などWeb技術をAIコーディングで学ぶ' },
 ]
 
 // ─── Page ───────────────────────────────────────────────────
@@ -344,13 +351,13 @@ export default function OnboardingPage() {
                     transition: 'all 0.2s',
                   }}
                 >
-                  <span style={{ fontSize: 36 }}>{c.emoji}</span>
+                  <c.Icon size={36} color={C.dark}/>
                   <div>
                     <div style={{ fontWeight: 700, color: C.dark, fontSize: 16 }}>{c.label}</div>
                     <div style={{ fontSize: 13, color: '#5a8a00', marginTop: 2 }}>{c.desc}</div>
                   </div>
                   {selectedCourse === c.value && (
-                    <span style={{ marginLeft: 'auto', color: C.accent, fontSize: 20 }}>✓</span>
+                    <Check size={20} color={C.accent} style={{ marginLeft: 'auto' }}/>
                   )}
                 </button>
               ))}
@@ -383,9 +390,9 @@ export default function OnboardingPage() {
               className="game-button"
               onClick={handleFinish}
               disabled={!selectedCourse || saving}
-              style={{ flex: 1, opacity: !selectedCourse ? 0.5 : 1 }}
+              style={{ flex: 1, opacity: !selectedCourse ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              {saving ? '設定中…' : 'はじめる 🚀'}
+              {saving ? '設定中…' : <><Rocket size={16}/>はじめる</>}
             </button>
           )}
         </div>

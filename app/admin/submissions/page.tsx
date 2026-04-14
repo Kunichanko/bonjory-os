@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
+import { Film, Tag, CheckCircle2, Flame, Pin, Gamepad2, User, Search, Image, FileText, ClipboardList, Star, RefreshCw, MessageCircle } from 'lucide-react'
+import Icon from '../../components/Icon'
 
 // ─── 型 ───────────────────────────────────────────────────
 
@@ -170,15 +172,15 @@ export default function AdminSubmissionsPage() {
               )}
               {(userRole === 'admin' || effectivePerms.timeline_management) && (
                 <a href="/admin/timeline">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                    🎬 タイムライン管理
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Film size={14}/>タイムライン管理
                   </button>
                 </a>
               )}
               {userRole === 'admin' && (
                 <a href="/admin/positions">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                    🏷 役職管理
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Tag size={14}/>役職管理
                   </button>
                 </a>
               )}
@@ -243,18 +245,18 @@ export default function AdminSubmissionsPage() {
                       ) : (
                         <>
                           {submittedCount > 0 && (
-                            <span style={{ background: '#3d6e00', color: '#fff', borderRadius: 10, padding: '2px 10px', fontSize: 12, fontWeight: 'bold' }}>
-                              ✅ 提出済 {submittedCount}
+                            <span style={{ background: '#3d6e00', color: '#fff', borderRadius: 10, padding: '2px 10px', fontSize: 12, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <CheckCircle2 size={11}/>提出済 {submittedCount}
                             </span>
                           )}
                           {inProgressCount > 0 && (
-                            <span style={{ background: '#d4f0a0', color: '#3d6e00', borderRadius: 10, padding: '2px 10px', fontSize: 12, fontWeight: 'bold' }}>
-                              🔥 取り組み中 {inProgressCount}
+                            <span style={{ background: '#d4f0a0', color: '#3d6e00', borderRadius: 10, padding: '2px 10px', fontSize: 12, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Flame size={11}/>取り組み中 {inProgressCount}
                             </span>
                           )}
                           {assignedCount > 0 && (
-                            <span style={{ background: '#e8e8e8', color: '#555', borderRadius: 10, padding: '2px 10px', fontSize: 12, fontWeight: 'bold' }}>
-                              📌 未着手 {assignedCount}
+                            <span style={{ background: '#e8e8e8', color: '#555', borderRadius: 10, padding: '2px 10px', fontSize: 12, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Pin size={11}/>未着手 {assignedCount}
                             </span>
                           )}
                         </>
@@ -352,7 +354,7 @@ export default function AdminSubmissionsPage() {
                                         background: '#f0fae0', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         flexShrink: 0,
                                       }}>
-                                        <span style={{ color: '#c8e89a', fontSize: 22 }}>🎮</span>
+                                        <Gamepad2 size={22} style={{ color: '#c8e89a' }}/>
                                       </div>
                                     )}
                                     <div>
@@ -362,20 +364,23 @@ export default function AdminSubmissionsPage() {
                                         color: 'white', borderRadius: 10, padding: '2px 10px',
                                         fontSize: 12, fontWeight: 'bold',
                                       }}>
-                                        {a.is_anonymous ? '🙈 匿名投稿' : '👤 実名投稿'}
+                                        {a.is_anonymous
+                                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><User size={11} style={{ opacity: 0.5 }}/>匿名投稿</span>
+                                          : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><User size={11}/>実名投稿</span>
+                                        }
                                       </span>
                                     </div>
                                   </div>
 
                                   {a.plan_text ? (
-                                    <DetailBlock icon="📝" label="制作計画" text={a.plan_text} />
+                                    <DetailBlock icon="FileText" label="制作計画" text={a.plan_text} />
                                   ) : (
                                     <EmptyBlock label="制作計画" />
                                   )}
 
                                   {(a.midterm_progress || a.midterm_correction) && (
                                     <div>
-                                      <p className="game-label" style={{ marginBottom: 6 }}>🔍 中間報告</p>
+                                      <p className="game-label" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}><Search size={13}/>中間報告</p>
                                       {a.midterm_progress && (
                                         <div style={{ marginBottom: 6 }}>
                                           <p style={{ color: '#888', fontSize: 12, marginBottom: 2 }}>進捗状況</p>
@@ -396,7 +401,7 @@ export default function AdminSubmissionsPage() {
 
                                   {a.image_urls && a.image_urls.length > 0 ? (
                                     <div>
-                                      <p className="game-label" style={{ marginBottom: 8 }}>🖼️ 提出画像 ({a.image_urls.length}枚)</p>
+                                      <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Image size={13}/>提出画像 ({a.image_urls.length}枚)</p>
                                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                         {a.image_urls.map((url, i) => (
                                           <a key={i} href={url} target="_blank" rel="noopener noreferrer">
@@ -408,7 +413,7 @@ export default function AdminSubmissionsPage() {
                                     </div>
                                   ) : a.media_url ? (
                                     <div>
-                                      <p className="game-label" style={{ marginBottom: 4 }}>🎬 提出URL（旧形式）</p>
+                                      <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Film size={13}/>提出URL（旧形式）</p>
                                       <a
                                         href={a.media_url}
                                         target="_blank"
@@ -423,26 +428,26 @@ export default function AdminSubmissionsPage() {
                                   )}
 
                                   {a.submission_comment ? (
-                                    <DetailBlock icon="📋" label="提出物の説明" text={a.submission_comment} />
+                                    <DetailBlock icon="ClipboardList" label="提出物の説明" text={a.submission_comment} />
                                   ) : (
                                     <EmptyBlock label="提出物の説明" />
                                   )}
 
                                   {a.self_evaluation ? (
-                                    <DetailBlock icon="⭐" label="自己評価" text={a.self_evaluation} />
+                                    <DetailBlock icon="Star" label="自己評価" text={a.self_evaluation} />
                                   ) : (
                                     <EmptyBlock label="自己評価" />
                                   )}
 
                                   {a.retrospective ? (
-                                    <DetailBlock icon="🔄" label="計画の振り返り" text={a.retrospective} />
+                                    <DetailBlock icon="RefreshCw" label="計画の振り返り" text={a.retrospective} />
                                   ) : (
                                     <EmptyBlock label="計画の振り返り" />
                                   )}
 
                                   {a.course_request && (
                                     <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 12, marginTop: 4 }}>
-                                      <DetailBlock icon="💬" label="コースへの要望" text={a.course_request} />
+                                      <DetailBlock icon="MessageCircle" label="コースへの要望" text={a.course_request} />
                                     </div>
                                   )}
                                 </div>
@@ -487,7 +492,7 @@ const textBlockStyle: React.CSSProperties = {
 function DetailBlock({ icon, label, text }: { icon: string; label: string; text: string }) {
   return (
     <div>
-      <p className="game-label" style={{ marginBottom: 4 }}>{icon} {label}</p>
+      <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Icon name={icon} size={13}/>{label}</p>
       <p style={textBlockStyle}>{text}</p>
     </div>
   )

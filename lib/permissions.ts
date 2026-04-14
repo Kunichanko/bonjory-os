@@ -15,17 +15,17 @@ export type PermissionKey =
   | 'news_management'
 
 export const FEATURE_LIST: { id: PermissionKey; label: string; path: string; icon: string }[] = [
-  { id: 'course_management',     label: '部員・コース管理', path: '/admin',                  icon: '👥' },
-  { id: 'task_management',       label: '課題管理',         path: '/admin/tasks',            icon: '📝' },
-  { id: 'assignment_management', label: 'アサイン管理',     path: '/admin/assignments',      icon: '📋' },
-  { id: 'point_settings',        label: 'ポイント設定',     path: '/admin/points',           icon: '🏆' },
-  { id: 'submission_review',     label: '提出状況',         path: '/admin/submissions',      icon: '📊' },
-  { id: 'finance',               label: '金の管理',         path: '/admin/finance',          icon: '💰' },
-  { id: 'timeline_management',   label: 'タイムライン管理', path: '/admin/timeline',         icon: '🎬' },
-  { id: 'announcement_management', label: 'アナウンス管理', path: '/admin/announcements',   icon: '📢' },
-  { id: 'gimmick_management',    label: 'ギミック管理',     path: '/admin/gimmick',          icon: '🎭' },
-  { id: 'dev_management',        label: '開発者管理',       path: '/admin/dev',              icon: '🛠' },
-  { id: 'news_management',       label: 'ニュース管理',     path: '/admin/news',             icon: '📰' },
+  { id: 'course_management',       label: '部員・コース管理', path: '/admin',               icon: 'Users' },
+  { id: 'task_management',         label: '課題管理',         path: '/admin/tasks',         icon: 'FileText' },
+  { id: 'assignment_management',   label: 'アサイン管理',     path: '/admin/assignments',   icon: 'ClipboardList' },
+  { id: 'point_settings',          label: 'ポイント設定',     path: '/admin/points',        icon: 'Trophy' },
+  { id: 'submission_review',       label: '提出状況',         path: '/admin/submissions',   icon: 'BarChart2' },
+  { id: 'finance',                 label: '金の管理',         path: '/admin/finance',       icon: 'DollarSign' },
+  { id: 'timeline_management',     label: 'タイムライン管理', path: '/admin/timeline',      icon: 'Film' },
+  { id: 'announcement_management', label: 'アナウンス管理',   path: '/admin/announcements', icon: 'Megaphone' },
+  { id: 'gimmick_management',      label: 'ギミック管理',     path: '/admin/gimmick',       icon: 'Sparkles' },
+  { id: 'dev_management',          label: '開発者管理',       path: '/admin/dev',           icon: 'Wrench' },
+  { id: 'news_management',         label: 'ニュース管理',     path: '/admin/news',          icon: 'Newspaper' },
 ]
 
 const EMPTY_PERMS: Record<PermissionKey, boolean> = {

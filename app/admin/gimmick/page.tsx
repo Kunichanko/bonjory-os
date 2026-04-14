@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
+import { Sparkles, Flower, X } from 'lucide-react'
 
 interface SpeechBlock {
   id: string
@@ -191,8 +192,8 @@ export default function GimmickPage() {
       }}>← ダッシュボード</button>
 
       <div style={{ maxWidth: 640, margin: '0 auto', paddingTop: 56 }}>
-        <h1 className="game-title" style={{ fontSize: 28, marginBottom: 32, textAlign: 'center', color: '#ffffff', fontWeight: 900 }}>
-          🎭 ギミック管理
+        <h1 className="game-title" style={{ fontSize: 28, marginBottom: 32, textAlign: 'center', color: '#ffffff', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <Sparkles size={26}/>ギミック管理
         </h1>
 
         {/* グローバル設定 */}
@@ -222,7 +223,7 @@ export default function GimmickPage() {
           </p>
 
           <hr style={{ border: 'none', borderTop: '1px solid #c8e89a', margin: '16px 0' }} />
-          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>🌸 エフェクト</h2>
+          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Flower size={15}/>エフェクト</h2>
           <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
             <input
               type="checkbox"
@@ -312,7 +313,7 @@ export default function GimmickPage() {
                           <button onClick={() => moveLine(line.id, 'down', block.id)} disabled={idx === blockLines.length - 1}
                             style={{ background: idx === blockLines.length - 1 ? '#eee' : '#e8ffd4', border: '1px solid #6aac14', borderRadius: 6, padding: '4px 8px', cursor: idx === blockLines.length - 1 ? 'default' : 'pointer', fontSize: 12 }}>↓</button>
                           <button onClick={() => deleteLine(line.id)}
-                            style={{ background: '#fdecea', color: '#c0392b', border: '1px solid #c0392b', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 11 }}>✕</button>
+                            style={{ background: '#fdecea', color: '#c0392b', border: '1px solid #c0392b', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><X size={11}/></button>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>

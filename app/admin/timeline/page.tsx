@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
+import { Film, RefreshCw, Tag, Gamepad2, User, Star, Link2, MailOpen } from 'lucide-react'
 
 // ─── 型 ───────────────────────────────────────────────────
 
@@ -314,7 +315,7 @@ export default function AdminTimelinePage() {
         <div className="game-card" style={{ padding: '24px 32px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <h1 className="game-title" style={{ fontSize: 28 }}>🎬 タイムライン管理</h1>
+              <h1 className="game-title" style={{ fontSize: 28, display: 'flex', alignItems: 'center', gap: 10 }}><Film size={24}/>タイムライン管理</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 13 }}>
                 最新: {currentCount}件 ／ 過去: {pastCount}件
               </p>
@@ -336,14 +337,14 @@ export default function AdminTimelinePage() {
                 ) : (
                   <button onClick={() => setRefreshConfirm(true)}
                     className="game-button" style={{ width: 'auto', padding: '8px 18px', fontSize: 14 }}>
-                    🔄 リフレッシュ
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><RefreshCw size={14}/>リフレッシュ</span>
                   </button>
                 )
               )}
               {userRole === 'admin' && (
                 <a href="/admin/positions">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 18px', fontSize: 14 }}>
-                    🏷 役職管理
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 18px', fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Tag size={14}/>役職管理
                   </button>
                 </a>
               )}
@@ -363,13 +364,17 @@ export default function AdminTimelinePage() {
 
         {/* タブ */}
         <div style={{ display: 'flex', gap: 4, background: '#1a3a00', borderRadius: 12, padding: 4 }}>
-          {([['current', `🌟 最新タイムライン (${currentCount}件)`], ['past', `📦 過去タイムライン (${pastCount}件)`]] as const).map(([id, label]) => (
+          {([['current', `最新タイムライン (${currentCount}件)`], ['past', `過去タイムライン (${pastCount}件)`]] as const).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               flex: 1, padding: '10px 0', borderRadius: 9, border: 'none', cursor: 'pointer',
               fontSize: 14, fontWeight: 'bold',
               background: tab === id ? '#6aac14' : 'none',
               color: tab === id ? '#fff' : '#a8d870',
-            }}>{label}</button>
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}>
+              {id === 'current' ? <Film size={14}/> : <MailOpen size={14}/>}
+              {label}
+            </button>
           ))}
         </div>
 
@@ -461,7 +466,7 @@ export default function AdminTimelinePage() {
         {/* 投稿リスト */}
         {filteredPosts.length === 0 ? (
           <div className="game-card" style={{ padding: '40px', textAlign: 'center' }}>
-            <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
+            <MailOpen size={28} style={{ marginBottom: 8, display: 'block', margin: '0 auto 8px', opacity: 0.5 }}/>
             <p style={{ color: '#6aac14', fontSize: 16 }}>該当する投稿がありません</p>
           </div>
         ) : (
@@ -483,8 +488,8 @@ export default function AdminTimelinePage() {
                       <div style={{
                         width: 72, height: 54, borderRadius: 8, flexShrink: 0,
                         background: 'linear-gradient(135deg, #c8e89a, #6aac14)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-                      }}>🎮</div>
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}><Gamepad2 size={22} style={{ color: '#6aac14' }}/></div>
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, marginBottom: 2 }}>
@@ -503,7 +508,10 @@ export default function AdminTimelinePage() {
                         )}
                       </div>
                       <p style={{ color: '#6aac14', fontSize: 12 }}>
-                        {post.is_anonymous ? '🙈 匿名' : `👤 ${post.profile?.username ?? '名無し'}`}
+                        {post.is_anonymous
+                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><User size={11} style={{ opacity: 0.5 }}/>匿名</span>
+                          : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><User size={11}/>{post.profile?.username ?? '名無し'}</span>
+                        }
                         {post.submitted_at && ` · ${new Date(post.submitted_at).toLocaleDateString('ja-JP')}`}
                       </p>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
@@ -631,22 +639,22 @@ export default function AdminTimelinePage() {
                         )}
                         {post.media_url && (
                           <div>
-                            <p style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 13, marginBottom: 4 }}>🎬 提出作品</p>
+                            <p style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Film size={13}/>提出作品</p>
                             <a href={post.media_url} target="_blank" rel="noopener noreferrer"
-                              style={{ color: '#3d6e00', fontSize: 13, wordBreak: 'break-all' }}>
-                              🔗 {post.media_url}
+                              style={{ color: '#3d6e00', fontSize: 13, wordBreak: 'break-all', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <Link2 size={12}/>{post.media_url}
                             </a>
                           </div>
                         )}
                         {post.self_evaluation && (
                           <div>
-                            <p style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 13, marginBottom: 4 }}>⭐ 自己評価</p>
+                            <p style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Star size={13}/>自己評価</p>
                             <p style={{ color: '#2d5500', fontSize: 13, background: '#f0fae0', borderRadius: 8, padding: '8px 12px', whiteSpace: 'pre-wrap' }}>{post.self_evaluation}</p>
                           </div>
                         )}
                         {post.retrospective && (
                           <div>
-                            <p style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 13, marginBottom: 4 }}>🔄 計画の振り返り</p>
+                            <p style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><RefreshCw size={13}/>計画の振り返り</p>
                             <p style={{ color: '#2d5500', fontSize: 13, background: '#f0fae0', borderRadius: 8, padding: '8px 12px', whiteSpace: 'pre-wrap' }}>{post.retrospective}</p>
                           </div>
                         )}

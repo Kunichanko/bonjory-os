@@ -6,6 +6,7 @@ import Cropper from 'react-easy-crop'
 import type { Area } from 'react-easy-crop'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
+import { Newspaper, FileText, Image, Link2, ClipboardList, Bot, Search, Check } from 'lucide-react'
 
 type BlockType = 'text' | 'image' | 'link' | 'assignment'
 
@@ -419,7 +420,7 @@ export default function NewsAdminPage() {
 
       <div>
         <div className="game-card" style={{ marginBottom: 24, padding: '16px 20px' }}>
-          <h1 className="game-title" style={{ fontSize: 20, marginBottom: 4 }}>📰 ニュース管理</h1>
+          <h1 className="game-title" style={{ fontSize: 20, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><Newspaper size={18}/>ニュース管理</h1>
           <p style={{ fontSize: 12, color: '#6aac14', margin: 0 }}>BON-TOPICSの記事を作成・編集します</p>
         </div>
 
@@ -518,7 +519,11 @@ export default function NewsAdminPage() {
                 <div key={b.draftId} style={{ border: '2px solid #c8e89a', borderRadius: 8, padding: 12, marginBottom: 8, background: '#f8fef0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                     <span style={{ fontSize: 11, fontWeight: 'bold', color: '#3d6e00', background: '#c8e89a', borderRadius: 4, padding: '2px 6px' }}>
-                      {b.type === 'text' ? '📝 テキスト' : b.type === 'image' ? '🖼️ 画像' : b.type === 'link' ? '🔗 リンク' : '📋 課題'}
+                      {b.type === 'text' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><FileText size={10}/>テキスト</span>
+                        : b.type === 'image' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Image size={10}/>画像</span>
+                        : b.type === 'link' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Link2 size={10}/>リンク</span>
+                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ClipboardList size={10}/>課題</span>
+                      }
                     </span>
                     <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
                       <button onClick={() => moveBlock(b.draftId, -1)} disabled={idx === 0}
@@ -583,12 +588,15 @@ export default function NewsAdminPage() {
               ))}
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                {([['text','📝 テキスト'],['image','🖼️ 画像'],['link','🔗 リンク'],['assignment','📋 課題']] as [BlockType, string][]).map(([t, label]) => (
-                  <button key={t} onClick={() => addBlock(t)}
-                    style={{ fontSize: 12, padding: '5px 12px', border: '2px dashed #3d6e00', borderRadius: 6, background: '#f0fae0', color: '#3d6e00', cursor: 'pointer' }}>
-                    + {label}
-                  </button>
-                ))}
+                {([['text', 'テキスト'], ['image', '画像'], ['link', 'リンク'], ['assignment', '課題']] as [BlockType, string][]).map(([t, label]) => {
+                  const BIcon = t === 'text' ? FileText : t === 'image' ? Image : t === 'link' ? Link2 : ClipboardList
+                  return (
+                    <button key={t} onClick={() => addBlock(t)}
+                      style={{ fontSize: 12, padding: '5px 12px', border: '2px dashed #3d6e00', borderRadius: 6, background: '#f0fae0', color: '#3d6e00', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      + <BIcon size={12}/>{label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -607,7 +615,7 @@ export default function NewsAdminPage() {
 
           {/* ── AIステーション ── */}
           <div className="game-card" style={{ padding: '20px 24px' }}>
-            <h2 style={{ fontSize: 16, color: '#3d6e00', fontWeight: 'bold', marginBottom: 16 }}>🤖 AIステーション</h2>
+            <h2 style={{ fontSize: 16, color: '#3d6e00', fontWeight: 'bold', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}><Bot size={15}/>AIステーション</h2>
 
             {aiError && <div className="game-error" style={{ marginBottom: 12 }}>{aiError}</div>}
 
@@ -633,7 +641,7 @@ export default function NewsAdminPage() {
               <button className="game-button" onClick={handleResearch}
                 disabled={aiLoading || !aiSearchTerm.trim()}
                 style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
-                {aiLoading && aiCandidates.length === 0 ? '生成中…' : '🔍 リサーチ'}
+                {aiLoading && aiCandidates.length === 0 ? '生成中…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Search size={13}/>リサーチ</span>}
               </button>
               {aiCandidates.length > 0 && (
                 <div style={{ marginTop: 10 }}>
@@ -690,7 +698,7 @@ export default function NewsAdminPage() {
                     <button className="game-button" onClick={handleGenerateFromTask}
                       disabled={aiLoading || aiTaskIds.length === 0}
                       style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
-                      {aiLoading && aiTaskIds.length > 0 ? '生成中…' : `📋 課題ベースで記事生成${aiTaskIds.length > 0 ? `（${aiTaskIds.length}件）` : ''}`}
+                      {aiLoading && aiTaskIds.length > 0 ? '生成中…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardList size={13}/>課題ベースで記事生成{aiTaskIds.length > 0 ? `（${aiTaskIds.length}件）` : ''}</span>}
                     </button>
                   </>
                 )
@@ -732,7 +740,7 @@ export default function NewsAdminPage() {
                 <button onClick={() => { setAiInput(aiOutput); setAiPrompt(''); setAiOutput('') }}
                   style={{ marginTop: 6, padding: '6px 14px', border: '2px solid #3d6e00', borderRadius: 6,
                     background: '#3d6e00', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 'bold' }}>
-                  ✓ 確定（入力に適用）
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Check size={13}/>確定（入力に適用）</span>
                 </button>
               )}
             </div>
@@ -741,7 +749,7 @@ export default function NewsAdminPage() {
             <button className="game-button" onClick={handleMarkdown}
               disabled={aiLoading || !aiInput.trim()}
               style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
-              {aiLoading && !aiPrompt.trim() && aiInput.trim() ? '生成中…' : '📋 D. マークダウン出力'}
+              {aiLoading && !aiPrompt.trim() && aiInput.trim() ? '生成中…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardList size={13}/>D. マークダウン出力</span>}
             </button>
           </div>
 
