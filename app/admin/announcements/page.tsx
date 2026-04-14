@@ -336,8 +336,8 @@ export default function AnnouncementsPage() {
                   background: formType === t ? TYPE_COLORS[t] : '#e8ffd4',
                   color: formType === t ? 'white' : '#2d5500',
                   border: `2px solid ${TYPE_COLORS[t]}`,
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
                 }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
               >
                 {(() => { const TIcon = TYPE_ICONS[t]; return <><TIcon size={12}/>{TYPE_LABELS[t]}</> })()}
               </button>
