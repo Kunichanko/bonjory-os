@@ -1446,8 +1446,9 @@ export default function DashboardPage() {
                 background: currentView === item.id ? '#6aac14' : 'none',
                 color: currentView === item.id ? '#fff' : '#a8d870',
                 transition: 'background 0.15s',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
               }}>
-                {item.icon} {item.label}
+                <Icon name={item.icon} size={13}/>{item.label}
               </button>
             ))}
           </div>
