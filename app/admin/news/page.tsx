@@ -6,7 +6,7 @@ import Cropper from 'react-easy-crop'
 import type { Area } from 'react-easy-crop'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
-import { Newspaper, FileText, Image, Link2, ClipboardList, Bot, Search, Check } from 'lucide-react'
+import { Newspaper, FileText, Image as ImageIcon, Link2, ClipboardList, Bot, Search, Check } from 'lucide-react'
 
 type BlockType = 'text' | 'image' | 'link' | 'assignment'
 
@@ -520,7 +520,7 @@ export default function NewsAdminPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                     <span style={{ fontSize: 11, fontWeight: 'bold', color: '#3d6e00', background: '#c8e89a', borderRadius: 4, padding: '2px 6px' }}>
                       {b.type === 'text' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><FileText size={10}/>テキスト</span>
-                        : b.type === 'image' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Image size={10}/>画像</span>
+                        : b.type === 'image' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ImageIcon size={10}/>画像</span>
                         : b.type === 'link' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Link2 size={10}/>リンク</span>
                         : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ClipboardList size={10}/>課題</span>
                       }
@@ -589,7 +589,7 @@ export default function NewsAdminPage() {
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                 {([['text', 'テキスト'], ['image', '画像'], ['link', 'リンク'], ['assignment', '課題']] as [BlockType, string][]).map(([t, label]) => {
-                  const BIcon = t === 'text' ? FileText : t === 'image' ? Image : t === 'link' ? Link2 : ClipboardList
+                  const BIcon = t === 'text' ? FileText : t === 'image' ? ImageIcon : t === 'link' ? Link2 : ClipboardList
                   return (
                     <button key={t} onClick={() => addBlock(t)}
                       style={{ fontSize: 12, padding: '5px 12px', border: '2px dashed #3d6e00', borderRadius: 6, background: '#f0fae0', color: '#3d6e00', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
