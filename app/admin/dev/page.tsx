@@ -3,6 +3,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/supabase'
 import { getEffectivePermissions } from '@/lib/permissions'
+import { Wrench, ClipboardList, Inbox, Bug, Lightbulb } from 'lucide-react'
 
 type Tab = 'todo' | 'reports'
 type TaskStatus = 'todo' | 'in_progress' | 'done'
@@ -182,7 +183,7 @@ export default function DevManagePage() {
       </a>
 
       <div style={{ maxWidth: 720, margin: '0 auto' }}>
-        <h1 className="game-title" style={{ textAlign: 'center', marginBottom: 24 }}>🛠 開発者管理</h1>
+        <h1 className="game-title" style={{ textAlign: 'center', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}><Wrench size={24}/>開発者管理</h1>
 
         {/* タブ */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
@@ -199,7 +200,10 @@ export default function DevManagePage() {
                 boxShadow: tab === t ? '0 4px 0 #0d2000' : '0 4px 0 #3d6e00',
               }}
             >
-              {t === 'todo' ? '📋 To Do 管理' : '📩 報告一覧'}
+              {t === 'todo'
+                ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ClipboardList size={15}/>To Do 管理</span>
+                : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Inbox size={15}/>報告一覧</span>
+              }
             </button>
           ))}
         </div>
@@ -336,7 +340,10 @@ export default function DevManagePage() {
                       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: 'pointer' }}
                     >
                       <span style={{ background: '#e8f5d0', border: '1px solid #3d6e00', borderRadius: 6, padding: '2px 8px', fontSize: 12, color: '#3d6e00', whiteSpace: 'nowrap' }}>
-                        {report.type === 'bug' ? '🐛 不具合' : '💡 要望'}
+                        {report.type === 'bug'
+                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Bug size={11}/>不具合</span>
+                          : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Lightbulb size={11}/>要望</span>
+                        }
                       </span>
                       <span style={{ color: '#2d5500', flex: 1, fontSize: 14 }}>{report.summary}</span>
                       <span style={{ color: '#5a8a1a', fontSize: 12, whiteSpace: 'nowrap' }}>{report.profiles?.username}</span>

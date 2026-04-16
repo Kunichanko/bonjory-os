@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { FEATURE_LIST, PermissionKey } from '../../../lib/permissions'
+import Icon from '../../components/Icon'
+import { Film, Inbox, X } from 'lucide-react'
 
 interface Position {
   id: string
@@ -126,8 +128,8 @@ export default function AdminPositionsPage() {
                 </button>
               </a>
               <a href="/admin/timeline">
-                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                  🎬 タイムライン管理
+                <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Film size={14}/>タイムライン管理
                 </button>
               </a>
               <button
@@ -151,11 +153,11 @@ export default function AdminPositionsPage() {
                 </th>
                 {FEATURE_LIST.map(f => (
                   <th key={f.id} className="game-label" style={{ display: 'table-cell', textAlign: 'center', padding: '8px 10px', fontSize: 12, minWidth: 100, whiteSpace: 'nowrap' }}>
-                    {f.icon} {f.label}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name={f.icon} size={12}/>{f.label}</span>
                   </th>
                 ))}
                 <th className="game-label" style={{ display: 'table-cell', textAlign: 'center', padding: '8px 10px', fontSize: 12, minWidth: 100, whiteSpace: 'nowrap' }}>
-                  📬 DM管理
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Inbox size={12}/>DM管理</span>
                 </th>
                 <th style={{ width: 40 }} />
               </tr>
@@ -206,11 +208,11 @@ export default function AdminPositionsPage() {
                       title="役職を削除"
                       style={{
                         background: 'none', border: '2px solid #c0392b', cursor: 'pointer',
-                        color: '#c0392b', fontWeight: 'bold', fontSize: 14, padding: '2px 8px',
-                        borderRadius: 6,
+                        color: '#c0392b', padding: '2px 8px',
+                        borderRadius: 6, display: 'inline-flex', alignItems: 'center',
                       }}
                     >
-                      ✕
+                      <X size={14}/>
                     </button>
                   </td>
                 </tr>

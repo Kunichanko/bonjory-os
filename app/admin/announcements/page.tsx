@@ -1,7 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
 import { useRouter } from 'next/navigation'
+import { Repeat, Calendar, User, Link2, Zap, Megaphone, BellOff, X, Check } from 'lucide-react'
+import type { LucideProps } from 'lucide-react'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
 
@@ -31,11 +34,19 @@ interface Profile {
 const DAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
 
 const TYPE_LABELS: Record<AnnouncementType, string> = {
-  recurring: '🔁 定期',
-  scheduled: '📅 予約',
-  personal:  '👤 個人',
-  link:      '🔗 リンク',
-  immediate: '⚡ 即時',
+  recurring: '定期',
+  scheduled: '予約',
+  personal:  '個人',
+  link:      'リンク',
+  immediate: '即時',
+}
+
+const TYPE_ICONS: Record<AnnouncementType, FC<LucideProps>> = {
+  recurring: Repeat,
+  scheduled: Calendar,
+  personal:  User,
+  link:      Link2,
+  immediate: Zap,
 }
 
 const TYPE_COLORS: Record<AnnouncementType, string> = {
@@ -266,7 +277,7 @@ export default function AnnouncementsPage() {
         <div className="game-card" style={{ padding: '24px 32px', marginBottom: 24 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <h1 className="game-title" style={{ fontSize: 30 }}>📢 アナウンス管理</h1>
+              <h1 className="game-title" style={{ fontSize: 30, display:'flex', alignItems:'center', gap:10 }}><Megaphone size={26}/>アナウンス管理</h1>
               <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 13 }}>
                 プッシュ通知の作成・管理
               </p>
@@ -296,8 +307,8 @@ export default function AnnouncementsPage() {
             <span style={{ flex: 1 }}>{error}</span>
             <button
               onClick={() => setError(null)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', fontSize: 18, lineHeight: 1, flexShrink: 0, padding: 0 }}
-            >✕</button>
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', lineHeight: 1, flexShrink: 0, padding: 0 }}
+            ><X size={18}/></button>
           </div>
         )}
         {success && (
@@ -325,9 +336,10 @@ export default function AnnouncementsPage() {
                   background: formType === t ? TYPE_COLORS[t] : '#e8ffd4',
                   color: formType === t ? 'white' : '#2d5500',
                   border: `2px solid ${TYPE_COLORS[t]}`,
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
                 }}
               >
-                {TYPE_LABELS[t]}
+                {(() => { const TIcon = TYPE_ICONS[t]; return <><TIcon size={12}/>{TYPE_LABELS[t]}</> })()}
               </button>
             ))}
           </div>
@@ -421,8 +433,8 @@ export default function AnnouncementsPage() {
 
             {/* 即時通知：説明 */}
             {formType === 'immediate' && (
-              <p style={{ color: '#a8555a', fontSize: 13, background: '#fff0f0', border: '1px solid #e74c3c', borderRadius: 8, padding: '8px 12px' }}>
-                ⚡ ボタンを押すと全端末に即時送信されます。スケジュール設定は不要です。
+              <p style={{ color: '#a8555a', fontSize: 13, background: '#fff0f0', border: '1px solid #e74c3c', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Zap size={14}/>ボタンを押すと全端末に即時送信されます。スケジュール設定は不要です。
               </p>
             )}
 
@@ -453,7 +465,7 @@ export default function AnnouncementsPage() {
 
         {/* 通知リセット */}
         <div className="game-card" style={{ padding: '20px 28px', marginBottom: 24 }}>
-          <h2 className="game-title" style={{ fontSize: 20, marginBottom: 4 }}>🔕 通知リセット</h2>
+          <h2 className="game-title" style={{ fontSize: 20, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><BellOff size={18}/>通知リセット</h2>
           <p style={{ color: '#5a8a1a', fontSize: 13, marginBottom: 16 }}>
             指定した部員のプッシュ通知登録と通知ログをすべて削除します。
             複数デバイスのエントリが蓄積している場合もこちらで解消できます。
@@ -509,8 +521,9 @@ export default function AnnouncementsPage() {
                         <span style={{
                           background: TYPE_COLORS[ann.type], color: 'white',
                           borderRadius: 8, padding: '2px 10px', fontSize: 11, fontWeight: 'bold',
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
                         }}>
-                          {TYPE_LABELS[ann.type]}
+                          {(() => { const TIcon = TYPE_ICONS[ann.type]; return <><TIcon size={10}/>{TYPE_LABELS[ann.type]}</> })()}
                         </span>
                         <strong style={{ color: '#2d5500', fontSize: 15 }}>{ann.title}</strong>
                       </div>
@@ -538,7 +551,7 @@ export default function AnnouncementsPage() {
                       {ann.scheduled_at && (
                         <p style={{ color: '#3d6e00', fontSize: 12 }}>
                           送信日時: {new Date(ann.scheduled_at).toLocaleString('ja-JP')}
-                          {ann.sent_at && <span style={{ color: '#6aac14', marginLeft: 8 }}>✓ 送信済</span>}
+                          {ann.sent_at && <span style={{ color: '#6aac14', marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 2 }}><Check size={11}/>送信済</span>}
                         </p>
                       )}
                       {ann.url && (
@@ -588,13 +601,13 @@ export default function AnnouncementsPage() {
                       <button
                         onClick={() => deleteAnnouncement(ann.id)}
                         style={{
-                          padding: '5px 10px', fontSize: 13, fontWeight: 'bold',
-                          borderRadius: 8, cursor: 'pointer',
+                          padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
                           background: 'none', color: '#c0392b',
                           border: '2px solid #c0392b',
+                          display: 'inline-flex', alignItems: 'center',
                         }}
                       >
-                        ✕
+                        <X size={14}/>
                       </button>
                     </div>
                   </div>

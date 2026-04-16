@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
+import { Target, Zap, Medal, BarChart2, RefreshCw, Crown, Film, Tag } from 'lucide-react'
 
 // ─── 型 ───────────────────────────────────────────────────
 
@@ -244,12 +245,12 @@ export default function AdminPointsPage() {
               )}
               {(userRole === 'admin' || effectivePerms.timeline_management) && (
                 <a href="/admin/timeline">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>🎬 タイムライン管理</button>
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Film size={14}/>タイムライン管理</button>
                 </a>
               )}
               {userRole === 'admin' && (
                 <a href="/admin/positions">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>🏷 役職管理</button>
+                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Tag size={14}/>役職管理</button>
                 </a>
               )}
               <button className="game-button"
@@ -263,7 +264,7 @@ export default function AdminPointsPage() {
 
         {/* ── セクション1: ポイント設定 ──────────────────── */}
         <div className="game-card" style={{ padding: '24px 32px' }}>
-          <h2 className="game-title" style={{ fontSize: 20, marginBottom: 16 }}>🎯 アクションポイント設定</h2>
+          <h2 className="game-title" style={{ fontSize: 20, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}><Target size={18}/>アクションポイント設定</h2>
           <p style={{ color: '#3d6e00', fontSize: 13, marginBottom: 16 }}>各アクションで獲得できるポイントを設定します。倍率ウィーク中はこの値に倍率がかかります。</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {pointSettings.map(ps => (
@@ -301,7 +302,7 @@ export default function AdminPointsPage() {
 
         {/* ── セクション2: 倍率ウィーク ──────────────────── */}
         <div className="game-card" style={{ padding: '24px 32px' }}>
-          <h2 className="game-title" style={{ fontSize: 20, marginBottom: 8 }}>⚡ ポイント倍率ウィーク</h2>
+          <h2 className="game-title" style={{ fontSize: 20, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><Zap size={18}/>ポイント倍率ウィーク</h2>
           <p style={{ color: '#3d6e00', fontSize: 13, marginBottom: 16 }}>期間中はポイントが指定した倍率で付与されます。複数のイベントが重なった場合、最大倍率が適用されます。</p>
 
           {/* 新規作成フォーム */}
@@ -368,8 +369,8 @@ export default function AdminPointsPage() {
                         ×{evt.multiplier}
                       </span>
                       {isActive(evt) && (
-                        <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>
-                          ⚡ 開催中
+                        <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <Zap size={10}/>開催中
                         </span>
                       )}
                     </div>
@@ -393,7 +394,7 @@ export default function AdminPointsPage() {
 
         {/* ── セクション3: ランク設定 ────────────────────── */}
         <div className="game-card" style={{ padding: '24px 32px' }}>
-          <h2 className="game-title" style={{ fontSize: 20, marginBottom: 8 }}>🏅 ランク設定</h2>
+          <h2 className="game-title" style={{ fontSize: 20, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}><Medal size={18}/>ランク設定</h2>
           <p style={{ color: '#3d6e00', fontSize: 13, marginBottom: 16 }}>
             クールポイントに基づくランクを設定します。ランクは rank_order 順（昇順）で、最高の min_points 以上が現在のランクになります。
           </p>
@@ -470,7 +471,7 @@ export default function AdminPointsPage() {
         <div className="game-card" style={{ padding: '24px 32px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
-              <h2 className="game-title" style={{ fontSize: 20, marginBottom: 4 }}>📊 部員ポイント一覧</h2>
+              <h2 className="game-title" style={{ fontSize: 20, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><BarChart2 size={18}/>部員ポイント一覧</h2>
               <p style={{ color: '#3d6e00', fontSize: 13 }}>ポイントは本人とadminにのみ表示されます</p>
             </div>
             <button className="game-button"
@@ -480,7 +481,7 @@ export default function AdminPointsPage() {
                 width: 'auto', padding: '8px 20px',
                 background: '#cc3333', borderColor: '#991111', fontSize: 14,
               }}>
-              {resetting ? 'リセット中…' : '🔄 クールリセット'}
+              {resetting ? 'リセット中…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><RefreshCw size={14}/>クールリセット</span>}
             </button>
           </div>
 
@@ -510,7 +511,7 @@ export default function AdminPointsPage() {
                     alignItems: 'center',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {idx === 0 && <span style={{ fontSize: 16 }}>👑</span>}
+                      {idx === 0 && <Crown size={16} style={{ color: '#f0a000', flexShrink: 0 }}/>}
                       {rank && (
                         <span style={{
                           background: rank.color, color: 'white',
