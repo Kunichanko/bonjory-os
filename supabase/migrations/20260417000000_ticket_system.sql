@@ -93,8 +93,3 @@ ALTER FUNCTION "public"."get_active_tickets_for_admin"() OWNER TO "postgres";
 
 -- ─── Seed: default ticket types ───────────────────────────────────────────────
 
-INSERT INTO "public"."ticket_types" ("label", "color_start", "color_end") VALUES
-  ('プラチカ2B',     '#6a4fc8', '#a855f7'),
-  ('数学の参考書',   '#e11d48', '#f97316'),
-  ('英単語帳',       '#0ea5e9', '#6366f1'),
-  ('プログラミング課題', '#10b981', '#065f46');
