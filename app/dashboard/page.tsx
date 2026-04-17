@@ -1834,13 +1834,19 @@ export default function DashboardPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         {/* 発行済み: 要件名＋期限 / 未発行: ドロップダウン */}
                         {activeTicket ? (
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 22, fontWeight: 'bold', margin: '0 0 6px', textShadow: '0 2px 8px rgba(0,0,0,0.3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{
+                            flex: '1 1 160px', padding: '10px 14px', borderRadius: 12,
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: 'rgba(255,255,255,0.12)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            minWidth: 0,
+                          }}>
+                            <span style={{ fontSize: 14, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {activeTicket.ticket_types.label}
-                            </p>
-                            <p style={{ fontSize: 12, opacity: 0.8, margin: 0 }}>
-                              期限: {new Date(activeTicket.expires_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
-                            </p>
+                            </span>
+                            <span style={{ fontSize: 12, opacity: 0.7, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              〜{new Date(activeTicket.expires_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                            </span>
                           </div>
                         ) : (
                           <select
