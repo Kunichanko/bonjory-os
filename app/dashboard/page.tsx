@@ -276,6 +276,7 @@ export default function DashboardPage() {
   const [activeTicket, setActiveTicket] = useState<ActiveTicket | null | undefined>(undefined) // undefined=未ロード
   const [selectedTypeId, setSelectedTypeId] = useState('')
   const [issuingTicket, setIssuingTicket]   = useState(false)
+  const [revokingTicket, setRevokingTicket] = useState(false)
   const [ticketError, setTicketError]       = useState<string | null>(null)
 
   // スピーチ
@@ -731,6 +732,14 @@ export default function DashboardPage() {
     setIssuingTicket(false)
     if (error) { setTicketError(error.message); return }
     setActiveTicket(data as unknown as ActiveTicket)
+  }
+
+  async function revokeTicket() {
+    if (!activeTicket) return
+    setRevokingTicket(true)
+    await supabase.from('tickets').delete().eq('id', activeTicket.id)
+    setActiveTicket(null)
+    setRevokingTicket(false)
   }
 
   async function savePlan(assignmentId: string) {
@@ -1793,94 +1802,82 @@ export default function DashboardPage() {
               })}
 
               {/* ══ 今週の課題チケット ══════════════════════ */}
-              {activeTicket !== undefined && (
-                <div style={{ marginTop: 8 }}>
-                  {activeTicket ? (
-                    // 有効チケット表示
+              {activeTicket !== undefined && ticketTypes.length > 0 && (() => {
+                const previewType = activeTicket?.ticket_types
+                  ?? ticketTypes.find(t => t.id === selectedTypeId)
+                  ?? ticketTypes[0]
+                return (
+                  <div style={{ marginTop: 8, borderRadius: 20, overflow: 'hidden', position: 'relative', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+                    {/* ベース: 黒 */}
+                    <div style={{ position: 'absolute', inset: 0, background: '#111', borderRadius: 20 }} />
+                    {/* グラデーション: 発行時にフェードイン */}
                     <div style={{
+                      position: 'absolute', inset: 0,
+                      background: `linear-gradient(135deg, ${previewType.color_start}, ${previewType.color_end})`,
+                      opacity: activeTicket ? 1 : 0,
+                      transition: 'opacity 0.9s ease',
                       borderRadius: 20,
-                      padding: '24px 28px',
-                      background: `linear-gradient(135deg, ${activeTicket.ticket_types.color_start}, ${activeTicket.ticket_types.color_end})`,
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      color: 'white',
-                    }}>
-                      {/* 光沢レイヤー */}
-                      <div style={{
-                        position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
-                        background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 100%)',
-                        borderRadius: '20px 20px 0 0', pointerEvents: 'none',
-                      }} />
-                      <p style={{ fontSize: 11, fontWeight: 'bold', opacity: 0.8, margin: '0 0 6px', letterSpacing: 1, textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
+                    }} />
+                    {/* 光沢 */}
+                    <div style={{
+                      position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
+                      background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%)',
+                      borderRadius: '20px 20px 0 0', pointerEvents: 'none',
+                      opacity: activeTicket ? 1 : 0.3,
+                      transition: 'opacity 0.9s ease',
+                    }} />
+                    {/* コンテンツ */}
+                    <div style={{ position: 'relative', padding: '24px 28px', color: 'white' }}>
+                      <p style={{ fontSize: 11, fontWeight: 'bold', opacity: 0.7, margin: '0 0 10px', letterSpacing: 1 }}>
                         今週の課題チケット
                       </p>
-                      <p style={{ fontSize: 26, fontWeight: 'bold', margin: '0 0 14px', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
-                        {activeTicket.ticket_types.label}
-                      </p>
-                      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 12, opacity: 0.85, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
-                          発行: {new Date(activeTicket.issued_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
-                        </span>
-                        <span style={{ fontSize: 12, opacity: 0.85, textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
-                          期限: {new Date(activeTicket.expires_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    // チケット未発行時のフォーム
-                    <div style={{
-                      borderRadius: 20,
-                      padding: '24px 28px',
-                      background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
-                      position: 'relative',
-                      overflow: 'hidden',
-                      color: 'white',
-                      backdropFilter: 'blur(8px)',
-                    }}>
-                      <div style={{
-                        position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
-                        background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 100%)',
-                        borderRadius: '20px 20px 0 0', pointerEvents: 'none',
-                      }} />
-                      <p style={{ fontSize: 11, fontWeight: 'bold', opacity: 0.6, margin: '0 0 6px', letterSpacing: 1 }}>今週の課題チケット</p>
-                      <p style={{ fontSize: 16, fontWeight: 'bold', margin: '0 0 18px', opacity: 0.9 }}>
-                        今週取り組む要件を選んで発行しましょう
-                      </p>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-                        <select
-                          value={selectedTypeId}
-                          onChange={e => setSelectedTypeId(e.target.value)}
-                          style={{
-                            flex: '1 1 180px', padding: '10px 14px', borderRadius: 12, border: 'none',
-                            fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
-                            background: 'rgba(255,255,255,0.15)', color: 'white',
-                            backdropFilter: 'blur(4px)',
-                          }}
-                        >
-                          {ticketTypes.map(tt => (
-                            <option key={tt.id} value={tt.id} style={{ background: '#1a1a2e', color: 'white' }}>{tt.label}</option>
-                          ))}
-                        </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        {/* 発行済み: 要件名＋期限 / 未発行: ドロップダウン */}
+                        {activeTicket ? (
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 22, fontWeight: 'bold', margin: '0 0 6px', textShadow: '0 2px 8px rgba(0,0,0,0.3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {activeTicket.ticket_types.label}
+                            </p>
+                            <p style={{ fontSize: 12, opacity: 0.8, margin: 0 }}>
+                              期限: {new Date(activeTicket.expires_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                            </p>
+                          </div>
+                        ) : (
+                          <select
+                            value={selectedTypeId}
+                            onChange={e => setSelectedTypeId(e.target.value)}
+                            style={{
+                              flex: '1 1 160px', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)',
+                              fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
+                              background: 'rgba(255,255,255,0.12)', color: 'white',
+                            }}
+                          >
+                            {ticketTypes.map(tt => (
+                              <option key={tt.id} value={tt.id} style={{ background: '#222', color: 'white' }}>{tt.label}</option>
+                            ))}
+                          </select>
+                        )}
+                        {/* 発行 / 解除 ボタン */}
                         <button
-                          onClick={issueTicket}
-                          disabled={issuingTicket || !selectedTypeId}
+                          onClick={activeTicket ? revokeTicket : issueTicket}
+                          disabled={issuingTicket || revokingTicket}
                           style={{
                             padding: '10px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                            background: 'rgba(255,255,255,0.25)', color: 'white', fontWeight: 'bold', fontSize: 14,
-                            backdropFilter: 'blur(4px)', boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                            background: activeTicket ? 'rgba(255,80,80,0.35)' : 'rgba(255,255,255,0.25)',
+                            color: 'white', fontWeight: 'bold', fontSize: 14,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                             transition: 'background 0.2s',
+                            flexShrink: 0,
                           }}
                         >
-                          {issuingTicket ? '発行中…' : '発行する'}
+                          {issuingTicket ? '発行中…' : revokingTicket ? '解除中…' : activeTicket ? '解除' : '発行'}
                         </button>
                       </div>
-                      {ticketError && <p style={{ color: '#ff8080', fontSize: 13, marginTop: 10 }}>{ticketError}</p>}
+                      {ticketError && <p style={{ color: '#ff8080', fontSize: 13, marginTop: 10, margin: '10px 0 0' }}>{ticketError}</p>}
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )
+              })()}
             </>
           )}
 
