@@ -20,6 +20,48 @@ CREATE POLICY "ticket_types_select_authenticated"
   TO authenticated
   USING (true);
 
+CREATE POLICY "ticket_types_insert_admin"
+  ON "public"."ticket_types"
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    OR EXISTS (
+      SELECT 1 FROM public.profile_positions pp
+      JOIN public.positions pos ON pos.id = pp.position_id
+      WHERE pp.profile_id = auth.uid()
+        AND (pos.permissions->>'ticket_admin')::boolean = true
+    )
+  );
+
+CREATE POLICY "ticket_types_update_admin"
+  ON "public"."ticket_types"
+  FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    OR EXISTS (
+      SELECT 1 FROM public.profile_positions pp
+      JOIN public.positions pos ON pos.id = pp.position_id
+      WHERE pp.profile_id = auth.uid()
+        AND (pos.permissions->>'ticket_admin')::boolean = true
+    )
+  );
+
+CREATE POLICY "ticket_types_delete_admin"
+  ON "public"."ticket_types"
+  FOR DELETE
+  TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    OR EXISTS (
+      SELECT 1 FROM public.profile_positions pp
+      JOIN public.positions pos ON pos.id = pp.position_id
+      WHERE pp.profile_id = auth.uid()
+        AND (pos.permissions->>'ticket_admin')::boolean = true
+    )
+  );
+
 -- ─── tickets (transaction) ────────────────────────────────────────────────────
 
 CREATE TABLE "public"."tickets" (
