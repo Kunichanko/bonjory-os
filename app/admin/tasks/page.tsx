@@ -130,7 +130,7 @@ export default function AdminTasksPage() {
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, gimmick_management: false,
     dev_management: false,
- news_management: false,
+ news_management: false, ticket_admin: false,
   })
 
   useEffect(() => {
