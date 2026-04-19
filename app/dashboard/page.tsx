@@ -159,6 +159,21 @@ interface NotifLog {
   created_at: string
 }
 
+interface TicketType {
+  id: string
+  label: string
+  color_start: string
+  color_end: string
+}
+
+interface ActiveTicket {
+  id: string
+  type_id: string
+  issued_at: string
+  expires_at: string
+  ticket_types: TicketType
+}
+
 // ─── メディア判定ヘルパー ───────────────────────────────────
 
 function getYoutubeEmbedUrl(url: string): string | null {
@@ -253,8 +268,16 @@ export default function DashboardPage() {
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
-    dev_management: false, news_management: false, debug: false,
+    dev_management: false, news_management: false, debug: false, ticket_admin: false,
   })
+
+  // チケット
+  const [ticketTypes, setTicketTypes]   = useState<TicketType[]>([])
+  const [activeTicket, setActiveTicket] = useState<ActiveTicket | null | undefined>(undefined) // undefined=未ロード
+  const [selectedTypeId, setSelectedTypeId] = useState('')
+  const [issuingTicket, setIssuingTicket]   = useState(false)
+  const [revokingTicket, setRevokingTicket] = useState(false)
+  const [ticketError, setTicketError]       = useState<string | null>(null)
 
   // スピーチ
   const [speechBlocks, setSpeechBlocks] = useState<{ id: string; is_active: boolean; sort_order: number }[]>([])
@@ -573,6 +596,23 @@ export default function DashboardPage() {
           setIsAnonymous(anon)
         }
 
+        // チケット読み込み
+        const [ticketTypesRes, activeTicketRes] = await Promise.all([
+          supabase.from('ticket_types').select('id, label, color_start, color_end').order('created_at', { ascending: true }),
+          supabase.from('tickets')
+            .select('id, type_id, issued_at, expires_at, ticket_types(id, label, color_start, color_end)')
+            .eq('user_id', uid)
+            .gte('expires_at', new Date().toISOString())
+            .lte('issued_at', new Date().toISOString())
+            .order('issued_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ])
+        if (mounted) {
+          setTicketTypes(ticketTypesRes.data ?? [])
+          setActiveTicket((activeTicketRes.data as unknown as ActiveTicket) ?? null)
+        }
+
         // 通知ログ読み込み
         const { data: logs } = await supabase
           .from('notification_logs')
@@ -677,6 +717,28 @@ export default function DashboardPage() {
       .eq('user_id', userId)
       .eq('is_assigned', true)
     if (data) setAssignments(data as unknown as AssignmentRecord[])
+  }
+
+  async function issueTicket() {
+    if (!userId || !selectedTypeId) return
+    setIssuingTicket(true)
+    setTicketError(null)
+    const { data, error } = await supabase
+      .from('tickets')
+      .insert({ user_id: userId, type_id: selectedTypeId })
+      .select('id, type_id, issued_at, expires_at, ticket_types(id, label, color_start, color_end)')
+      .single()
+    setIssuingTicket(false)
+    if (error) { setTicketError(error.message); return }
+    setActiveTicket(data as unknown as ActiveTicket)
+  }
+
+  async function revokeTicket() {
+    if (!activeTicket) return
+    setRevokingTicket(true)
+    await supabase.from('tickets').delete().eq('id', activeTicket.id)
+    setActiveTicket(null)
+    setRevokingTicket(false)
   }
 
   async function savePlan(assignmentId: string) {
@@ -1752,6 +1814,91 @@ export default function DashboardPage() {
                   </div>
                 )
               })}
+
+              {/* ══ 今週の課題チケット ══════════════════════ */}
+              {activeTicket !== undefined && ticketTypes.length > 0 && (() => {
+                const previewType = activeTicket?.ticket_types
+                  ?? ticketTypes.find(t => t.id === selectedTypeId)
+                  ?? ticketTypes[0]
+                return (
+                  <div style={{ marginTop: 8, borderRadius: 20, overflow: 'hidden', position: 'relative', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+                    {/* ベース: 黒 */}
+                    <div style={{ position: 'absolute', inset: 0, background: '#111', borderRadius: 20 }} />
+                    {/* グラデーション: 発行時にフェードイン */}
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      background: `linear-gradient(135deg, ${previewType.color_start}, ${previewType.color_end})`,
+                      opacity: activeTicket ? 1 : 0,
+                      transition: 'opacity 0.9s ease',
+                      borderRadius: 20,
+                    }} />
+                    {/* 光沢 */}
+                    <div style={{
+                      position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
+                      background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%)',
+                      borderRadius: '20px 20px 0 0', pointerEvents: 'none',
+                      opacity: activeTicket ? 1 : 0.3,
+                      transition: 'opacity 0.9s ease',
+                    }} />
+                    {/* コンテンツ */}
+                    <div style={{ position: 'relative', padding: '24px 28px', color: 'white' }}>
+                      <p style={{ fontSize: 11, fontWeight: 'bold', opacity: 0.7, margin: '0 0 10px', letterSpacing: 1 }}>
+                        チケットを発行
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        {/* 発行済み: 要件名＋期限 / 未発行: ドロップダウン */}
+                        {activeTicket ? (
+                          <div style={{
+                            flex: '1 1 160px', padding: '10px 14px', borderRadius: 12,
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: 'rgba(255,255,255,0.12)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            minWidth: 0,
+                          }}>
+                            <span style={{ fontSize: 14, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {activeTicket.ticket_types.label}
+                            </span>
+                            <span style={{ fontSize: 12, opacity: 0.7, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              〜{new Date(activeTicket.expires_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                            </span>
+                          </div>
+                        ) : (
+                          <select
+                            value={selectedTypeId}
+                            onChange={e => setSelectedTypeId(e.target.value)}
+                            style={{
+                              flex: '1 1 160px', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)',
+                              fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
+                              background: 'rgba(255,255,255,0.12)', color: selectedTypeId ? 'white' : 'rgba(255,255,255,0.5)',
+                            }}
+                          >
+                            <option value="" style={{ background: '#222', color: '#aaa' }}>チケットを選択してください</option>
+                            {ticketTypes.map(tt => (
+                              <option key={tt.id} value={tt.id} style={{ background: '#222', color: 'white' }}>{tt.label}</option>
+                            ))}
+                          </select>
+                        )}
+                        {/* 発行 / 解除 ボタン */}
+                        <button
+                          onClick={activeTicket ? revokeTicket : issueTicket}
+                          disabled={issuingTicket || revokingTicket || (!activeTicket && !selectedTypeId)}
+                          style={{
+                            padding: '10px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                            background: activeTicket ? 'rgba(255,80,80,0.35)' : 'rgba(255,255,255,0.25)',
+                            color: 'white', fontWeight: 'bold', fontSize: 14,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                            transition: 'background 0.2s',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {issuingTicket ? '発行中…' : revokingTicket ? '解除中…' : activeTicket ? '解除' : '発行'}
+                        </button>
+                      </div>
+                      {ticketError && <p style={{ color: '#ff8080', fontSize: 13, marginTop: 10, margin: '10px 0 0' }}>{ticketError}</p>}
+                    </div>
+                  </div>
+                )
+              })()}
             </>
           )}
 

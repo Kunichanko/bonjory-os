@@ -81,7 +81,7 @@ export default function NewsAdminPage() {
     course_management: false, task_management: false, point_settings: false,
     submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, assignment_management: false,
-    gimmick_management: false, news_management: false, dev_management: false,
+    gimmick_management: false, news_management: false, dev_management: false, ticket_admin: false,
   })
 
   const [topics, setTopics]   = useState<BonTopic[]>([])
