@@ -611,7 +611,6 @@ export default function DashboardPage() {
         if (mounted) {
           setTicketTypes(ticketTypesRes.data ?? [])
           setActiveTicket((activeTicketRes.data as unknown as ActiveTicket) ?? null)
-          if (ticketTypesRes.data?.[0]) setSelectedTypeId(ticketTypesRes.data[0].id)
         }
 
         // 通知ログ読み込み
@@ -1829,7 +1828,7 @@ export default function DashboardPage() {
                     {/* コンテンツ */}
                     <div style={{ position: 'relative', padding: '24px 28px', color: 'white' }}>
                       <p style={{ fontSize: 11, fontWeight: 'bold', opacity: 0.7, margin: '0 0 10px', letterSpacing: 1 }}>
-                        今週の課題チケット
+                        チケットを発行
                       </p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                         {/* 発行済み: 要件名＋期限 / 未発行: ドロップダウン */}
@@ -1855,9 +1854,10 @@ export default function DashboardPage() {
                             style={{
                               flex: '1 1 160px', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)',
                               fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
-                              background: 'rgba(255,255,255,0.12)', color: 'white',
+                              background: 'rgba(255,255,255,0.12)', color: selectedTypeId ? 'white' : 'rgba(255,255,255,0.5)',
                             }}
                           >
+                            <option value="" style={{ background: '#222', color: '#aaa' }}>チケットを選択してください</option>
                             {ticketTypes.map(tt => (
                               <option key={tt.id} value={tt.id} style={{ background: '#222', color: 'white' }}>{tt.label}</option>
                             ))}
@@ -1866,7 +1866,7 @@ export default function DashboardPage() {
                         {/* 発行 / 解除 ボタン */}
                         <button
                           onClick={activeTicket ? revokeTicket : issueTicket}
-                          disabled={issuingTicket || revokingTicket}
+                          disabled={issuingTicket || revokingTicket || (!activeTicket && !selectedTypeId)}
                           style={{
                             padding: '10px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
                             background: activeTicket ? 'rgba(255,80,80,0.35)' : 'rgba(255,255,255,0.25)',
