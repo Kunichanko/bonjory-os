@@ -1151,7 +1151,7 @@ export default function DashboardPage() {
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
               }}>
-                <span style={{ fontSize: 18 }}>🐞</span>
+                <span style={{ fontSize: 18 }}>📄</span>
                 デバッグ報告
               </button>
             </a>
