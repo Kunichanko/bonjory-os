@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import supabase from '../../lib/supabase'
 import { marked } from 'marked'
+import { Newspaper, Link2, ClipboardList, CheckCircle2, Plus, X } from 'lucide-react'
 
 interface BonTopicBlock {
   id: string
@@ -155,7 +156,7 @@ export default function BonTopics({ userId, userCourse, onAssign }: Props) {
   if (loading) return <div style={{ color: '#a8d870', textAlign: 'center', padding: 40 }}>読み込み中…</div>
   if (visible.length === 0) return (
     <div style={{ color: '#a8d870', textAlign: 'center', padding: 40, fontSize: 14 }}>
-      <p style={{ fontSize: 24, marginBottom: 8 }}>📰</p>
+      <Newspaper size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.6 }}/>
       まだニュースはありません
     </div>
   )
@@ -219,7 +220,7 @@ export default function BonTopics({ userId, userCourse, onAssign }: Props) {
           <div className="bon-modal" style={{ width: '92vw', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: 14, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}>
             {/* 閉じるボタン */}
             <button onClick={() => { setSelected(null); setZoomedImageUrl(null) }}
-              style={{ position: 'sticky', top: 8, right: 8, float: 'right', zIndex: 10, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontSize: 16, lineHeight: '30px', textAlign: 'center' }}>×</button>
+              style={{ position: 'sticky', top: 8, right: 8, float: 'right', zIndex: 10, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><X size={14}/></button>
 
             {/* サムネイル */}
             {selected.thumbnail_url && (
@@ -264,22 +265,22 @@ export default function BonTopics({ userId, userCourse, onAssign }: Props) {
                   {block.type === 'link' && block.link_url && (
                     <div style={{ marginBottom: 16 }}>
                       <a href={block.link_url} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'block', padding: '10px 16px', background: '#3d6e00', color: '#fff', borderRadius: 8, textAlign: 'center', fontSize: 14, fontWeight: 'bold', textDecoration: 'none' }}>
-                        🔗 {block.link_label || block.link_url}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', background: '#3d6e00', color: '#fff', borderRadius: 8, fontSize: 14, fontWeight: 'bold', textDecoration: 'none' }}>
+                        <Link2 size={14}/>{block.link_label || block.link_url}
                       </a>
                     </div>
                   )}
 
                   {block.type === 'assignment' && block.task && (
                     <div style={{ marginBottom: 16, border: '2px solid #3d6e00', borderRadius: 10, padding: '12px 14px', background: '#f0fae0' }}>
-                      <p style={{ fontSize: 11, color: '#6aac14', fontWeight: 'bold', margin: '0 0 4px' }}>📋 課題</p>
+                      <p style={{ fontSize: 11, color: '#6aac14', fontWeight: 'bold', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 4 }}><ClipboardList size={11}/>課題</p>
                       <p style={{ fontSize: 15, fontWeight: 'bold', color: '#1a3a00', margin: '0 0 4px' }}>{block.task.title}</p>
                       <p style={{ fontSize: 11, color: '#6aac14', margin: '0 0 10px' }}>
                         {block.task.target_course || '全コース'} / {block.task.target_stage || '全ステージ'}
                       </p>
                       {queuedTaskId === block.task_id ? (
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <span style={{ fontSize: 12, color: '#1a6e00', fontWeight: 'bold' }}>✅ アサイン済み</span>
+                          <span style={{ fontSize: 12, color: '#1a6e00', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 3 }}><CheckCircle2 size={12}/>アサイン済み</span>
                           <button onClick={() => handleCancelAssign(block.task_id!)}
                             style={{ fontSize: 12, padding: '4px 12px', border: '1px solid #e74c3c', borderRadius: 6, background: '#fff', color: '#e74c3c', cursor: 'pointer' }}>
                             キャンセル
@@ -288,7 +289,7 @@ export default function BonTopics({ userId, userCourse, onAssign }: Props) {
                       ) : (
                         <button onClick={() => handleAssign(block.task_id!, block.task!.title)} disabled={assigning}
                           style={{ width: '100%', padding: '8px', background: '#3d6e00', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 14, cursor: 'pointer' }}>
-                          {assigning ? 'アサイン中…' : '➕ この課題をアサインする'}
+                          {assigning ? 'アサイン中…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Plus size={14}/>この課題をアサインする</span>}
                         </button>
                       )}
                     </div>

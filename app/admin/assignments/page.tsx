@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from 'react'
+import { CheckSquare } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
@@ -111,7 +112,7 @@ export default function AssignmentsPage() {
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, gimmick_management: false,
     dev_management: false,
- news_management: false,
+    news_management: false, ticket_admin: false, debug: false,
   })
 
   // フィルター
@@ -364,7 +365,7 @@ export default function AssignmentsPage() {
                 color: showSelectedOnly ? 'white' : '#3d6e00',
               }}
             >
-              ☑ 選択済みのみ
+              <CheckSquare size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }}/>選択済みのみ
             </button>
           </div>
           {selectedIds.size > 0 && (

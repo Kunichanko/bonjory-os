@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/supabase'
+import { Bug, Lightbulb } from 'lucide-react'
 
 type ReportType = 'bug' | 'feature'
 
@@ -105,7 +106,10 @@ export default function ReportsPage() {
                   fontWeight: 'bold', fontSize: 15, cursor: 'pointer',
                 }}
               >
-                {t === 'bug' ? '🐛 不具合' : '💡 要望'}
+                {t === 'bug'
+                  ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Bug size={14}/>不具合</span>
+                  : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lightbulb size={14}/>要望</span>
+                }
               </button>
             ))}
           </div>

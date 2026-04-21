@@ -2,7 +2,9 @@ import path from "path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  turbopack: {},
+  turbopack: {
+    root: ".",
+  },
   webpack: (config) => {
     config.resolve.modules = [
       path.resolve(__dirname, "node_modules"),

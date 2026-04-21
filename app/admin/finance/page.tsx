@@ -4,6 +4,8 @@ import { Fragment, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
+import Icon from '../../components/Icon'
+import { X, Calendar, FileText } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -56,12 +58,12 @@ interface FinancePlanned {
 
 type TabId = 'income' | 'expense' | 'assets' | 'planned' | 'history'
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'income',  label: '💰 収入登録' },
-  { id: 'expense', label: '💸 支出登録' },
-  { id: 'assets',  label: '👥 資産管理' },
-  { id: 'planned', label: '📋 支出予定・申請' },
-  { id: 'history', label: '📜 履歴' },
+const TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: 'income',  label: '収入登録',      icon: 'DollarSign' },
+  { id: 'expense', label: '支出登録',      icon: 'TrendingDown' },
+  { id: 'assets',  label: '資産管理',      icon: 'Users' },
+  { id: 'planned', label: '支出予定・申請', icon: 'ClipboardList' },
+  { id: 'history', label: '履歴',          icon: 'ScrollText' },
 ]
 
 // 共通スタイル
@@ -90,7 +92,7 @@ export default function FinancePage() {
     submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
     dev_management: false,
- news_management: false,
+    news_management: false, ticket_admin: false, debug: false,
   })
 
   const [incomes,     setIncomes]     = useState<FinanceIncome[]>([])
@@ -335,14 +337,15 @@ export default function FinancePage() {
             fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap',
             background: tab === t.id ? '#6aac14' : 'none',
             color: tab === t.id ? '#fff' : '#a8d870',
-          }}>{t.label}</button>
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+          }}><Icon name={t.icon} size={13}/>{t.label}</button>
         ))}
       </div>
 
       {error && (
         <div className="game-error" style={{ marginBottom: 12 }}>
           {error}
-          <button onClick={() => setError(null)} style={{ marginLeft: 8, background: 'none', border: 'none', color: C.red, cursor: 'pointer' }}>✕</button>
+          <button onClick={() => setError(null)} style={{ marginLeft: 8, background: 'none', border: 'none', color: C.red, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><X size={15}/></button>
         </div>
       )}
 
@@ -623,7 +626,10 @@ export default function FinancePage() {
                   background: planType === t ? C.accent : '#fff',
                   color: planType === t ? '#fff' : C.accent, fontWeight: 'bold', fontSize: 14,
                 }}>
-                  {t === 'planned' ? '📅 支出予定' : '📝 申請'}
+                  {t === 'planned'
+                    ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Calendar size={14}/>支出予定</span>
+                    : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><FileText size={14}/>申請</span>
+                  }
                 </button>
               ))}
             </div>

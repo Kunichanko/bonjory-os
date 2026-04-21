@@ -8,6 +8,13 @@ import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/
 import SlimeIcon from '../components/SlimeIcon'
 import { AnimatePresence, motion } from 'framer-motion'
 import BonTopics from '../components/BonTopics'
+import Icon from '../components/Icon'
+import {
+  Newspaper, ClipboardList, BookOpen, Globe, Archive, MessageCircle, Inbox,
+  Bug, Tag, Settings, LogOut, Menu, Bell, Trash2, MailOpen, Film, Search,
+  EyeOff, User, Rocket, FileText, Image, Link2, Star, RefreshCw, Check,
+  LayoutGrid, List, X, AlertTriangle, Flower2, PartyPopper, Pin, Flame, CheckCircle2,
+} from 'lucide-react'
 
 // ─── 定数・型 ─────────────────────────────────────────────
 
@@ -23,10 +30,10 @@ const COURSE_LABELS: Record<string, string> = {
   Web:     'Web開発コース',
 }
 
-const STATUS_INFO: Record<string, { label: string; emoji: string; bg: string; color: string }> = {
-  assigned:    { label: 'アサイン済',  emoji: '📌', bg: '#e8e8e8', color: '#555' },
-  in_progress: { label: '取り組み中', emoji: '🔥', bg: '#d4f0a0', color: '#3d6e00' },
-  submitted:   { label: '提出済',     emoji: '✅', bg: '#c8f0c0', color: '#1a6e00' },
+const STATUS_INFO: Record<string, { label: string; icon: string; bg: string; color: string }> = {
+  assigned:    { label: 'アサイン済',  icon: 'Pin',          bg: '#e8e8e8', color: '#555' },
+  in_progress: { label: '取り組み中', icon: 'Flame',        bg: '#d4f0a0', color: '#3d6e00' },
+  submitted:   { label: '提出済',     icon: 'CheckCircle2', bg: '#c8f0c0', color: '#1a6e00' },
 }
 
 function getWeekPhase(day: number): 'task' | 'midterm' | 'final' {
@@ -44,10 +51,10 @@ const MILESTONES = [
 type ViewId = 'tasks' | 'history' | 'timeline' | 'past_timeline' | 'news'
 
 const NAV_ITEMS: { id: ViewId; icon: string; label: string }[] = [
-  { id: 'news',     icon: '📰', label: 'BON-TOPICS' },
-  { id: 'tasks',    icon: '📋', label: '今週の課題' },
-  { id: 'history',  icon: '📚', label: '過去の課題' },
-  { id: 'timeline', icon: '🌐', label: 'タイムライン' },
+  { id: 'news',     icon: 'Newspaper',     label: 'BON-TOPICS' },
+  { id: 'tasks',    icon: 'ClipboardList', label: '今週の課題' },
+  { id: 'history',  icon: 'BookOpen',      label: '過去の課題' },
+  { id: 'timeline', icon: 'Globe',         label: 'タイムライン' },
 ]
 
 // ─── タイムライン分類ユーティリティ ───────────────────────
@@ -152,6 +159,21 @@ interface NotifLog {
   created_at: string
 }
 
+interface TicketType {
+  id: string
+  label: string
+  color_start: string
+  color_end: string
+}
+
+interface ActiveTicket {
+  id: string
+  type_id: string
+  issued_at: string
+  expires_at: string
+  ticket_types: TicketType
+}
+
 // ─── メディア判定ヘルパー ───────────────────────────────────
 
 function getYoutubeEmbedUrl(url: string): string | null {
@@ -246,8 +268,16 @@ export default function DashboardPage() {
     course_management: false, task_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
-    dev_management: false, news_management: false,
+    dev_management: false, news_management: false, debug: false, ticket_admin: false,
   })
+
+  // チケット
+  const [ticketTypes, setTicketTypes]   = useState<TicketType[]>([])
+  const [activeTicket, setActiveTicket] = useState<ActiveTicket | null | undefined>(undefined) // undefined=未ロード
+  const [selectedTypeId, setSelectedTypeId] = useState('')
+  const [issuingTicket, setIssuingTicket]   = useState(false)
+  const [revokingTicket, setRevokingTicket] = useState(false)
+  const [ticketError, setTicketError]       = useState<string | null>(null)
 
   // スピーチ
   const [speechBlocks, setSpeechBlocks] = useState<{ id: string; is_active: boolean; sort_order: number }[]>([])
@@ -566,6 +596,23 @@ export default function DashboardPage() {
           setIsAnonymous(anon)
         }
 
+        // チケット読み込み
+        const [ticketTypesRes, activeTicketRes] = await Promise.all([
+          supabase.from('ticket_types').select('id, label, color_start, color_end').order('created_at', { ascending: true }),
+          supabase.from('tickets')
+            .select('id, type_id, issued_at, expires_at, ticket_types(id, label, color_start, color_end)')
+            .eq('user_id', uid)
+            .gte('expires_at', new Date().toISOString())
+            .lte('issued_at', new Date().toISOString())
+            .order('issued_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ])
+        if (mounted) {
+          setTicketTypes(ticketTypesRes.data ?? [])
+          setActiveTicket((activeTicketRes.data as unknown as ActiveTicket) ?? null)
+        }
+
         // 通知ログ読み込み
         const { data: logs } = await supabase
           .from('notification_logs')
@@ -670,6 +717,28 @@ export default function DashboardPage() {
       .eq('user_id', userId)
       .eq('is_assigned', true)
     if (data) setAssignments(data as unknown as AssignmentRecord[])
+  }
+
+  async function issueTicket() {
+    if (!userId || !selectedTypeId) return
+    setIssuingTicket(true)
+    setTicketError(null)
+    const { data, error } = await supabase
+      .from('tickets')
+      .insert({ user_id: userId, type_id: selectedTypeId })
+      .select('id, type_id, issued_at, expires_at, ticket_types(id, label, color_start, color_end)')
+      .single()
+    setIssuingTicket(false)
+    if (error) { setTicketError(error.message); return }
+    setActiveTicket(data as unknown as ActiveTicket)
+  }
+
+  async function revokeTicket() {
+    if (!activeTicket) return
+    setRevokingTicket(true)
+    await supabase.from('tickets').delete().eq('id', activeTicket.id)
+    setActiveTicket(null)
+    setRevokingTicket(false)
   }
 
   async function savePlan(assignmentId: string) {
@@ -1002,7 +1071,7 @@ export default function DashboardPage() {
               fontSize: 15, fontWeight: 'bold',
               textAlign: 'left', transition: 'background 0.15s',
             }}>
-              <span style={{ fontSize: 18 }}>{item.icon}</span>
+              <Icon name={item.icon} size={18}/>
               {item.label}
             </button>
           ))}
@@ -1015,7 +1084,7 @@ export default function DashboardPage() {
             fontSize: 15, fontWeight: currentView === 'past_timeline' ? 'bold' : 'normal',
             textAlign: 'left', transition: 'background 0.15s',
           }}>
-            <span style={{ fontSize: 18 }}>📦</span>
+            <Archive size={18}/>
             過去のタイムライン
           </button>
 
@@ -1028,7 +1097,7 @@ export default function DashboardPage() {
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
               }}>
-                <span style={{ fontSize: 18 }}>💬</span>
+                <MessageCircle size={18}/>
                 DM送信
               </button>
             </a>
@@ -1055,7 +1124,7 @@ export default function DashboardPage() {
                   background: 'none', border: 'none', cursor: 'pointer',
                   color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
                 }}>
-                  <span style={{ fontSize: 18 }}>📬</span>
+                  <Inbox size={18}/>
                   DM受信
                 </button>
               </a>
@@ -1073,6 +1142,21 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* デバッグ報告 - debug権限のみ */}
+          {(userRole === 'admin' || effectivePerms.debug) && (
+            <a href="/debug" style={{ textDecoration: 'none', display: 'block' }}>
+              <button style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                width: '100%', padding: '12px 20px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
+              }}>
+                <span style={{ fontSize: 18 }}>📄</span>
+                デバッグ報告
+              </button>
+            </a>
+          )}
+
           {/* 不具合・要望 - 全ユーザー */}
           <a href="/reports" style={{ textDecoration: 'none', display: 'block' }}>
             <button style={{
@@ -1081,7 +1165,7 @@ export default function DashboardPage() {
               background: 'none', border: 'none', cursor: 'pointer',
               color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
             }}>
-              <span style={{ fontSize: 18 }}>🐛</span>
+              <Bug size={18}/>
               不具合・要望
             </button>
           </a>
@@ -1097,7 +1181,7 @@ export default function DashboardPage() {
                   borderRadius: 8, color: '#a8d870',
                   fontSize: 13, cursor: 'pointer', fontWeight: 'bold',
                 }}>
-                  🏷 役職管理
+                  <Tag size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }}/>役職管理
                 </button>
               </a>
             )}
@@ -1109,7 +1193,7 @@ export default function DashboardPage() {
                   borderRadius: 8, color: '#fff',
                   fontSize: 13, cursor: 'pointer', fontWeight: 'bold',
                 }}>
-                  {f.icon} {f.label}
+                  <Icon name={f.icon} size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }}/>{f.label}
                 </button>
               </a>
             ))}
@@ -1120,13 +1204,13 @@ export default function DashboardPage() {
         <div style={{ padding: '12px 20px 0', borderTop: '2px solid #3d6e00' }}>
           <a href="/account"
             style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#a8d870', fontSize: 14, textDecoration: 'none', padding: '8px 0' }}>
-            <span>⚙</span> アカウント設定
+            <Settings size={16}/> アカウント設定
           </a>
         </div>
         <div style={{ padding: '0 20px 16px' }}>
           <button onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
             style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#a8d870', fontSize: 14, padding: '8px 0' }}>
-            <span>🚪</span> ログアウト
+            <LogOut size={16}/> ログアウト
           </button>
         </div>
       </div>
@@ -1139,8 +1223,9 @@ export default function DashboardPage() {
             background: '#1a3a00', border: '2px solid #3d6e00',
             borderRadius: 8, padding: '6px 10px',
             cursor: 'pointer', color: '#6aac14', fontSize: 20, lineHeight: 1,
+            display: 'inline-flex', alignItems: 'center',
           }}>
-            ☰
+            <Menu size={20}/>
           </button>
           {(dmUnreadCount > 0 || dmManageUnreadCount > 0) && (
             <span style={{
@@ -1170,7 +1255,7 @@ export default function DashboardPage() {
               cursor: 'pointer', fontSize: 20, lineHeight: 1,
             }}
           >
-            <span style={{ filter: 'grayscale(1) brightness(10)', display: 'inline-block' }}>🔔</span>
+            <Bell size={20} color="white"/>
           </button>
           {notifUnread > 0 && (
             <span style={{
@@ -1197,10 +1282,9 @@ export default function DashboardPage() {
                   position: 'absolute',
                   top: '-30px',
                   left: `${p.left}%`,
-                  fontSize: `${p.size}px`,
                   animation: `sakura-fall ${p.duration}s ${p.delay}s linear infinite`,
                   ['--drift' as string]: `${p.drift}px`,
-                }}>🌸</div>
+                }}><Flower2 size={p.size} color="#ffb7c5"/></div>
               ))}
             </div>
           </>
@@ -1242,7 +1326,7 @@ export default function DashboardPage() {
                 flexShrink: 0,
               }}>
                 <span style={{ color: '#6aac14', fontWeight: 'bold', fontSize: 16 }}>
-                  🔔 通知センター
+                  <Bell size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}/>通知センター
                 </span>
                 <button
                   onClick={() => setNotifOpen(false)}
@@ -1250,9 +1334,10 @@ export default function DashboardPage() {
                     marginLeft: 'auto',
                     background: 'none', border: 'none',
                     color: '#a8d870', fontSize: 20, cursor: 'pointer', lineHeight: 1,
+                    display: 'inline-flex', alignItems: 'center',
                   }}
                 >
-                  ✕
+                  <X size={20}/>
                 </button>
               </div>
 
@@ -1305,9 +1390,10 @@ export default function DashboardPage() {
                           background: 'none', border: 'none',
                           color: '#5a8a1a', fontSize: 16, cursor: 'pointer',
                           padding: '2px 4px', flexShrink: 0, lineHeight: 1,
+                          display: 'inline-flex', alignItems: 'center',
                         }}
                       >
-                        🗑
+                        <Trash2 size={16}/>
                       </button>
                     </motion.div>
                   ))}
@@ -1437,8 +1523,9 @@ export default function DashboardPage() {
                 background: currentView === item.id ? '#6aac14' : 'none',
                 color: currentView === item.id ? '#fff' : '#a8d870',
                 transition: 'background 0.15s',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
               }}>
-                {item.icon} {item.label}
+                <Icon name={item.icon} size={13}/>{item.label}
               </button>
             ))}
           </div>
@@ -1493,12 +1580,12 @@ export default function DashboardPage() {
 
               {activeAssignments.length === 0 && assignments.length === 0 ? (
                 <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
-                  <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><MailOpen size={28} color="#6aac14"/></div>
                   <p style={{ color: '#6aac14', fontSize: 16 }}>アサインされた課題はまだありません</p>
                 </div>
               ) : activeAssignments.length === 0 ? (
                 <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
-                  <p style={{ fontSize: 28, marginBottom: 8 }}>🎉</p>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><PartyPopper size={28} color="#6aac14"/></div>
                   <p style={{ color: '#6aac14', fontSize: 16 }}>今週の課題はすべて提出済みです！</p>
                 </div>
               ) : activeAssignments.map(assignment => {
@@ -1528,8 +1615,8 @@ export default function DashboardPage() {
                           最終提出: {getDeadlineLabel(assignment)}
                         </p>
                       </div>
-                      <span style={{ background: si.bg, color: si.color, borderRadius: 12, padding: '4px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {si.emoji} {si.label}
+                      <span style={{ background: si.bg, color: si.color, borderRadius: 12, padding: '4px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Icon name={si.icon} size={12}/>{si.label}
                       </span>
                     </div>
 
@@ -1541,7 +1628,7 @@ export default function DashboardPage() {
                         <div style={{ borderBottom: '1px solid #e8ffd4' }}>
                           <div onClick={() => toggleSec('detail')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}>
                             <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.detail ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
-                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>📋 課題</span>
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><ClipboardList size={14}/>課題</span>
                             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                               {assignment.task.target_course && <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>{assignment.task.target_course}</span>}
                               {assignment.task.target_stage && <span style={{ background: '#3d6e00', color: 'white', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>{assignment.task.target_stage}</span>}
@@ -1563,8 +1650,8 @@ export default function DashboardPage() {
                         <div style={{ borderBottom: '1px solid #e8ffd4' }}>
                           <div onClick={() => toggleSec('plan')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}>
                             <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.plan ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
-                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>📝 計画</span>
-                            {assignment.plan_text && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}><FileText size={14}/>計画</span>
+                            {assignment.plan_text && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={11}/>入力済</span>}
                           </div>
                           {sec.plan && (
                             <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1587,11 +1674,11 @@ export default function DashboardPage() {
                         <div style={{ borderBottom: '1px solid #e8ffd4' }}>
                           <div onClick={() => toggleSec('midterm')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}>
                             <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.midterm ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
-                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>
-                              🔍 中間報告
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              <Search size={14}/>中間報告
                               {todayPhase === 'midterm' && <span style={{ marginLeft: 8, background: '#6aac14', color: 'white', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>今日！</span>}
                             </span>
-                            {assignment.midterm_progress && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
+                            {assignment.midterm_progress && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={11}/>入力済</span>}
                           </div>
                           {sec.midterm && (
                             <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1623,11 +1710,11 @@ export default function DashboardPage() {
                         <div>
                           <div onClick={() => toggleSec('final')} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}>
                             <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.final ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
-                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>
-                              🎬 最終提出
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              <Film size={14}/>最終提出
                               {todayPhase === 'final' && <span style={{ marginLeft: 8, background: '#6aac14', color: 'white', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>今日！</span>}
                             </span>
-                            {(assignment.image_urls && assignment.image_urls.length > 0) && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>✅ 入力済</span>}
+                            {(assignment.image_urls && assignment.image_urls.length > 0) && <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Check size={11}/>入力済</span>}
                           </div>
                           {sec.final && (
                             <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1645,7 +1732,7 @@ export default function DashboardPage() {
                                       }))
                                     }}
                                     style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
-                                  <p style={{ color: '#888', fontSize: 12, marginTop: 4 }}>⚠️ 1枚あたり10MBまで（jpg・png・gif・webp）</p>
+                                  <p style={{ color: '#888', fontSize: 12, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={12}/>1枚あたり10MBまで（jpg・png・gif・webp）</p>
                                   {(imagePreviews[assignment.id] ?? []).length > 0 && (
                                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                                       {(imagePreviews[assignment.id] ?? []).map((src, i) => (
@@ -1658,7 +1745,7 @@ export default function DashboardPage() {
                                 </div>
                               )}
                               <div>
-                                <label className="game-label">📋 提出物を記載</label>
+                                <label className="game-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ClipboardList size={13}/>提出物を記載</label>
                                 <textarea className="game-input" rows={3}
                                   placeholder="今回作ったものを説明してください。どんな機能を実装したか、工夫した点など..."
                                   value={submissionComments[assignment.id] ?? ''}
@@ -1695,7 +1782,7 @@ export default function DashboardPage() {
                                 <button type="button"
                                   onClick={() => setIsAnonymous(prev => ({ ...prev, [assignment.id]: !prev[assignment.id] }))}
                                   style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, padding: '8px 20px', borderRadius: 20, background: isAnonymous[assignment.id] ? '#3d6e00' : '#f0fae0', border: `2px solid ${isAnonymous[assignment.id] ? '#2a4d00' : '#c8e89a'}`, cursor: 'pointer', fontSize: 14, fontWeight: 'bold', color: isAnonymous[assignment.id] ? '#fff' : '#3d6e00', transition: 'all 0.15s' }}>
-                                  <span>{isAnonymous[assignment.id] ? '🙈' : '👤'}</span>
+                                  <span>{isAnonymous[assignment.id] ? <EyeOff size={16}/> : <User size={16}/>}</span>
                                   {isAnonymous[assignment.id] ? '匿名投稿' : '実名投稿（公開）'}
                                 </button>
                                 <p style={{ color: '#888', fontSize: 12, marginTop: 6 }}>
@@ -1703,7 +1790,7 @@ export default function DashboardPage() {
                                 </p>
                               </div>
                               <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 14 }}>
-                                <label className="game-label">💬 コースへの要望</label>
+                                <label className="game-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><MessageCircle size={13}/>コースへの要望</label>
                                 <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>
                                   やってみたいこと・興味のある分野・自分の技術の進捗感など、運営への要望を自由に書いてください。次の課題の参考にします。
                                 </p>
@@ -1714,9 +1801,9 @@ export default function DashboardPage() {
                                   style={{ resize: 'vertical' }} />
                               </div>
                               <button className="game-button" disabled={submitting[assignment.id]} onClick={() => submitWork(assignment.id)}>
-                                {submitting[assignment.id] ? '提出中…' : '🚀 提出する'}
+                                {submitting[assignment.id] ? '提出中…' : <><Rocket size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}/>提出する</>}
                               </button>
-                              {submitSuccess[assignment.id] && <div className="game-success">提出完了！お疲れさまでした 🎉</div>}
+                              {submitSuccess[assignment.id] && <div className="game-success">提出完了！お疲れさまでした</div>}
                               {submitError[assignment.id] && <div className="game-error">{submitError[assignment.id]}</div>}
                             </div>
                           )}
@@ -1727,6 +1814,91 @@ export default function DashboardPage() {
                   </div>
                 )
               })}
+
+              {/* ══ 今週の課題チケット ══════════════════════ */}
+              {activeTicket !== undefined && ticketTypes.length > 0 && (() => {
+                const previewType = activeTicket?.ticket_types
+                  ?? ticketTypes.find(t => t.id === selectedTypeId)
+                  ?? ticketTypes[0]
+                return (
+                  <div style={{ marginTop: 8, borderRadius: 20, overflow: 'hidden', position: 'relative', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+                    {/* ベース: 黒 */}
+                    <div style={{ position: 'absolute', inset: 0, background: '#111', borderRadius: 20 }} />
+                    {/* グラデーション: 発行時にフェードイン */}
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      background: `linear-gradient(135deg, ${previewType.color_start}, ${previewType.color_end})`,
+                      opacity: activeTicket ? 1 : 0,
+                      transition: 'opacity 0.9s ease',
+                      borderRadius: 20,
+                    }} />
+                    {/* 光沢 */}
+                    <div style={{
+                      position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
+                      background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 100%)',
+                      borderRadius: '20px 20px 0 0', pointerEvents: 'none',
+                      opacity: activeTicket ? 1 : 0.3,
+                      transition: 'opacity 0.9s ease',
+                    }} />
+                    {/* コンテンツ */}
+                    <div style={{ position: 'relative', padding: '24px 28px', color: 'white' }}>
+                      <p style={{ fontSize: 11, fontWeight: 'bold', opacity: 0.7, margin: '0 0 10px', letterSpacing: 1 }}>
+                        チケットを発行
+                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        {/* 発行済み: 要件名＋期限 / 未発行: ドロップダウン */}
+                        {activeTicket ? (
+                          <div style={{
+                            flex: '1 1 160px', padding: '10px 14px', borderRadius: 12,
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            background: 'rgba(255,255,255,0.12)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            minWidth: 0,
+                          }}>
+                            <span style={{ fontSize: 14, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {activeTicket.ticket_types.label}
+                            </span>
+                            <span style={{ fontSize: 12, opacity: 0.7, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                              〜{new Date(activeTicket.expires_at).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                            </span>
+                          </div>
+                        ) : (
+                          <select
+                            value={selectedTypeId}
+                            onChange={e => setSelectedTypeId(e.target.value)}
+                            style={{
+                              flex: '1 1 160px', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.2)',
+                              fontSize: 14, fontWeight: 'bold', cursor: 'pointer',
+                              background: 'rgba(255,255,255,0.12)', color: selectedTypeId ? 'white' : 'rgba(255,255,255,0.5)',
+                            }}
+                          >
+                            <option value="" style={{ background: '#222', color: '#aaa' }}>チケットを選択してください</option>
+                            {ticketTypes.map(tt => (
+                              <option key={tt.id} value={tt.id} style={{ background: '#222', color: 'white' }}>{tt.label}</option>
+                            ))}
+                          </select>
+                        )}
+                        {/* 発行 / 解除 ボタン */}
+                        <button
+                          onClick={activeTicket ? revokeTicket : issueTicket}
+                          disabled={issuingTicket || revokingTicket || (!activeTicket && !selectedTypeId)}
+                          style={{
+                            padding: '10px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                            background: activeTicket ? 'rgba(255,80,80,0.35)' : 'rgba(255,255,255,0.25)',
+                            color: 'white', fontWeight: 'bold', fontSize: 14,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                            transition: 'background 0.2s',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {issuingTicket ? '発行中…' : revokingTicket ? '解除中…' : activeTicket ? '解除' : '発行'}
+                        </button>
+                      </div>
+                      {ticketError && <p style={{ color: '#ff8080', fontSize: 13, marginTop: 10, margin: '10px 0 0' }}>{ticketError}</p>}
+                    </div>
+                  </div>
+                )
+              })()}
             </>
           )}
 
@@ -1734,13 +1906,13 @@ export default function DashboardPage() {
           {currentView === 'history' && (
             <>
               <div className="game-card" style={{ padding: '24px 28px' }}>
-                <h2 className="game-title" style={{ fontSize: 22, marginBottom: 4 }}>📚 過去の課題</h2>
+                <h2 className="game-title" style={{ fontSize: 22, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><BookOpen size={18}/>過去の課題</h2>
                 <p style={{ color: '#3d6e00', fontSize: 13, fontWeight: 'bold' }}>提出済みの課題履歴 — {submittedAssignments.length} 件</p>
               </div>
 
               {submittedAssignments.length === 0 ? (
                 <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
-                  <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><MailOpen size={28} color="#6aac14"/></div>
                   <p style={{ color: '#6aac14', fontSize: 16 }}>まだ提出済みの課題はありません</p>
                 </div>
               ) : submittedAssignments.map(a => {
@@ -1772,7 +1944,7 @@ export default function DashboardPage() {
                         </p>
                         {a.submitted_at && (
                           <p style={{ color: '#6aac14', fontSize: 12 }}>
-                            ✅ 提出日: {new Date(a.submitted_at).toLocaleDateString('ja-JP')}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Check size={12}/>提出日: {new Date(a.submitted_at).toLocaleDateString('ja-JP')}</span>
                           </p>
                         )}
                       </div>
@@ -1790,13 +1962,13 @@ export default function DashboardPage() {
                         )}
                         {a.plan_text && (
                           <div>
-                            <p className="game-label" style={{ marginBottom: 4 }}>📝 制作計画</p>
+                            <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><FileText size={13}/>制作計画</p>
                             <p style={textBlockStyle}>{a.plan_text}</p>
                           </div>
                         )}
                         {(a.midterm_progress || a.midterm_correction) && (
                           <div>
-                            <p className="game-label" style={{ marginBottom: 4 }}>🔍 中間報告</p>
+                            <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><Search size={13}/>中間報告</p>
                             {a.midterm_progress && (
                               <div style={{ marginBottom: 8 }}>
                                 <p style={{ color: '#555', fontSize: 12, marginBottom: 2 }}>進捗状況</p>
@@ -1813,7 +1985,7 @@ export default function DashboardPage() {
                         )}
                         {a.image_urls && a.image_urls.length > 0 && (
                           <div>
-                            <p className="game-label" style={{ marginBottom: 8 }}>🖼️ 提出画像</p>
+                            <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Image size={13}/>提出画像</p>
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                               {a.image_urls.map((url, i) => (
                                 <a key={i} href={url} target="_blank" rel="noopener noreferrer">
@@ -1826,7 +1998,7 @@ export default function DashboardPage() {
                         )}
                         {(!a.image_urls || a.image_urls.length === 0) && a.media_url && (
                           <div>
-                            <p className="game-label" style={{ marginBottom: 4 }}>🎬 提出URL（旧形式）</p>
+                            <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><Film size={13}/>提出URL（旧形式）</p>
                             <a href={a.media_url} target="_blank" rel="noopener noreferrer"
                               style={{ color: '#3d6e00', fontSize: 14, wordBreak: 'break-all' }}>
                               {a.media_url}
@@ -1835,28 +2007,28 @@ export default function DashboardPage() {
                         )}
                         {a.submission_comment && (
                           <div>
-                            <p className="game-label" style={{ marginBottom: 4 }}>📋 提出物の説明</p>
+                            <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><ClipboardList size={13}/>提出物の説明</p>
                             <p style={textBlockStyle}>{a.submission_comment}</p>
                           </div>
                         )}
                         {a.self_evaluation && (
                           <div>
-                            <p className="game-label" style={{ marginBottom: 4 }}>⭐ 自己評価</p>
+                            <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><Star size={13}/>自己評価</p>
                             <p style={textBlockStyle}>{a.self_evaluation}</p>
                           </div>
                         )}
                         {a.retrospective && (
                           <div>
-                            <p className="game-label" style={{ marginBottom: 4 }}>🔄 計画の振り返り</p>
+                            <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><RefreshCw size={13}/>計画の振り返り</p>
                             <p style={textBlockStyle}>{a.retrospective}</p>
                           </div>
                         )}
-                        <p style={{ color: a.is_anonymous ? '#888' : '#6aac14', fontSize: 12 }}>
-                          {a.is_anonymous ? '🙈 匿名投稿' : '👤 実名投稿'}
+                        <p style={{ color: a.is_anonymous ? '#888' : '#6aac14', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {a.is_anonymous ? <><EyeOff size={12}/>匿名投稿</> : <><User size={12}/>実名投稿</>}
                         </p>
                         {a.course_request && (
                           <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 12 }}>
-                            <p className="game-label" style={{ marginBottom: 4 }}>💬 コースへの要望</p>
+                            <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><MessageCircle size={13}/>コースへの要望</p>
                             <p style={textBlockStyle}>{a.course_request}</p>
                           </div>
                         )}
@@ -1876,7 +2048,9 @@ export default function DashboardPage() {
               <>
                 <div className="game-card" style={{ padding: '24px 28px' }}>
                   <h2 className="game-title" style={{ fontSize: 22, marginBottom: 4 }}>
-                    {isCurrentView ? '🌐 タイムライン' : '📦 過去のタイムライン'}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      {isCurrentView ? <><Globe size={18}/>タイムライン</> : <><Archive size={18}/>過去のタイムライン</>}
+                    </span>
                   </h2>
                   <p style={{ color: '#3d6e00', fontSize: 13, fontWeight: 'bold' }}>
                     部員の提出作品 — {displayList.length} 件
@@ -1920,7 +2094,7 @@ export default function DashboardPage() {
                       }}
                       title={timelineViewMode === 'grid' ? 'リスト表示に切替' : 'グリッド表示に切替'}
                     >
-                      {timelineViewMode === 'grid' ? '☰' : '⊞'}
+                      {timelineViewMode === 'grid' ? <List size={16}/> : <LayoutGrid size={16}/>}
                     </button>
                   </div>
                 </div>
@@ -1931,7 +2105,7 @@ export default function DashboardPage() {
                   </div>
                 ) : displayList.length === 0 ? (
                   <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
-                    <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><MailOpen size={28} color="#6aac14"/></div>
                     <p style={{ color: '#6aac14', fontSize: 16 }}>
                       {timelineFilterCourse || timelineFilterStage ? 'フィルター条件に一致する作品がありません' : 'まだ提出された作品はありません'}
                     </p>
@@ -1960,7 +2134,7 @@ export default function DashboardPage() {
                               {item.task.title}
                             </p>
                             <p style={{ color: '#6aac14', fontSize: 11, marginBottom: 2 }}>
-                              {item.is_anonymous ? '🙈 匿名' : `👤 ${item.profile?.username ?? '名無し'}`}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{item.is_anonymous ? <><EyeOff size={11}/>匿名</> : <><User size={11}/>{item.profile?.username ?? '名無し'}</>}</span>
                             </p>
                             {item.submitted_at && (
                               <p style={{ color: '#aaa', fontSize: 11 }}>
@@ -2009,7 +2183,7 @@ export default function DashboardPage() {
                                 )}
                               </div>
                               <p style={{ color: '#6aac14', fontSize: 11 }}>
-                                {item.is_anonymous ? '🙈 匿名' : `👤 ${item.profile?.username ?? '名無し'}`}
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{item.is_anonymous ? <><EyeOff size={11}/>匿名</> : <><User size={11}/>{item.profile?.username ?? '名無し'}</>}</span>
                                 {item.submitted_at && (
                                   <span style={{ color: '#aaa', marginLeft: 8 }}>
                                     {new Date(item.submitted_at).toLocaleDateString('ja-JP')}
@@ -2070,7 +2244,7 @@ export default function DashboardPage() {
                 {selectedPost.task.title}
               </h3>
               <p style={{ color: '#6aac14', fontSize: 14, marginBottom: 2 }}>
-                {selectedPost.is_anonymous ? '🙈 匿名' : `👤 ${selectedPost.profile?.username ?? '名無し'}`}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{selectedPost.is_anonymous ? <><EyeOff size={14}/>匿名</> : <><User size={14}/>{selectedPost.profile?.username ?? '名無し'}</>}</span>
               </p>
               {selectedPost.submitted_at && (
                 <p style={{ color: '#aaa', fontSize: 12, marginBottom: 16 }}>
@@ -2082,7 +2256,7 @@ export default function DashboardPage() {
 
               {selectedPost.image_urls && selectedPost.image_urls.length > 0 && (
                 <div style={{ marginBottom: 14 }}>
-                  <p className="game-label" style={{ marginBottom: 8 }}>🖼️ 提出画像</p>
+                  <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Image size={13}/>提出画像</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {selectedPost.image_urls.map((url, i) => (
                       <a key={i} href={url} target="_blank" rel="noopener noreferrer">
@@ -2098,7 +2272,7 @@ export default function DashboardPage() {
                 const embedUrl  = getYoutubeEmbedUrl(selectedPost.media_url!)
                 return (
                   <div style={{ marginBottom: 14 }}>
-                    <p className="game-label" style={{ marginBottom: 8 }}>🎬 提出作品</p>
+                    <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Film size={13}/>提出作品</p>
                     {mediaType === 'youtube' && embedUrl ? (
                       <iframe
                         src={embedUrl}
@@ -2115,7 +2289,7 @@ export default function DashboardPage() {
                     ) : (
                       <a href={selectedPost.media_url!} target="_blank" rel="noopener noreferrer"
                         style={{ color: '#3d6e00', fontSize: 14, wordBreak: 'break-all' }}>
-                        🔗 {selectedPost.media_url}
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Link2 size={14}/>{selectedPost.media_url}</span>
                       </a>
                     )}
                   </div>
@@ -2124,28 +2298,28 @@ export default function DashboardPage() {
 
               {selectedPost.submission_comment && (
                 <div style={{ marginBottom: 14 }}>
-                  <p className="game-label" style={{ marginBottom: 4 }}>📋 提出物</p>
+                  <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><ClipboardList size={13}/>提出物</p>
                   <p style={textBlockStyle}>{selectedPost.submission_comment}</p>
                 </div>
               )}
 
               {selectedPost.self_evaluation && (
                 <div style={{ marginBottom: 14 }}>
-                  <p className="game-label" style={{ marginBottom: 4 }}>⭐ 自己評価</p>
+                  <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><Star size={13}/>自己評価</p>
                   <p style={textBlockStyle}>{selectedPost.self_evaluation}</p>
                 </div>
               )}
 
               {selectedPost.retrospective && (
                 <div style={{ marginBottom: 16 }}>
-                  <p className="game-label" style={{ marginBottom: 4 }}>🔄 計画の振り返り</p>
+                  <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><RefreshCw size={13}/>計画の振り返り</p>
                   <p style={textBlockStyle}>{selectedPost.retrospective}</p>
                 </div>
               )}
 
               {/* ── コメントセクション ──────────────────── */}
               <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '12px 0' }} />
-              <p className="game-label" style={{ marginBottom: 10 }}>💬 コメント</p>
+              <p className="game-label" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><MessageCircle size={13}/>コメント</p>
 
               {loadingComments ? (
                 <p style={{ color: '#6aac14', fontSize: 13 }}>読み込み中...</p>
@@ -2160,7 +2334,7 @@ export default function DashboardPage() {
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <span style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 12 }}>
-                          👤 {c.profile?.username ?? '名無し'}
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><User size={12}/>{c.profile?.username ?? '名無し'}</span>
                         </span>
                         <span style={{ color: '#aaa', fontSize: 11 }}>
                           {new Date(c.created_at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}

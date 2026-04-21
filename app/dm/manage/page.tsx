@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions } from '../../../lib/permissions'
+import { Inbox, X, Send } from 'lucide-react'
 
 interface DmRequestType {
   id: string
@@ -279,8 +280,8 @@ export default function DmManagePage() {
 
         {/* ヘッダー */}
         <div className="game-card" style={{ padding: '20px 28px', marginBottom: 20 }}>
-          <h1 className="game-title" style={{ fontSize: 28 }}>
-            📬 DM受信
+          <h1 className="game-title" style={{ fontSize: 28, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Inbox size={24}/>DM受信
             {unreadTotal > 0 && (
               <span style={{
                 marginLeft: 12, background: 'red', color: 'white',
@@ -312,12 +313,12 @@ export default function DmManagePage() {
                   onClick={() => deleteRequestType(t.id)}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'white', fontSize: 14, lineHeight: 1, padding: 0,
-                    opacity: 0.8,
+                    color: 'white', padding: 0, opacity: 0.8,
+                    display: 'inline-flex', alignItems: 'center',
                   }}
                   title="削除"
                 >
-                  ✕
+                  <X size={14}/>
                 </button>
               </span>
             ))}
@@ -510,11 +511,11 @@ export default function DmManagePage() {
                   />
                   <button
                     className="game-button"
-                    style={{ width: 'auto', padding: '0 20px', fontSize: 20 }}
+                    style={{ width: 'auto', padding: '0 20px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                     onClick={sendMessage}
                     disabled={sending || !msgInput.trim()}
                   >
-                    ➤
+                    <Send size={18}/>
                   </button>
                 </div>
               </>
