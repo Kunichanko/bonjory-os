@@ -86,6 +86,15 @@ interface AssignmentTask {
   allow_image_attachment: boolean
 }
 
+interface PreviousSubmission {
+  image_urls: string[] | null
+  submission_comment: string | null
+  self_evaluation: string | null
+  retrospective: string | null
+  submitted_at: string | null
+  thumbnail_url: string | null
+}
+
 interface AssignmentRecord {
   id: string
   status: 'assigned' | 'in_progress' | 'submitted'
@@ -103,6 +112,8 @@ interface AssignmentRecord {
   thumbnail_url: string | null
   created_at: string
   deadline_at: string | null
+  resubmit_requested: boolean
+  previous_submission: PreviousSubmission | null
   task: AssignmentTask
 }
 
@@ -452,9 +463,10 @@ export default function DashboardPage() {
           supabase.from('task_assignments')
             .select(`
               id, status, plan_text, midterm_progress, midterm_correction,
-              media_url, self_evaluation, retrospective, submitted_at,
-              is_anonymous, thumbnail_url, created_at, deadline_at,
-              task:tasks(id, title, description, description_is_markdown, target_course, target_stage)
+              media_url, image_urls, self_evaluation, retrospective, submitted_at,
+              is_anonymous, thumbnail_url, created_at, deadline_at, course_request,
+              resubmit_requested, previous_submission,
+              task:tasks(id, title, description, description_is_markdown, target_course, target_stage, allow_image_attachment)
             `)
             .eq('user_id', uid)
             .eq('is_assigned', true),
@@ -710,9 +722,10 @@ export default function DashboardPage() {
     const { data } = await supabase.from('task_assignments')
       .select(`
         id, status, plan_text, midterm_progress, midterm_correction,
-        media_url, self_evaluation, retrospective, submitted_at,
-        is_anonymous, thumbnail_url, created_at, deadline_at,
-        task:tasks(id, title, description, description_is_markdown, target_course, target_stage)
+        media_url, image_urls, self_evaluation, retrospective, submitted_at,
+        is_anonymous, thumbnail_url, created_at, deadline_at, course_request,
+        resubmit_requested, previous_submission,
+        task:tasks(id, title, description, description_is_markdown, target_course, target_stage, allow_image_attachment)
       `)
       .eq('user_id', userId)
       .eq('is_assigned', true)
@@ -841,11 +854,12 @@ export default function DashboardPage() {
       self_evaluation:    selfEvals[assignmentId]   ?? '',
       retrospective:      retros[assignmentId]      ?? '',
       course_request:     courseRequests[assignmentId] ?? '',
-      is_anonymous:       isAnonymous[assignmentId] ?? false,
-      thumbnail_url:      thumbUrl,
-      status:             'submitted',
-      submitted_at:       now,
-      updated_at:         now,
+      is_anonymous:        isAnonymous[assignmentId] ?? false,
+      thumbnail_url:       thumbUrl,
+      status:              'submitted',
+      submitted_at:        now,
+      updated_at:          now,
+      resubmit_requested:  false,
     }).eq('id', assignmentId)
 
     setSubmitting(prev => ({ ...prev, [assignmentId]: false }))
@@ -868,6 +882,7 @@ export default function DashboardPage() {
               image_urls: uploadedImageUrls.length > 0 ? uploadedImageUrls : a.image_urls }
           : a
       ))
+      setTimelineLoaded(false)
       // 初回提出のみポイント付与
       if (!wasSubmitted && userId) {
         const { data: pts } = await supabase.rpc('award_points', {
@@ -984,7 +999,7 @@ export default function DashboardPage() {
   }
 
   const currentMilestone     = MILESTONES.find(m => m.phase === todayPhase)!
-  const activeAssignments    = assignments.filter(a => a.status !== 'submitted')
+  const activeAssignments    = assignments.filter(a => a.status !== 'submitted' || a.resubmit_requested)
 
   function getDeadlineLabel(a: AssignmentRecord): string {
     let deadline: Date
@@ -1615,9 +1630,15 @@ export default function DashboardPage() {
                           最終提出: {getDeadlineLabel(assignment)}
                         </p>
                       </div>
-                      <span style={{ background: si.bg, color: si.color, borderRadius: 12, padding: '4px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <Icon name={si.icon} size={12}/>{si.label}
-                      </span>
+                      {assignment.resubmit_requested ? (
+                        <span style={{ background: '#ff9800', color: '#fff', borderRadius: 12, padding: '4px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          再提出リクエスト中
+                        </span>
+                      ) : (
+                        <span style={{ background: si.bg, color: si.color, borderRadius: 12, padding: '4px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Icon name={si.icon} size={12}/>{si.label}
+                        </span>
+                      )}
                     </div>
 
                     {/* ── 子セクション群 */}
@@ -1705,6 +1726,65 @@ export default function DashboardPage() {
                             </div>
                           )}
                         </div>
+
+                        {/* 📋 前回の提出（再提出リクエスト時に表示） */}
+                        {assignment.resubmit_requested && assignment.previous_submission && (() => {
+                          const prev = assignment.previous_submission
+                          const prevOpen = (taskSectionOpen[assignment.id + '_prev'] as unknown as boolean) ?? false
+                          return (
+                            <div style={{ borderBottom: '1px solid #ffe0b2' }}>
+                              <div
+                                onClick={() => setTaskSectionOpen(p => ({ ...p, [assignment.id + '_prev']: !prevOpen } as typeof p))}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#fff8f0' }}
+                              >
+                                <span style={{ fontSize: 12, color: '#ff9800', display: 'inline-block', transform: prevOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
+                                <span style={{ fontWeight: 'bold', color: '#e65100', fontSize: 14, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                  前回の提出内容
+                                </span>
+                                {prev.submitted_at && (
+                                  <span style={{ fontSize: 11, color: '#e65100', whiteSpace: 'nowrap' }}>
+                                    {new Date(prev.submitted_at).toLocaleDateString('ja-JP')}
+                                  </span>
+                                )}
+                              </div>
+                              {prevOpen && (
+                                <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #ffe0b2', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                  {prev.thumbnail_url && (
+                                    <img src={prev.thumbnail_url} alt="前回サムネイル" style={{ width: '100%', borderRadius: 8, maxHeight: 160, objectFit: 'cover' }} />
+                                  )}
+                                  {prev.submission_comment && (
+                                    <div>
+                                      <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>提出物の説明</p>
+                                      <p style={{ background: '#fff3e0', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#333', whiteSpace: 'pre-wrap' }}>{prev.submission_comment}</p>
+                                    </div>
+                                  )}
+                                  {prev.self_evaluation && (
+                                    <div>
+                                      <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>自己評価</p>
+                                      <p style={{ background: '#fff3e0', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#333', whiteSpace: 'pre-wrap' }}>{prev.self_evaluation}</p>
+                                    </div>
+                                  )}
+                                  {prev.retrospective && (
+                                    <div>
+                                      <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>計画の振り返り</p>
+                                      <p style={{ background: '#fff3e0', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#333', whiteSpace: 'pre-wrap' }}>{prev.retrospective}</p>
+                                    </div>
+                                  )}
+                                  {prev.image_urls && prev.image_urls.length > 0 && (
+                                    <div>
+                                      <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>提出画像</p>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                        {prev.image_urls.map((url, i) => (
+                                          <img key={i} src={url} alt={`前回画像${i + 1}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6 }} />
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
 
                         {/* 🎬 最終提出 */}
                         <div>
@@ -2032,6 +2112,54 @@ export default function DashboardPage() {
                             <p style={textBlockStyle}>{a.course_request}</p>
                           </div>
                         )}
+                        {a.previous_submission && (() => {
+                          const prev = a.previous_submission
+                          const prevHistOpen = (expandedHistory[a.id + '_prev'] as unknown as boolean) ?? false
+                          return (
+                            <div style={{ borderTop: '2px dashed #ffe0b2', paddingTop: 12 }}>
+                              <button
+                                onClick={() => setExpandedHistory(p => ({ ...p, [a.id + '_prev']: !prevHistOpen }))}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 6, color: '#e65100', fontWeight: 'bold', fontSize: 13 }}
+                              >
+                                <span style={{ display: 'inline-block', transform: prevHistOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
+                                前回の提出内容
+                                {prev.submitted_at && <span style={{ fontSize: 11, color: '#e65100', fontWeight: 'normal' }}>（{new Date(prev.submitted_at).toLocaleDateString('ja-JP')}）</span>}
+                              </button>
+                              {prevHistOpen && (
+                                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                  {prev.thumbnail_url && (
+                                    <img src={prev.thumbnail_url} alt="前回サムネイル" style={{ width: '100%', borderRadius: 8, maxHeight: 160, objectFit: 'cover' }} />
+                                  )}
+                                  {prev.submission_comment && (
+                                    <div>
+                                      <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>提出物の説明</p>
+                                      <p style={{ ...textBlockStyle, background: '#fff3e0' }}>{prev.submission_comment}</p>
+                                    </div>
+                                  )}
+                                  {prev.self_evaluation && (
+                                    <div>
+                                      <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>自己評価</p>
+                                      <p style={{ ...textBlockStyle, background: '#fff3e0' }}>{prev.self_evaluation}</p>
+                                    </div>
+                                  )}
+                                  {prev.retrospective && (
+                                    <div>
+                                      <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>計画の振り返り</p>
+                                      <p style={{ ...textBlockStyle, background: '#fff3e0' }}>{prev.retrospective}</p>
+                                    </div>
+                                  )}
+                                  {prev.image_urls && prev.image_urls.length > 0 && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                      {prev.image_urls.map((url, i) => (
+                                        <img key={i} src={url} alt={`前回画像${i + 1}`} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '2px solid #ffe0b2' }} />
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>

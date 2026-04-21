@@ -41,6 +41,8 @@ interface Assignment {
   created_at: string
   deadline_at: string | null
   submitted_at: string | null
+  resubmit_requested: boolean
+  previous_submission: Record<string, unknown> | null
   task: { title: string }
 }
 
@@ -108,6 +110,7 @@ export default function AdminPage() {
   const [userRole, setUserRole]         = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [sortOrder, setSortOrder]       = useState<'points' | 'registered' | 'recent_submit'>('points')
+  const [requestingResubmit, setRequestingResubmit] = useState<Record<string, boolean>>({})
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
     course_management: false, task_management: false, assignment_management: false,
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
@@ -169,7 +172,7 @@ export default function AdminPage() {
         const [profilesRes, tasksRes, assignmentsRes, positionsRes, ppRes, ranksRes] = await Promise.all([
           supabase.from('profiles').select('id, username, email, course, stage, cool_points, created_at').order('created_at', { ascending: true }),
           supabase.from('tasks').select('id, title, target_course').eq('is_active', true),
-          supabase.from('task_assignments').select('id, task_id, user_id, status, created_at, deadline_at, submitted_at, task:tasks(title)').eq('is_assigned', true),
+          supabase.from('task_assignments').select('id, task_id, user_id, status, created_at, deadline_at, submitted_at, resubmit_requested, previous_submission, task:tasks(title)').eq('is_assigned', true),
           supabase.from('positions').select('id, name, permissions').order('created_at', { ascending: true }),
           supabase.from('profile_positions').select('profile_id, position_id, positions(name)'),
           supabase.from('rank_settings').select('id, name, min_points, color, rank_order').order('rank_order'),
@@ -261,7 +264,7 @@ export default function AdminPage() {
     if (result) {
       setAssignments(prev => ({
         ...prev,
-        [userId]: [...(prev[userId] ?? []), { id: result!.id, task_id: taskId, user_id: userId, status: 'assigned', created_at: result!.created_at, deadline_at: result!.deadline_at, submitted_at: null, task: { title: task.title } }],
+        [userId]: [...(prev[userId] ?? []), { id: result!.id, task_id: taskId, user_id: userId, status: 'assigned', created_at: result!.created_at, deadline_at: result!.deadline_at, submitted_at: null, resubmit_requested: false, previous_submission: null, task: { title: task.title } }],
       }))
       setAddingTask(prev => { const next = { ...prev }; delete next[userId]; return next })
     }
@@ -319,6 +322,30 @@ export default function AdminPage() {
         [userId]: (prev[userId] ?? []).map(a => a.id === assignment.id
           ? { ...a, deadline_at: newDeadline.toISOString() }
           : a
+        ),
+      }))
+    }
+  }
+
+  async function requestResubmit(userId: string, a: Assignment) {
+    setRequestingResubmit(prev => ({ ...prev, [a.id]: true }))
+    const snapshot = {
+      image_urls: (a as any).image_urls ?? null,
+      submission_comment: (a as any).submission_comment ?? null,
+      self_evaluation: (a as any).self_evaluation ?? null,
+      retrospective: (a as any).retrospective ?? null,
+      submitted_at: a.submitted_at,
+      thumbnail_url: (a as any).thumbnail_url ?? null,
+    }
+    const { error } = await supabase.from('task_assignments')
+      .update({ resubmit_requested: true, previous_submission: snapshot })
+      .eq('id', a.id)
+    setRequestingResubmit(prev => ({ ...prev, [a.id]: false }))
+    if (!error) {
+      setAssignments(prev => ({
+        ...prev,
+        [userId]: (prev[userId] ?? []).map(x =>
+          x.id === a.id ? { ...x, resubmit_requested: true, previous_submission: snapshot } : x
         ),
       }))
     }
@@ -529,15 +556,27 @@ export default function AdminPage() {
                             <span style={{ color: '#aaa', fontSize: 13 }}>なし</span>
                           ) : memberAssignments.map(a => {
                             const s = STATUS_LABELS[a.status]
+                            const shortTitle = a.task.title.length > 10 ? a.task.title.slice(0, 10) + '…' : a.task.title
                             return (
-                              <span key={a.task_id} style={{
+                              <Fragment key={a.task_id}>
+                              <span style={{
                                 background: s.bg, color: s.color,
                                 borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 'bold',
                                 whiteSpace: 'nowrap',
                               }}>
-                                {a.task.title.length > 10 ? a.task.title.slice(0, 10) + '…' : a.task.title}
+                                {shortTitle}
                                 {' '}· {s.label}
                               </span>
+                              {a.resubmit_requested && (
+                                <span style={{
+                                  background: '#ff9800', color: '#fff',
+                                  borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 'bold',
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                  {shortTitle} · 再提出待ち
+                                </span>
+                              )}
+                              </Fragment>
                             )
                           })}
                         </div>
@@ -601,6 +640,16 @@ export default function AdminPage() {
                                           style={{ padding: '2px 7px', borderRadius: 6, border: '1px solid #6aac14', background: '#e8ffd4', color: '#2d5500', cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}
                                           title="+1週間"
                                         >+7日</button>
+                                        {a.status === 'submitted' && !a.resubmit_requested && (
+                                          <button
+                                            onClick={() => requestResubmit(profile.id, a)}
+                                            disabled={requestingResubmit[a.id]}
+                                            style={{ padding: '2px 8px', borderRadius: 6, border: '1px solid #ff9800', background: '#fff3e0', color: '#e65100', cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}
+                                          >再提出</button>
+                                        )}
+                                        {a.status === 'submitted' && a.resubmit_requested && (
+                                          <span style={{ fontSize: 11, color: '#ff9800', fontWeight: 'bold' }}>再提出待ち中</span>
+                                        )}
                                         {a.status !== 'submitted' && (
                                           <button
                                             onClick={() => removeAssignment(profile.id, a.task_id)}
