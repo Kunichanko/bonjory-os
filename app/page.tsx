@@ -2,9 +2,24 @@
 
 import Image from "next/image"
 import Link from "next/link"
+import { useEffect, useState } from "react"
+import { ShoppingCart } from "lucide-react"
 import SlimeIcon from "./components/SlimeIcon"
 
+const STAGE_IMAGES = [
+  '/image/stage_Grassland.png',
+  '/image/stage_Cyberpunk Building.png',
+  '/image/stage_Crystal Mine.png',
+  '/image/stage_Handlive.png',
+]
+
 export default function Home() {
+  const [bgImage, setBgImage] = useState(STAGE_IMAGES[0])
+  const [videoOpen, setVideoOpen] = useState(false)
+  useEffect(() => {
+    setBgImage(STAGE_IMAGES[Math.floor(Math.random() * STAGE_IMAGES.length)])
+  }, [])
+
   return (
     <div style={{ fontFamily: "'Mantou Sans', 'Arial Rounded MT Bold', Arial, sans-serif" }}>
 
@@ -34,7 +49,7 @@ export default function Home() {
 
       {/* ヒーローセクション */}
       <section style={{
-        minHeight: '100vh', background: '#f0ead6',
+        minHeight: '100vh', background: '#000',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         paddingTop: 80, paddingBottom: 60, paddingLeft: 24, paddingRight: 24,
         position: 'relative', overflow: 'hidden',
@@ -69,57 +84,127 @@ export default function Home() {
           ))}
         </div>
 
+        {/* 背景ステージ画像（上下パン） */}
+        <div style={{
+          position: 'absolute', top: '-10%', bottom: '-10%', left: 0, right: 0,
+          zIndex: 0, pointerEvents: 'none',
+        }}>
+          <Image
+            src={bgImage}
+            alt=""
+            fill
+            style={{
+              objectFit: 'cover',
+              opacity: 1,
+              animation: 'stage-pan 12s ease-in-out infinite',
+              transformOrigin: 'center center',
+            }}
+          />
+        </div>
+
         {/* キャッチコピー */}
         <h1 style={{
           fontSize: 'clamp(28px, 6vw, 56px)', fontWeight: 900, color: '#2a4d00',
           textAlign: 'center', lineHeight: 1.2, marginBottom: 8,
-          textShadow: '0 2px 0 rgba(0,0,0,0.08)',
+          textShadow: '0 3px 12px rgba(0,0,0,0.6)',
+          position: 'relative', zIndex: 1, color: '#fff',
         }}>
           その手で、<br />世界を歩こう。
         </h1>
-        <p style={{ color: '#4e8a00', fontSize: 16, fontWeight: 'bold', marginBottom: 32, letterSpacing: 1 }}>
+        <p style={{ color: '#a8d870', fontSize: 16, fontWeight: 'bold', marginBottom: 32, letterSpacing: 1, position: 'relative', zIndex: 1 }}>
           3DパズルアクションゲームHandlime
         </p>
 
         {/* Handlimeタイトル画像 */}
-        <div style={{ marginBottom: 24, position: 'relative' }}>
+        <div style={{ marginBottom: 24, position: 'relative', zIndex: 1 }}>
           <Image
             src="/icons/Handlime_title.png"
             alt="Handlime"
-            width={420}
-            height={180}
+            width={700}
+            height={300}
             style={{ objectFit: 'contain', maxWidth: '90vw', height: 'auto', filter: 'drop-shadow(0 4px 12px rgba(42,77,0,0.3))' }}
             priority
           />
         </div>
 
         {/* スライムアイコン */}
-        <div style={{ marginBottom: 36 }}>
+        <div style={{ marginBottom: 36, position: 'relative', zIndex: 1 }}>
           <SlimeIcon size={100} />
         </div>
 
         {/* CTAボタン */}
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <a href="#handlime">
-            <button style={{
-              background: '#f0ead6', color: '#2a4d00', border: '4px solid #3d6e00',
-              borderRadius: 14, padding: '14px 32px', fontSize: 17, fontWeight: 'bold',
-              cursor: 'pointer', boxShadow: '0 5px 0 #3d6e00', fontFamily: 'inherit',
-              transition: 'transform 0.1s, box-shadow 0.1s',
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', position: 'relative', zIndex: 1 }}>
+          <button
+            onClick={() => setVideoOpen(true)}
+            style={{
+              background: 'linear-gradient(135deg, #9dd620 0%, #5a9e10 100%)',
+              color: '#fff', border: '2.5px solid #2a4d00',
+              borderRadius: 50, padding: '14px 32px', fontSize: 16, fontWeight: 'bold',
+              cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 0.5,
+              boxShadow: '0 6px 20px rgba(106,172,20,0.5), 0 2px 6px rgba(0,0,0,0.25)',
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+              transition: 'transform 0.15s, box-shadow 0.15s',
             }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(2px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 3px 0 #3d6e00' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = ''; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 5px 0 #3d6e00' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px) scale(1.04)'; e.currentTarget.style.boxShadow = '0 10px 28px rgba(106,172,20,0.65), 0 2px 6px rgba(0,0,0,0.25)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 6px 20px rgba(106,172,20,0.5), 0 2px 6px rgba(0,0,0,0.25)' }}
+          >
+            <span style={{ fontSize: 20, lineHeight: 1 }}>▶</span>
+            紹介動画
+          </button>
+          <a href="https://bonjory.booth.pm/" target="_blank" rel="noopener noreferrer">
+            <button
+              style={{
+                background: 'linear-gradient(135deg, #9dd620 0%, #5a9e10 100%)',
+                color: '#fff', border: '2.5px solid #2a4d00',
+                borderRadius: 50, padding: '14px 32px', fontSize: 16, fontWeight: 'bold',
+                cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 0.5,
+                boxShadow: '0 6px 20px rgba(106,172,20,0.5), 0 2px 6px rgba(0,0,0,0.25)',
+                display: 'inline-flex', alignItems: 'center', gap: 10,
+                transition: 'transform 0.15s, box-shadow 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px) scale(1.04)'; e.currentTarget.style.boxShadow = '0 10px 28px rgba(106,172,20,0.65), 0 2px 6px rgba(0,0,0,0.25)' }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 6px 20px rgba(106,172,20,0.5), 0 2px 6px rgba(0,0,0,0.25)' }}
             >
-              ゲームを見る
+              <ShoppingCart size={18} color="#fff" />BOOTHで購入
             </button>
           </a>
-          <Link href="/login">
-            <button className="game-button" style={{ width: 'auto', padding: '14px 32px', fontSize: 17 }}>
-              ログインする
-            </button>
-          </Link>
         </div>
       </section>
+
+      {/* 動画モーダル */}
+      {videoOpen && (
+        <div
+          onClick={() => setVideoOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ position: 'relative', width: '100%', maxWidth: 860 }}
+          >
+            <button
+              onClick={() => setVideoOpen(false)}
+              style={{
+                position: 'absolute', top: -40, right: 0,
+                background: 'none', border: 'none', color: '#fff',
+                fontSize: 28, cursor: 'pointer', lineHeight: 1,
+              }}
+            >✕</button>
+            <div style={{ position: 'relative', paddingTop: '56.25%', borderRadius: 12, overflow: 'hidden' }}>
+              <iframe
+                src="https://www.youtube.com/embed/e0sobJUyvEQ"
+                allow="encrypted-media"
+                allowFullScreen
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Handlime紹介セクション */}
       <section id="handlime" style={{

@@ -33,7 +33,7 @@ body {
 .game-card {
   background: #ffffff;
   border: 5px solid var(--green-dark);
-  border-radius: 20px;
+  border-radius: 10px;
   box-shadow: 0 8px 0 var(--green-dark), 0 12px 24px rgba(0, 0, 0, 0.25);
 }
 
@@ -387,6 +387,11 @@ body {
 @keyframes bon-block-in {
   from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes stage-pan {
+  0%,100% { transform: translateY(0%); }
+  50%     { transform: translateY(-8%); }
 }
 
 .bon-modal-overlay {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 import { marked } from 'marked'
@@ -1065,7 +1065,10 @@ export default function DashboardPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '20px 20px 16px', borderBottom: '2px solid #3d6e00',
         }}>
-          <span style={{ color: '#6aac14', fontWeight: 'bold', fontSize: 18, letterSpacing: 1 }}>
+          <span
+            onClick={() => router.push('/')}
+            style={{ color: '#6aac14', fontWeight: 'bold', fontSize: 18, letterSpacing: 1, cursor: 'pointer' }}
+          >
             BONJORY
           </span>
           <button onClick={() => setSidebarOpen(false)}
@@ -1539,6 +1542,7 @@ export default function DashboardPage() {
                 color: currentView === item.id ? '#fff' : '#a8d870',
                 transition: 'background 0.15s',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                whiteSpace: 'nowrap',
               }}>
                 <Icon name={item.icon} size={13}/>{item.label}
               </button>
@@ -1553,43 +1557,43 @@ export default function DashboardPage() {
           {/* ══ VIEW: 今週の課題 ════════════════════════════ */}
           {currentView === 'tasks' && (
             <>
-              <div className="game-card" style={{ padding: '28px 32px' }}>
-                <h2 className="game-title" style={{ fontSize: 20, marginBottom: 24 }}>今週のサイクル</h2>
-                <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: 20 }}>
+              <div style={{
+                background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)',
+                borderRadius: 10, padding: '24px 28px', position: 'relative', overflow: 'hidden',
+              }}>
+                <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
+                <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.12em', marginBottom: 4 }}>WEEKLY CYCLE</p>
+                <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', margin: '0 0 24px' }}>今週のサイクル</h2>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20, padding: '0 8px' }}>
                   {MILESTONES.map((m, idx) => {
                     const isActive = m.phase === todayPhase
                     const isPast   = MILESTONES.findIndex(x => x.phase === todayPhase) > idx
                     return (
-                      <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                        {idx < MILESTONES.length - 1 && (
+                      <Fragment key={m.key}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1 }}>
                           <div style={{
-                            position: 'absolute', top: 16, left: '50%', width: '100%', height: 4,
-                            background: isPast ? '#6aac14' : '#c8e89a', zIndex: 0,
-                          }} />
-                        )}
-                        <div className={isActive ? 'milestone-active' : ''} style={{
-                          width: 32, height: 32, borderRadius: '50%',
-                          background: isActive ? '#6aac14' : isPast ? '#3d6e00' : '#c8e89a',
-                          border: `4px solid ${isActive ? '#3d6e00' : isPast ? '#2a4d00' : '#8dc832'}`,
-                          zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 14, fontWeight: 'bold', color: 'white',
-                          boxShadow: isActive ? '0 0 0 4px rgba(106,172,20,0.3)' : 'none',
-                        }}>
-                          {m.day}
+                            width: 44, height: 44, borderRadius: '50%',
+                            background: isActive ? '#6aac14' : isPast ? 'rgba(106,172,20,0.35)' : 'rgba(255,255,255,0.08)',
+                            border: `2px solid ${isActive ? '#a8d870' : isPast ? '#6aac14' : 'rgba(255,255,255,0.2)'}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: isActive ? '0 0 18px rgba(106,172,20,0.55)' : 'none',
+                          }}>
+                            <span style={{ fontSize: 15, fontWeight: 'bold', color: isActive ? '#fff' : isPast ? '#a8d870' : 'rgba(255,255,255,0.35)' }}>{m.day}</span>
+                          </div>
+                          <p style={{ marginTop: 8, fontSize: 11, fontWeight: 'bold', color: isActive ? '#a8d870' : isPast ? '#6aac14' : 'rgba(255,255,255,0.3)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            {m.label}
+                          </p>
                         </div>
-                        <p style={{
-                          marginTop: 8, fontSize: 12,
-                          fontWeight: 'bold',
-                          color: isActive ? '#3d6e00' : '#6aac14', textAlign: 'center',
-                        }}>
-                          {m.label}
-                        </p>
-                      </div>
+                        {idx < MILESTONES.length - 1 && (
+                          <div style={{ flex: 1, height: 2, margin: '0 6px', marginBottom: 22, background: isPast ? '#6aac14' : 'rgba(255,255,255,0.12)' }} />
+                        )}
+                      </Fragment>
                     )
                   })}
                 </div>
-                <div style={{ background: '#f0fae0', border: '2px solid #6aac14', borderRadius: 12, padding: '12px 16px' }}>
-                  <p style={{ color: '#3d6e00', fontSize: 14, fontWeight: 'bold' }}>{currentMilestone.desc}</p>
+                <div style={{ background: 'rgba(106,172,20,0.15)', border: '1px solid rgba(106,172,20,0.35)', borderRadius: 8, padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6aac14', flexShrink: 0 }} />
+                  <p style={{ color: '#c8f0a0', fontSize: 13, fontWeight: 'bold', margin: 0 }}>{currentMilestone.desc}</p>
                 </div>
               </div>
 
@@ -1985,9 +1989,11 @@ export default function DashboardPage() {
           {/* ══ VIEW: 過去の課題 ════════════════════════════ */}
           {currentView === 'history' && (
             <>
-              <div className="game-card" style={{ padding: '24px 28px' }}>
-                <h2 className="game-title" style={{ fontSize: 22, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><BookOpen size={18}/>過去の課題</h2>
-                <p style={{ color: '#3d6e00', fontSize: 13, fontWeight: 'bold' }}>提出済みの課題履歴 — {submittedAssignments.length} 件</p>
+              <div style={{ background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)', borderRadius: 10, padding: '20px 28px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
+                <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.12em', marginBottom: 4 }}>HISTORY</p>
+                <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 8 }}><BookOpen size={18}/>過去の課題</h2>
+                <p style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, fontWeight: 'bold', margin: 0 }}>提出済みの課題履歴 — {submittedAssignments.length} 件</p>
               </div>
 
               {submittedAssignments.length === 0 ? (
@@ -2174,20 +2180,20 @@ export default function DashboardPage() {
             const displayList   = isCurrentView ? currentTimeline : pastTimeline
             return (
               <>
-                <div className="game-card" style={{ padding: '24px 28px' }}>
-                  <h2 className="game-title" style={{ fontSize: 22, marginBottom: 4 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      {isCurrentView ? <><Globe size={18}/>タイムライン</> : <><Archive size={18}/>過去のタイムライン</>}
-                    </span>
+                <div style={{ background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)', borderRadius: 10, padding: '20px 28px', position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
+                  <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.12em', marginBottom: 4 }}>{isCurrentView ? 'TIMELINE' : 'ARCHIVE'}</p>
+                  <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', margin: '0 0 4px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    {isCurrentView ? <><Globe size={18}/>タイムライン</> : <><Archive size={18}/>過去のタイムライン</>}
                   </h2>
-                  <p style={{ color: '#3d6e00', fontSize: 13, fontWeight: 'bold' }}>
+                  <p style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, fontWeight: 'bold', margin: 0 }}>
                     部員の提出作品 — {displayList.length} 件
                     {(timelineFilterCourse || timelineFilterStage) && ` (全${isCurrentView ? currentTimeline.length : pastTimeline.length}件中)`}
                   </p>
                 </div>
 
                 {/* フィルター・ソート */}
-                <div className="game-card" style={{ padding: '12px 16px' }}>
+                <div style={{ background: '#fff', border: '2px solid #3d6e00', borderRadius: 10, padding: '12px 16px' }}>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                     <select className="game-input" style={{ padding: '5px 10px', fontSize: 12, width: 'auto' }}
                       value={timelineSort} onChange={e => setTimelineSort(e.target.value as 'newest' | 'oldest')}>
