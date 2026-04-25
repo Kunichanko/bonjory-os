@@ -104,7 +104,7 @@ export default function Home() {
 
         {/* キャッチコピー */}
         <h1 style={{
-          fontSize: 'clamp(28px, 6vw, 56px)', fontWeight: 900, color: '#2a4d00',
+          fontSize: 'clamp(28px, 6vw, 56px)', fontWeight: 900,
           textAlign: 'center', lineHeight: 1.2, marginBottom: 8,
           textShadow: '0 3px 12px rgba(0,0,0,0.6)',
           position: 'relative', zIndex: 1, color: '#fff',
