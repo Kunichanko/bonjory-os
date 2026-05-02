@@ -15,6 +15,7 @@ interface Task {
   target_course: string | null
   target_stage: string | null
   is_active: boolean
+  is_public: boolean
   created_at: string
   progress_number: number | null
   allow_image_attachment: boolean
@@ -83,6 +84,7 @@ export default function AdminTasksPage() {
   const [targetStage, setTargetStage]         = useState('')
   const [progressNumber, setProgressNumber]   = useState('')
   const [allowImageAttachment, setAllowImageAttachment] = useState(true)
+  const [isPublic, setIsPublic]                         = useState(false)
 
   // 編集状態
   const [editingId, setEditingId]                         = useState<string | null>(null)
@@ -93,6 +95,7 @@ export default function AdminTasksPage() {
   const [editTargetStage, setEditTargetStage]             = useState('')
   const [editProgressNumber, setEditProgressNumber]       = useState('')
   const [editAllowImageAttachment, setEditAllowImageAttachment] = useState(true)
+  const [editIsPublic, setEditIsPublic]                   = useState(false)
   const [editSaving, setEditSaving]                       = useState(false)
   const [editError, setEditError]                         = useState<string | null>(null)
 
@@ -151,7 +154,7 @@ export default function AdminTasksPage() {
         const [{ data: taskList, error: listError }, { data: initList }] = await Promise.all([
           supabase
             .from('tasks')
-            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, created_at, progress_number, allow_image_attachment')
+            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, is_public, created_at, progress_number, allow_image_attachment')
             .order('created_at', { ascending: false }),
           supabase.from('course_initial_tasks').select('course, task_id'),
         ])
@@ -195,6 +198,7 @@ export default function AdminTasksPage() {
         created_by: authData?.user?.id,
         is_active: true,
         allow_image_attachment: allowImageAttachment,
+        is_public: isPublic,
       })
       .select()
       .single()
@@ -210,6 +214,7 @@ export default function AdminTasksPage() {
       setTargetStage('')
       setProgressNumber('')
       setAllowImageAttachment(true)
+      setIsPublic(false)
       setSuccess('課題を作成しました！')
     }
     setSubmitting(false)
@@ -224,6 +229,7 @@ export default function AdminTasksPage() {
     setEditTargetStage(task.target_stage ?? '')
     setEditProgressNumber(task.progress_number != null ? String(task.progress_number) : '')
     setEditAllowImageAttachment(task.allow_image_attachment ?? true)
+    setEditIsPublic(task.is_public ?? false)
     setEditError(null)
   }
 
@@ -247,6 +253,7 @@ export default function AdminTasksPage() {
         target_stage: editTargetStage || null,
         progress_number: editProgressNumber !== '' ? parseFloat(editProgressNumber) : null,
         allow_image_attachment: editAllowImageAttachment,
+        is_public: editIsPublic,
       })
       .eq('id', editingId)
 
@@ -262,6 +269,7 @@ export default function AdminTasksPage() {
         target_stage: editTargetStage || null,
         progress_number: editProgressNumber !== '' ? parseFloat(editProgressNumber) : null,
         allow_image_attachment: editAllowImageAttachment,
+        is_public: editIsPublic,
       } : t))
       setEditingId(null)
     }
@@ -386,6 +394,17 @@ export default function AdminTasksPage() {
 
     if (!error) {
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, is_active: !current } : t))
+    }
+  }
+
+  async function togglePublic(taskId: string, current: boolean) {
+    const { error } = await supabase
+      .from('tasks')
+      .update({ is_public: !current })
+      .eq('id', taskId)
+
+    if (!error) {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, is_public: !current } : t))
     }
   }
 
@@ -525,7 +544,7 @@ export default function AdminTasksPage() {
               </div>
             </div>
 
-            <div>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
                 <div
                   onClick={() => setAllowImageAttachment(!allowImageAttachment)}
@@ -541,6 +560,23 @@ export default function AdminTasksPage() {
                 </div>
                 <span style={{ fontSize: 13, color: allowImageAttachment ? '#2d5500' : '#888', fontWeight: allowImageAttachment ? 'bold' : 'normal' }}>
                   画像の添付を許可する
+                </span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                <div
+                  onClick={() => setIsPublic(!isPublic)}
+                  style={{
+                    width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s',
+                    background: isPublic ? '#6aac14' : '#ccc', flexShrink: 0,
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 2, left: isPublic ? 18 : 2, width: 16, height: 16,
+                    borderRadius: '50%', background: 'white', transition: 'left 0.2s',
+                  }} />
+                </div>
+                <span style={{ fontSize: 13, color: isPublic ? '#2d5500' : '#888', fontWeight: isPublic ? 'bold' : 'normal' }}>
+                  課題一覧に公開する
                 </span>
               </label>
             </div>
@@ -845,6 +881,9 @@ export default function AdminTasksPage() {
                           <span style={{ background: '#3d6e00', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                             {task.target_stage ?? '全ステージ'}
                           </span>
+                          <span style={{ background: task.is_public ? '#2196f3' : '#9e9e9e', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            {task.is_public ? '公開' : '非公開'}
+                          </span>
                           {!task.is_active && (
                             <span style={{ background: '#999', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>停止中</span>
                           )}
@@ -919,23 +958,42 @@ export default function AdminTasksPage() {
                                   />
                                 </div>
                               </div>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
-                                <div
-                                  onClick={() => setEditAllowImageAttachment(!editAllowImageAttachment)}
-                                  style={{
-                                    width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s',
-                                    background: editAllowImageAttachment ? '#6aac14' : '#ccc', flexShrink: 0,
-                                  }}
-                                >
-                                  <div style={{
-                                    position: 'absolute', top: 2, left: editAllowImageAttachment ? 18 : 2, width: 16, height: 16,
-                                    borderRadius: '50%', background: 'white', transition: 'left 0.2s',
-                                  }} />
-                                </div>
-                                <span style={{ fontSize: 13, color: editAllowImageAttachment ? '#2d5500' : '#888', fontWeight: editAllowImageAttachment ? 'bold' : 'normal' }}>
-                                  画像の添付を許可する
-                                </span>
-                              </label>
+                              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                                  <div
+                                    onClick={() => setEditAllowImageAttachment(!editAllowImageAttachment)}
+                                    style={{
+                                      width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s',
+                                      background: editAllowImageAttachment ? '#6aac14' : '#ccc', flexShrink: 0,
+                                    }}
+                                  >
+                                    <div style={{
+                                      position: 'absolute', top: 2, left: editAllowImageAttachment ? 18 : 2, width: 16, height: 16,
+                                      borderRadius: '50%', background: 'white', transition: 'left 0.2s',
+                                    }} />
+                                  </div>
+                                  <span style={{ fontSize: 13, color: editAllowImageAttachment ? '#2d5500' : '#888', fontWeight: editAllowImageAttachment ? 'bold' : 'normal' }}>
+                                    画像の添付を許可する
+                                  </span>
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                                  <div
+                                    onClick={() => setEditIsPublic(!editIsPublic)}
+                                    style={{
+                                      width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s',
+                                      background: editIsPublic ? '#6aac14' : '#ccc', flexShrink: 0,
+                                    }}
+                                  >
+                                    <div style={{
+                                      position: 'absolute', top: 2, left: editIsPublic ? 18 : 2, width: 16, height: 16,
+                                      borderRadius: '50%', background: 'white', transition: 'left 0.2s',
+                                    }} />
+                                  </div>
+                                  <span style={{ fontSize: 13, color: editIsPublic ? '#2d5500' : '#888', fontWeight: editIsPublic ? 'bold' : 'normal' }}>
+                                    課題一覧に公開する
+                                  </span>
+                                </label>
+                              </div>
                               {editError && <div className="game-error" style={{ fontSize: 12 }}>{editError}</div>}
                               <div style={{ display: 'flex', gap: 8 }}>
                                 <button
@@ -966,6 +1024,12 @@ export default function AdminTasksPage() {
                                   style={{ padding: '6px 14px', borderRadius: 8, border: `2px solid ${task.is_active ? '#c0392b' : '#6aac14'}`, background: task.is_active ? '#fdecea' : '#e8ffd4', color: task.is_active ? '#c0392b' : '#1a6e00', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
                                 >
                                   {task.is_active ? '停止する' : '有効にする'}
+                                </button>
+                                <button
+                                  onClick={() => togglePublic(task.id, task.is_public)}
+                                  style={{ padding: '6px 14px', borderRadius: 8, border: `2px solid ${task.is_public ? '#1565c0' : '#2196f3'}`, background: task.is_public ? '#e3f2fd' : '#fff', color: task.is_public ? '#1565c0' : '#1976d2', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
+                                >
+                                  {task.is_public ? '非公開にする' : '公開する'}
                                 </button>
                                 <button
                                   onClick={() => handleDelete(task.id, task.title)}

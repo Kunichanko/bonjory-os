@@ -1093,6 +1093,18 @@ export default function DashboardPage() {
               {item.label}
             </button>
           ))}
+          <a href="/task-list" style={{ textDecoration: 'none', display: 'block' }}>
+            <button style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              width: '100%', padding: '12px 20px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#a8d870', fontSize: 15, textAlign: 'left', transition: 'background 0.15s',
+            }}>
+              <List size={18}/>
+              課題一覧
+            </button>
+          </a>
+
           <button onClick={() => navigate('past_timeline')} style={{
             display: 'flex', alignItems: 'center', gap: 12,
             width: '100%', padding: '12px 20px',
@@ -1898,6 +1910,16 @@ export default function DashboardPage() {
                   </div>
                 )
               })}
+
+              {/* ── 課題一覧ボタン ─────────────────────────── */}
+              <a href="/task-list" style={{ textDecoration: 'none' }}>
+                <button className="game-button" style={{
+                  width: '100%', padding: '12px', fontSize: 15,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}>
+                  <List size={16}/>課題一覧
+                </button>
+              </a>
 
               {/* ══ 今週の課題チケット ══════════════════════ */}
               {activeTicket !== undefined && ticketTypes.length > 0 && (() => {
