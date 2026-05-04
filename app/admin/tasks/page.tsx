@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { marked } from 'marked'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
-import { Film, Tag } from 'lucide-react'
+import { ClipboardList } from 'lucide-react'
 
 interface Task {
   id: string
@@ -102,6 +102,9 @@ export default function AdminTasksPage() {
   // 初期課題設定
   const [initialTasks, setInitialTasks]       = useState<Record<string, string>>({})
   const [initialSaving, setInitialSaving]     = useState<string | null>(null)
+
+  // 新規作成アコーディオン
+  const [createOpen, setCreateOpen]         = useState(false)
 
   // AI 課題生成
   const [aiOpen, setAiOpen]                             = useState(false)
@@ -421,64 +424,39 @@ export default function AdminTasksPage() {
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
 
         {/* ヘッダー */}
-        <div className="game-card" style={{ padding: '24px 32px', marginBottom: 24 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <h1 className="game-title" style={{ fontSize: 32 }}>課題管理</h1>
-              <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>
-                課題数: {tasks.length} 件
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {(userRole === 'admin' || effectivePerms.course_management) && (
-                <a href="/admin">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                    部員管理
-                  </button>
-                </a>
-              )}
-              {(userRole === 'admin' || effectivePerms.submission_review) && (
-                <a href="/admin/submissions">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                    提出状況
-                  </button>
-                </a>
-              )}
-              {(userRole === 'admin' || effectivePerms.point_settings) && (
-                <a href="/admin/points">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15 }}>
-                    ポイント設定
-                  </button>
-                </a>
-              )}
-              {(userRole === 'admin' || effectivePerms.timeline_management) && (
-                <a href="/admin/timeline">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <Film size={14}/>タイムライン管理
-                  </button>
-                </a>
-              )}
-              {userRole === 'admin' && (
-                <a href="/admin/positions">
-                  <button className="game-button" style={{ width: 'auto', padding: '8px 20px', fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <Tag size={14}/>役職管理
-                  </button>
-                </a>
-              )}
-              <button
-                className="game-button"
-                style={{ width: 'auto', padding: '8px 20px', fontSize: 15, background: '#888', borderColor: '#555' }}
-                onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
-              >
-                ログアウト
-              </button>
-            </div>
-          </div>
+        <div style={{
+          background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)',
+          borderRadius: 10, padding: '24px 32px', marginBottom: 24,
+          position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
+          <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.14em', margin: '0 0 6px' }}>TASK MANAGEMENT</p>
+          <h1 style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ClipboardList size={24} />課題管理
+          </h1>
+          <p style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, fontWeight: 'bold', margin: 0 }}>
+            課題数: {tasks.length} 件
+          </p>
         </div>
 
         {/* 課題作成フォーム */}
-        <div className="game-card" style={{ padding: '28px 32px', marginBottom: 24 }}>
-          <h2 className="game-title" style={{ fontSize: 22, marginBottom: 20 }}>新しい課題を作成</h2>
+        <div className="game-card" style={{ padding: '0', marginBottom: 24, overflow: 'hidden' }}>
+          <div
+            onClick={() => setCreateOpen(o => !o)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '18px 28px',
+              cursor: 'pointer', userSelect: 'none',
+            }}
+          >
+            <span style={{
+              fontSize: 13, color: createOpen ? '#6aac14' : '#888',
+              transform: createOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s', display: 'inline-block', flexShrink: 0,
+            }}>▶</span>
+            <span className="game-title" style={{ fontSize: 20, flex: 1 }}>新しい課題を作成</span>
+          </div>
+          {createOpen && (
+          <div style={{ borderTop: '1px solid #d4f0a0', padding: '20px 28px' }}>
           <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
               <label className="game-label">課題タイトル *</label>
@@ -588,6 +566,8 @@ export default function AdminTasksPage() {
             {error   && <div className="game-error">{error}</div>}
             {success && <div className="game-success">{success}</div>}
           </form>
+          </div>
+          )}
         </div>
 
         {/* AI 課題生成 */}
