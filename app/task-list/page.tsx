@@ -196,6 +196,12 @@ export default function TaskListPage() {
         </div>
 
         {/* 課題リスト */}
+        <style>{`
+          @keyframes taskSlideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+        `}</style>
         {tasks.length === 0 ? (
           <div className="game-card" style={{ padding: '32px', textAlign: 'center' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
@@ -204,58 +210,139 @@ export default function TaskListPage() {
             <p style={{ color: '#6aac14', fontSize: 15 }}>公開されている課題はまだありません</p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {tasks.map(task => {
               const state = getAssignmentState(task.id)
               const isOpen = expandedId === task.id
               const busy = operating[task.id] ?? false
 
+              const cardBorder =
+                state === 'submitted' ? '2px solid #3d6e00' :
+                state === 'active'    ? '2px solid #6aac14' :
+                                        '2px solid #c8e890'
+              const headerBg =
+                isOpen               ? '#f8fff0' :
+                state === 'submitted' ? 'linear-gradient(100deg, #1a3a00 0%, #2d5500 55%, #3a6800 100%)' :
+                state === 'active'    ? 'linear-gradient(100deg, #edfff2 0%, #f8fff8 100%)' :
+                                        '#ffffff'
+              const chevronColor =
+                state === 'submitted' && !isOpen ? '#a8d870' :
+                state === 'active'    && !isOpen ? '#6aac14' :
+                                                    '#6aac14'
+              const titleColor =
+                state === 'submitted' && !isOpen ? '#e8ffd4' :
+                                                    '#2d5500'
+              const numColor =
+                state === 'submitted' && !isOpen ? '#a8d870' : '#6aac14'
+              const stateLabel =
+                state === 'submitted' ? 'COMPLETED' :
+                state === 'active'    ? 'IN PROGRESS' :
+                                        null
+
               return (
-                <div key={task.id} className="game-card" style={{ padding: 0, overflow: 'hidden' }}>
-                  {/* アコーディオンヘッダー */}
+                <div
+                  key={task.id}
+                  style={{
+                    border: cardBorder, borderRadius: 12, overflow: 'hidden',
+                    transition: 'border-color 0.3s, box-shadow 0.3s',
+                    boxShadow: isOpen ? '0 4px 16px rgba(61,110,0,0.13)' : '0 1px 4px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  {/* ヘッダー */}
                   <div
                     onClick={() => setExpandedId(isOpen ? null : task.id)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '14px 20px', cursor: 'pointer', userSelect: 'none',
+                      padding: '13px 18px', cursor: 'pointer', userSelect: 'none',
+                      background: headerBg,
+                      transition: 'background 0.35s ease',
+                      position: 'relative', overflow: 'hidden',
                     }}
                   >
+                    {/* 装飾円（submitted / active） */}
+                    {state !== 'none' && !isOpen && (
+                      <div style={{
+                        position: 'absolute', top: -24, right: -8, width: 90, height: 90,
+                        borderRadius: '50%', pointerEvents: 'none',
+                        background: state === 'submitted'
+                          ? 'radial-gradient(circle, rgba(168,216,112,0.22) 0%, transparent 70%)'
+                          : 'radial-gradient(circle, rgba(106,172,20,0.15) 0%, transparent 70%)',
+                      }} />
+                    )}
+
+                    {/* シェブロン */}
                     <span style={{
-                      fontSize: 13, color: '#6aac14', flexShrink: 0,
-                      display: 'inline-block',
+                      fontSize: 12, flexShrink: 0, display: 'inline-block',
                       transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.2s',
+                      transition: 'transform 0.25s ease, color 0.3s',
+                      color: chevronColor,
                     }}>▶</span>
+
+                    {/* テキスト */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 15, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {stateLabel && !isOpen && (
+                        <p style={{
+                          fontSize: 9, fontWeight: 'bold', letterSpacing: '0.14em', margin: '0 0 2px',
+                          color: state === 'submitted' ? '#6aac14' : '#3d8a00',
+                          transition: 'color 0.3s',
+                        }}>{stateLabel}</p>
+                      )}
+                      <p style={{
+                        fontWeight: 'bold', fontSize: 15, margin: 0,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        color: titleColor, transition: 'color 0.35s ease',
+                      }}>
                         {task.progress_number != null && (
-                          <span style={{ color: '#6aac14', marginRight: 6 }}>#{task.progress_number}</span>
+                          <span style={{ marginRight: 6, transition: 'color 0.35s', color: numColor }}>
+                            #{task.progress_number}
+                          </span>
                         )}
                         {task.title}
                       </p>
                     </div>
+
+                    {/* バッジ */}
                     {state === 'submitted' && (
-                      <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 12, padding: '3px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <CheckCircle2 size={12}/>提出済み
+                      <span style={{
+                        borderRadius: 12, padding: '3px 10px', fontSize: 11, fontWeight: 'bold',
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        transition: 'background 0.35s, color 0.35s, border-color 0.35s',
+                        ...(isOpen
+                          ? { background: '#d4f5c8', color: '#1a6e00', border: '1px solid #b0d880' }
+                          : { background: 'rgba(168,216,112,0.18)', color: '#a8d870', border: '1px solid rgba(168,216,112,0.35)' }
+                        ),
+                      }}>
+                        <CheckCircle2 size={11}/>提出済み
                       </span>
                     )}
                     {state === 'active' && (
-                      <span style={{ background: '#d4f0a0', color: '#3d6e00', borderRadius: 12, padding: '3px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      <span style={{
+                        background: isOpen ? '#d4f0a0' : '#6aac14',
+                        color: isOpen ? '#3d6e00' : '#fff',
+                        borderRadius: 12, padding: '3px 10px', fontSize: 11, fontWeight: 'bold',
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                        transition: 'background 0.35s, color 0.35s',
+                      }}>
                         アサイン中
                       </span>
                     )}
                   </div>
 
-                  {/* アコーディオン展開部分 */}
+                  {/* 展開コンテンツ */}
                   {isOpen && (
-                    <div style={{ borderTop: '2px solid #d4f0a0', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      {/* タイトル */}
+                    <div style={{
+                      borderTop: '2px solid #d4f0a0',
+                      padding: '16px 20px',
+                      display: 'flex', flexDirection: 'column', gap: 14,
+                      background: '#f8fff0',
+                      animation: 'taskSlideDown 0.22s ease',
+                    }}>
                       <div>
                         <p style={{ color: '#6aac14', fontSize: 11, fontWeight: 'bold', letterSpacing: '0.1em', margin: '0 0 4px' }}>タイトル</p>
                         <p style={{ color: '#2d5500', fontSize: 16, fontWeight: 'bold', margin: 0 }}>{task.title}</p>
                       </div>
 
-                      {/* 課題内容 */}
                       <div>
                         <p style={{ color: '#6aac14', fontSize: 11, fontWeight: 'bold', letterSpacing: '0.1em', margin: '0 0 6px' }}>課題内容</p>
                         {task.description ? (
@@ -273,12 +360,10 @@ export default function TaskListPage() {
                         )}
                       </div>
 
-                      {/* エラー表示 */}
                       {opError[task.id] && (
                         <div className="game-error">{opError[task.id]}</div>
                       )}
 
-                      {/* アクションボタン */}
                       <div>
                         {state === 'submitted' ? (
                           <button

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { marked } from 'marked'
 import supabase from '../../../lib/supabase'
@@ -19,6 +19,21 @@ interface Task {
   created_at: string
   progress_number: number | null
   allow_image_attachment: boolean
+}
+
+interface AiTaskTheme {
+  id: string
+  content: string
+  gen_type: string | null
+  created_at: string
+}
+
+interface TaskCourse {
+  id: string
+  name: string
+  target_course: string | null
+  target_stage:  string | null
+  created_at:    string
 }
 
 const COURSE_OPTIONS = [
@@ -106,15 +121,41 @@ export default function AdminTasksPage() {
   // 新規作成アコーディオン
   const [createOpen, setCreateOpen]         = useState(false)
 
+  // コース管理
+  const [courses, setCourses]                   = useState<TaskCourse[]>([])
+  const [courseOpen, setCourseOpen]             = useState(false)
+  const [courseExpandedId, setCourseExpandedId] = useState<string | null>(null)
+  const [courseTaskOrders, setCourseTaskOrders] = useState<Record<string, string[]>>({})
+  const [taskCourseMap, setTaskCourseMap]       = useState<Record<string, string>>({})
+  const courseSavingRef                         = useRef(false)
+  const saveOrderTimers                         = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const [editingCourseId, setEditingCourseId]   = useState<string | null>(null)
+  const [editingCourseName, setEditingCourseName] = useState('')
+
+  // コース作成フォーム
+  const [newCourseName, setNewCourseName]     = useState('')
+  const [newCourseTarget, setNewCourseTarget] = useState('')
+  const [newCourseStage, setNewCourseStage]   = useState('')
+
   // AI 課題生成
-  const [aiOpen, setAiOpen]                             = useState(false)
-  const [aiCourse, setAiCourse]                         = useState('')
-  const [aiStage, setAiStage]                           = useState('')
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiCourse, setAiCourse] = useState<string>(() => {
+    try { return JSON.parse(localStorage.getItem('admin-ai-settings') ?? '{}').aiCourse ?? '' } catch { return '' }
+  })
+  const [aiStage, setAiStage] = useState<string>(() => {
+    try { return JSON.parse(localStorage.getItem('admin-ai-settings') ?? '{}').aiStage ?? '' } catch { return '' }
+  })
   const [aiTheme, setAiTheme]                           = useState('')
-  const [aiGenType, setAiGenType]                       = useState<'sequential' | 'individual' | 'event' | 'custom'>('individual')
+  const [aiGenType, setAiGenType] = useState<'sequential' | 'individual' | 'event' | 'custom'>(() => {
+    try { return JSON.parse(localStorage.getItem('admin-ai-settings') ?? '{}').aiGenType ?? 'individual' } catch { return 'individual' }
+  })
   const [aiInputTaskIds, setAiInputTaskIds]             = useState<string[]>([])
-  const [aiUseMarkdown, setAiUseMarkdown]               = useState(true)
-  const [aiAutoProgress, setAiAutoProgress]             = useState(true)
+  const [aiUseMarkdown, setAiUseMarkdown] = useState<boolean>(() => {
+    try { const v = JSON.parse(localStorage.getItem('admin-ai-settings') ?? '{}').aiUseMarkdown; return v === undefined ? true : v } catch { return true }
+  })
+  const [aiAutoProgress, setAiAutoProgress] = useState<boolean>(() => {
+    try { const v = JSON.parse(localStorage.getItem('admin-ai-settings') ?? '{}').aiAutoProgress; return v === undefined ? true : v } catch { return true }
+  })
   const [aiGenerating, setAiGenerating]                 = useState(false)
   const [aiError, setAiError]                           = useState<string | null>(null)
   const [aiResultTitle, setAiResultTitle]               = useState('')
@@ -122,13 +163,28 @@ export default function AdminTasksPage() {
   const [aiResultMarkdown, setAiResultMarkdown]         = useState(true)
   const [aiSubmitting, setAiSubmitting]                 = useState(false)
   const [aiSuccess, setAiSuccess]                       = useState<string | null>(null)
+  const [savedThemes, setSavedThemes]                   = useState<AiTaskTheme[]>([])
+  const [themeSaving, setThemeSaving]                   = useState(false)
+  const [themeSaveSuccess, setThemeSaveSuccess]         = useState(false)
+  const themesLoadedRef                                 = useRef(false)
 
   // アコーディオン & フィルター
-  const [expandedId, setExpandedId]           = useState<string | null>(null)
-  const [filterText, setFilterText]           = useState('')
-  const [filterCourse, setFilterCourse]       = useState('')
-  const [filterStage, setFilterStage]         = useState('')
-  const [filterActive, setFilterActive]       = useState<'all' | 'active' | 'inactive'>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [filterText, setFilterText] = useState<string>(() => {
+    try { return JSON.parse(localStorage.getItem('admin-tasks-filters') ?? '{}').filterText ?? '' } catch { return '' }
+  })
+  const [filterCourse, setFilterCourse] = useState<string>(() => {
+    try { return JSON.parse(localStorage.getItem('admin-tasks-filters') ?? '{}').filterCourse ?? '' } catch { return '' }
+  })
+  const [filterStage, setFilterStage] = useState<string>(() => {
+    try { return JSON.parse(localStorage.getItem('admin-tasks-filters') ?? '{}').filterStage ?? '' } catch { return '' }
+  })
+  const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>(() => {
+    try { return JSON.parse(localStorage.getItem('admin-tasks-filters') ?? '{}').filterActive ?? 'all' } catch { return 'all' }
+  })
+  const [filterCustomCourse, setFilterCustomCourse] = useState<string>(() => {
+    try { return JSON.parse(localStorage.getItem('admin-tasks-filters') ?? '{}').filterCustomCourse ?? '' } catch { return '' }
+  })
 
   const [userRole, setUserRole]         = useState<string | null>(null)
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
@@ -154,12 +210,19 @@ export default function AdminTasksPage() {
         if (me.role !== 'admin' && !perms.task_management) { router.replace('/dashboard'); return }
         if (mounted) { setUserRole(me.role); setEffectivePerms(perms) }
 
-        const [{ data: taskList, error: listError }, { data: initList }] = await Promise.all([
+        const [
+          { data: taskList, error: listError },
+          { data: initList },
+          { data: courseList },
+          { data: assignList },
+        ] = await Promise.all([
           supabase
             .from('tasks')
             .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, is_public, created_at, progress_number, allow_image_attachment')
             .order('created_at', { ascending: false }),
           supabase.from('course_initial_tasks').select('course, task_id'),
+          supabase.from('task_courses').select('id, name, target_course, target_stage, created_at').order('created_at'),
+          supabase.from('task_course_assignments').select('task_course_id, task_id, sort_order').order('sort_order'),
         ])
         if (listError) throw listError
         if (mounted) {
@@ -167,6 +230,16 @@ export default function AdminTasksPage() {
           const map: Record<string, string> = {}
           for (const row of (initList ?? [])) map[row.course] = row.task_id
           setInitialTasks(map)
+          setCourses(courseList ?? [])
+          const orderMap: Record<string, string[]> = {}
+          const tcMap: Record<string, string> = {}
+          for (const row of (assignList ?? [])) {
+            if (!orderMap[row.task_course_id]) orderMap[row.task_course_id] = []
+            orderMap[row.task_course_id].push(row.task_id)
+            tcMap[row.task_id] = row.task_course_id
+          }
+          setCourseTaskOrders(orderMap)
+          setTaskCourseMap(tcMap)
         }
       } catch (err: any) {
         const msg = err?.message ?? err?.details ?? JSON.stringify(err)
@@ -180,6 +253,43 @@ export default function AdminTasksPage() {
     init()
     return () => { mounted = false }
   }, [router])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin-tasks-filters', JSON.stringify({
+        filterText, filterCourse, filterStage, filterActive, filterCustomCourse,
+      }))
+    } catch {}
+  }, [filterText, filterCourse, filterStage, filterActive, filterCustomCourse])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin-ai-settings', JSON.stringify({
+        aiCourse, aiStage, aiGenType, aiUseMarkdown, aiAutoProgress,
+      }))
+    } catch {}
+  }, [aiCourse, aiStage, aiGenType, aiUseMarkdown, aiAutoProgress])
+
+  useEffect(() => {
+    if (!aiOpen || themesLoadedRef.current) return
+    themesLoadedRef.current = true
+    supabase
+      .from('ai_task_themes')
+      .select('id, content, gen_type, created_at')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setSavedThemes(data) })
+  }, [aiOpen])
+
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (courseSavingRef.current) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [])
 
   async function handleCreate(e: { preventDefault(): void }) {
     e.preventDefault()
@@ -389,6 +499,23 @@ export default function AdminTasksPage() {
     setAiSubmitting(false)
   }
 
+  async function handleSaveTheme() {
+    if (!aiTheme.trim()) return
+    setThemeSaving(true)
+    const { data: authData } = await supabase.auth.getUser()
+    const { data: saved } = await supabase
+      .from('ai_task_themes')
+      .insert({ content: aiTheme.trim(), gen_type: aiGenType, created_by: authData?.user?.id })
+      .select('id, content, gen_type, created_at')
+      .single()
+    if (saved) {
+      setSavedThemes(prev => [saved, ...prev])
+      setThemeSaveSuccess(true)
+      setTimeout(() => setThemeSaveSuccess(false), 2000)
+    }
+    setThemeSaving(false)
+  }
+
   async function toggleActive(taskId: string, current: boolean) {
     const { error } = await supabase
       .from('tasks')
@@ -408,6 +535,117 @@ export default function AdminTasksPage() {
 
     if (!error) {
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, is_public: !current } : t))
+    }
+  }
+
+  async function handleCreateCourse() {
+    if (!newCourseName.trim()) return
+    const { data: authData } = await supabase.auth.getUser()
+    const { data: created, error } = await supabase
+      .from('task_courses')
+      .insert({
+        name:          newCourseName.trim(),
+        target_course: newCourseTarget || null,
+        target_stage:  newCourseStage  || null,
+        created_by:    authData?.user?.id,
+      })
+      .select('id, name, target_course, target_stage, created_at')
+      .single()
+    if (!error && created) {
+      setCourses(prev => [...prev, created])
+      setCourseTaskOrders(prev => ({ ...prev, [created.id]: [] }))
+      setNewCourseName('')
+      setNewCourseTarget('')
+      setNewCourseStage('')
+    }
+  }
+
+  async function saveOrderToDb(courseId: string, taskIds: string[]) {
+    courseSavingRef.current = true
+    const upserts = taskIds.map((taskId, i) => ({
+      task_course_id: courseId,
+      task_id:        taskId,
+      sort_order:     i,
+    }))
+    await supabase
+      .from('task_course_assignments')
+      .upsert(upserts, { onConflict: 'task_course_id,task_id' })
+    courseSavingRef.current = false
+  }
+
+  function handleMoveTask(courseId: string, taskId: string, dir: 'up' | 'down') {
+    setCourseTaskOrders(prev => {
+      const current = [...(prev[courseId] ?? [])]
+      const idx = current.indexOf(taskId)
+      if (idx < 0) return prev
+      if (dir === 'up'   && idx === 0)                  return prev
+      if (dir === 'down' && idx === current.length - 1) return prev
+      const swapIdx = dir === 'up' ? idx - 1 : idx + 1
+      ;[current[idx], current[swapIdx]] = [current[swapIdx], current[idx]]
+      const next = { ...prev, [courseId]: current }
+      if (saveOrderTimers.current[courseId]) clearTimeout(saveOrderTimers.current[courseId])
+      saveOrderTimers.current[courseId] = setTimeout(() => saveOrderToDb(courseId, current), 300)
+      return next
+    })
+  }
+
+  async function handleCourseAssign(taskId: string, courseId: string) {
+    const prevCourseId = taskCourseMap[taskId]
+    setTaskCourseMap(prev => {
+      const next = { ...prev }
+      if (courseId) next[taskId] = courseId
+      else delete next[taskId]
+      return next
+    })
+    setCourseTaskOrders(prev => {
+      const next = { ...prev }
+      if (prevCourseId && next[prevCourseId]) {
+        next[prevCourseId] = next[prevCourseId].filter(id => id !== taskId)
+      }
+      if (courseId) {
+        next[courseId] = [...(next[courseId] ?? []), taskId]
+      }
+      return next
+    })
+    if (prevCourseId) {
+      await supabase.from('task_course_assignments')
+        .delete()
+        .eq('task_course_id', prevCourseId)
+        .eq('task_id', taskId)
+    }
+    if (courseId) {
+      const sortOrder = courseTaskOrders[courseId]?.length ?? 0
+      await supabase.from('task_course_assignments')
+        .upsert(
+          { task_course_id: courseId, task_id: taskId, sort_order: sortOrder },
+          { onConflict: 'task_course_id,task_id' }
+        )
+    }
+  }
+
+  async function handleRenameCourse(courseId: string) {
+    const name = editingCourseName.trim()
+    if (!name) return
+    const { error } = await supabase.from('task_courses').update({ name }).eq('id', courseId)
+    if (!error) {
+      setCourses(prev => prev.map(c => c.id === courseId ? { ...c, name } : c))
+      setEditingCourseId(null)
+    }
+  }
+
+  async function handleDeleteCourse(courseId: string, courseName: string) {
+    if (!window.confirm(`「${courseName}」を削除しますか？\n課題自体は削除されません。`)) return
+    const { error } = await supabase.from('task_courses').delete().eq('id', courseId)
+    if (!error) {
+      setCourses(prev => prev.filter(c => c.id !== courseId))
+      setCourseTaskOrders(prev => { const n = { ...prev }; delete n[courseId]; return n })
+      setTaskCourseMap(prev => {
+        const n = { ...prev }
+        for (const tid of Object.keys(n)) { if (n[tid] === courseId) delete n[tid] }
+        return n
+      })
+      if (filterCustomCourse === courseId) setFilterCustomCourse('')
+      setCourseExpandedId(null)
     }
   }
 
@@ -437,6 +675,169 @@ export default function AdminTasksPage() {
           <p style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, fontWeight: 'bold', margin: 0 }}>
             課題数: {tasks.length} 件
           </p>
+        </div>
+
+        {/* コース管理 */}
+        <div className="game-card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
+          <div
+            onClick={() => setCourseOpen(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '18px 28px', cursor: 'pointer', userSelect: 'none' }}
+          >
+            <span style={{
+              fontSize: 13, color: courseOpen ? '#6aac14' : '#888',
+              transform: courseOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s', display: 'inline-block', flexShrink: 0,
+            }}>▶</span>
+            <span className="game-title" style={{ fontSize: 20, flex: 1 }}>コース管理</span>
+          </div>
+
+          {courseOpen && (
+            <div style={{ borderTop: '1px solid #d4f0a0', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* コース作成フォーム */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ flex: 2, minWidth: 160 }}>
+                  <label className="game-label">コース名</label>
+                  <input
+                    className="game-input"
+                    type="text"
+                    value={newCourseName}
+                    onChange={e => setNewCourseName(e.target.value)}
+                    placeholder="例：初心者向けUnity入門"
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 120 }}>
+                  <label className="game-label">対象コース</label>
+                  <select className="game-input" value={newCourseTarget} onChange={e => setNewCourseTarget(e.target.value)}>
+                    {COURSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <label className="game-label">段階</label>
+                  <select className="game-input" value={newCourseStage} onChange={e => setNewCourseStage(e.target.value)}>
+                    {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <button
+                  className="game-button"
+                  onClick={handleCreateCourse}
+                  disabled={!newCourseName.trim()}
+                  style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                >
+                  作成
+                </button>
+              </div>
+
+              {/* 作成済みコース一覧 */}
+              {courses.length === 0 ? (
+                <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（コースがまだありません）</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {courses.map(course => {
+                    const isSubOpen = courseExpandedId === course.id
+                    const orderedTaskIds = courseTaskOrders[course.id] ?? []
+                    return (
+                      <div key={course.id} style={{ border: '1.5px solid #3d6e00', borderRadius: 10, overflow: 'hidden', background: '#f8fff0' }}>
+                        {/* サブヘッダー */}
+                        <div
+                          onClick={() => { if (editingCourseId !== course.id) setCourseExpandedId(isSubOpen ? null : course.id) }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: editingCourseId === course.id ? 'default' : 'pointer', userSelect: 'none' }}
+                        >
+                          <span style={{
+                            fontSize: 12, color: isSubOpen ? '#6aac14' : '#888',
+                            transform: isSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s', display: 'inline-block', flexShrink: 0,
+                          }}>▶</span>
+                          {editingCourseId === course.id ? (
+                            <div
+                              onClick={e => e.stopPropagation()}
+                              style={{ display: 'flex', gap: 6, flex: 1, alignItems: 'center' }}
+                            >
+                              <input
+                                className="game-input"
+                                value={editingCourseName}
+                                onChange={e => setEditingCourseName(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') handleRenameCourse(course.id); if (e.key === 'Escape') setEditingCourseId(null) }}
+                                autoFocus
+                                style={{ fontSize: 13, flex: 1, padding: '4px 8px' }}
+                              />
+                              <button
+                                onClick={() => handleRenameCourse(course.id)}
+                                disabled={!editingCourseName.trim()}
+                                style={{ padding: '3px 10px', borderRadius: 6, border: '1.5px solid #6aac14', background: '#6aac14', color: 'white', fontWeight: 'bold', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              >保存</button>
+                              <button
+                                onClick={() => setEditingCourseId(null)}
+                                style={{ padding: '3px 10px', borderRadius: 6, border: '1.5px solid #888', background: 'none', color: '#888', fontWeight: 'bold', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              >キャンセル</button>
+                            </div>
+                          ) : (
+                            <>
+                              <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1 }}>{course.name}</span>
+                              <button
+                                onClick={e => { e.stopPropagation(); setEditingCourseId(course.id); setEditingCourseName(course.name) }}
+                                style={{ padding: '2px 8px', borderRadius: 6, border: '1.5px solid #3d6e00', background: 'white', color: '#3d6e00', fontSize: 11, fontWeight: 'bold', cursor: 'pointer', flexShrink: 0 }}
+                              >編集</button>
+                              <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
+                                {course.target_course && (
+                                  <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>
+                                    {course.target_course}
+                                  </span>
+                                )}
+                                {course.target_stage && (
+                                  <span style={{ background: '#3d6e00', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>
+                                    {course.target_stage}
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        {/* サブボディ */}
+                        {isSubOpen && (
+                          <div style={{ borderTop: '1px solid #d4f0a0', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {orderedTaskIds.length === 0 ? (
+                              <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（課題が割り当てられていません）</p>
+                            ) : (
+                              orderedTaskIds.map((tid, idx) => {
+                                const t = tasks.find(x => x.id === tid)
+                                if (!t) return null
+                                return (
+                                  <div key={tid} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ flex: 1, fontSize: 13, color: '#2d5500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {t.title}
+                                    </span>
+                                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                                      <button
+                                        onClick={() => handleMoveTask(course.id, tid, 'up')}
+                                        disabled={idx === 0}
+                                        style={{ padding: '2px 8px', borderRadius: 6, border: '1.5px solid #3d6e00', background: idx === 0 ? '#eee' : '#e8ffd4', color: idx === 0 ? '#bbb' : '#2d5500', cursor: idx === 0 ? 'default' : 'pointer', fontSize: 13, fontWeight: 'bold' }}
+                                      >▲</button>
+                                      <button
+                                        onClick={() => handleMoveTask(course.id, tid, 'down')}
+                                        disabled={idx === orderedTaskIds.length - 1}
+                                        style={{ padding: '2px 8px', borderRadius: 6, border: '1.5px solid #3d6e00', background: idx === orderedTaskIds.length - 1 ? '#eee' : '#e8ffd4', color: idx === orderedTaskIds.length - 1 ? '#bbb' : '#2d5500', cursor: idx === orderedTaskIds.length - 1 ? 'default' : 'pointer', fontSize: 13, fontWeight: 'bold' }}
+                                      >▼</button>
+                                    </div>
+                                  </div>
+                                )
+                              })
+                            )}
+                            <div style={{ borderTop: '1px solid #d4f0a0', marginTop: 6, paddingTop: 10 }}>
+                              <button
+                                onClick={() => handleDeleteCourse(course.id, course.name)}
+                                style={{ padding: '5px 14px', borderRadius: 8, border: '1.5px solid #c0392b', background: '#fdecea', color: '#c0392b', fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}
+                              >コースを削除</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 課題作成フォーム */}
@@ -620,10 +1021,23 @@ export default function AdminTasksPage() {
               </div>
 
               {/* テーマ */}
-              <div>
-                <label className="game-label">
-                  {aiGenType === 'custom' ? 'プロンプト（自由入力）' : 'テーマ'}
-                </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <label className="game-label" style={{ marginBottom: 0, flex: 1 }}>
+                    {aiGenType === 'custom' ? 'プロンプト（自由入力）' : 'テーマ'}
+                  </label>
+                  <button
+                    onClick={handleSaveTheme}
+                    disabled={!aiTheme.trim() || themeSaving}
+                    style={{
+                      padding: '3px 12px', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+                      border: themeSaveSuccess ? '1.5px solid #6aac14' : '1.5px solid #3d6e00',
+                      background: themeSaveSuccess ? '#e8ffd4' : 'white',
+                      color: themeSaveSuccess ? '#2d5500' : '#3d6e00',
+                      whiteSpace: 'nowrap', transition: 'all 0.2s',
+                    }}
+                  >{themeSaveSuccess ? '保存済み ✓' : themeSaving ? '保存中…' : '保存'}</button>
+                </div>
                 <textarea
                   className="game-input"
                   value={aiTheme}
@@ -636,6 +1050,24 @@ export default function AdminTasksPage() {
                       : '例: ShaderGraphを使った光のエフェクト、256ポリゴンでキャラクターを作る...'
                   }
                 />
+                {savedThemes.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap' }}>保存済み:</span>
+                    <select
+                      className="game-input"
+                      style={{ fontSize: 12, flex: 1 }}
+                      value=""
+                      onChange={e => { if (e.target.value) setAiTheme(e.target.value) }}
+                    >
+                      <option value="">── 選択して読み込む ──</option>
+                      {savedThemes.map(t => (
+                        <option key={t.id} value={t.content}>
+                          {t.content.length > 60 ? t.content.slice(0, 60) + '…' : t.content}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* インプット課題（custom以外） */}
@@ -799,6 +1231,17 @@ export default function AdminTasksPage() {
                 <option value="inactive">停止中</option>
               </select>
             </div>
+            <select
+              className="game-input"
+              value={filterCustomCourse}
+              onChange={e => setFilterCustomCourse(e.target.value)}
+              style={{ fontSize: 13 }}
+            >
+              <option value="">カスタムコース: 全て</option>
+              {courses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
 
           {tasks.length === 0 ? (
@@ -810,6 +1253,7 @@ export default function AdminTasksPage() {
               if (filterStage && t.target_stage !== filterStage) return false
               if (filterActive === 'active' && !t.is_active) return false
               if (filterActive === 'inactive' && t.is_active) return false
+              if (filterCustomCourse && taskCourseMap[t.id] !== filterCustomCourse) return false
               return true
             })
             if (filtered.length === 0) return (
@@ -1017,6 +1461,21 @@ export default function AdminTasksPage() {
                                 >
                                   削除
                                 </button>
+                              </div>
+                              {/* カスタムコース割り当て */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <label className="game-label" style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>カスタムコース</label>
+                                <select
+                                  className="game-input"
+                                  style={{ fontSize: 13, flex: 1 }}
+                                  value={taskCourseMap[task.id] ?? ''}
+                                  onChange={e => handleCourseAssign(task.id, e.target.value)}
+                                >
+                                  <option value="">（なし）</option>
+                                  {courses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                  ))}
+                                </select>
                               </div>
                               {task.description ? (
                                 task.description_is_markdown
