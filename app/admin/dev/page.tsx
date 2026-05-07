@@ -183,7 +183,7 @@ export default function DevManagePage() {
       task.dev_task_assignees = newAssignees.map(uid => ({ user_id: uid }))
     }
 
-    setTasks(prev => [task as DevTask, ...prev])
+    setTasks(prev => [task as unknown as DevTask, ...prev])
     setNewSummary(''); setNewDetail(''); setNewDeadline(''); setNewAssignees([]); setNewReportId('')
     setAddingTask(false)
     setShowAddForm(false)
