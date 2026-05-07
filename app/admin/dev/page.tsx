@@ -129,7 +129,7 @@ export default function DevManagePage() {
 
       setProfiles(profilesRes.data ?? [])
       setReports((reportsRes.data ?? []) as BugReport[])
-      setTasks((tasksRes.data ?? []) as DevTask[])
+      setTasks((tasksRes.data ?? []) as unknown as DevTask[])
       setLoading(false)
     }
     init()
