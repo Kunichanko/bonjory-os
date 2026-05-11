@@ -48,13 +48,14 @@ const MILESTONES = [
   { key: 'final',   phase: 'final',   day: '日', label: '最終提出',  desc: '日曜日：動画・画像・自己評価をタイムラインに投稿しましょう。' },
 ]
 
-type ViewId = 'tasks' | 'history' | 'timeline' | 'past_timeline' | 'news'
+type ViewId = 'tasks' | 'history' | 'timeline' | 'past_timeline' | 'news' | 'events'
 
 const NAV_ITEMS: { id: ViewId; icon: string; label: string }[] = [
   { id: 'news',     icon: 'Newspaper',     label: 'BON-TOPICS' },
   { id: 'tasks',    icon: 'ClipboardList', label: '今週の課題' },
   { id: 'history',  icon: 'BookOpen',      label: '過去の課題' },
   { id: 'timeline', icon: 'Globe',         label: 'タイムライン' },
+  { id: 'events',   icon: 'PartyPopper',   label: 'イベント' },
 ]
 
 // ─── タイムライン分類ユーティリティ ───────────────────────
@@ -1566,6 +1567,11 @@ export default function DashboardPage() {
             <BonTopics userId={userId} userCourse={course} onAssign={refreshAssignments} />
           )}
 
+          {/* ══ VIEW: イベント ══════════════════════════════ */}
+          {currentView === 'events' && (
+            <EventsDashboardView userId={userId} router={router} />
+          )}
+
           {/* ══ VIEW: 今週の課題 ════════════════════════════ */}
           {currentView === 'tasks' && (
             <>
@@ -2541,4 +2547,144 @@ const textBlockStyle: React.CSSProperties = {
   color: '#2d5500', fontSize: 14, lineHeight: 1.7,
   background: '#f0fae0', borderRadius: 8, padding: '10px 14px',
   whiteSpace: 'pre-wrap',
+}
+
+// ─── イベントダッシュボードビュー ──────────────────────────
+
+type DashEventStatus = 'open' | 'judging' | 'closed'
+type DashEventType = 'bontest' | 'presentation' | 'workshop' | 'other'
+
+interface DashEvent {
+  id: string
+  title: string
+  event_type: DashEventType
+  status: DashEventStatus
+  starts_at: string
+  ends_at: string
+  submission_deadline: string | null
+  theme: string | null
+  cover_image_url: string | null
+  submission_count?: number
+  my_submission?: boolean
+}
+
+const DASH_TYPE_LABELS: Record<DashEventType, string> = {
+  bontest: 'BONTEST', presentation: '発表会', workshop: 'WS', other: 'その他',
+}
+const DASH_TYPE_COLORS: Record<DashEventType, string> = {
+  bontest: '#e67e22', presentation: '#9b59b6', workshop: '#3498db', other: '#7f8c8d',
+}
+const DASH_STATUS_LABELS: Record<DashEventStatus, string> = {
+  open: '開催中', judging: '審査中', closed: '終了',
+}
+const DASH_STATUS_COLORS: Record<DashEventStatus, string> = {
+  open: '#6aac14', judging: '#e67e22', closed: '#7f8c8d',
+}
+
+function dashCountdown(iso: string): string {
+  const diff = new Date(iso).getTime() - Date.now()
+  if (diff <= 0) return '締切済み'
+  const days = Math.floor(diff / 86400000)
+  const hrs  = Math.floor((diff % 86400000) / 3600000)
+  return days > 0 ? `あと${days}日${hrs}h` : `あと${hrs}時間`
+}
+
+function EventsDashboardView({ userId, router }: { userId: string | null; router: ReturnType<typeof import('next/navigation').useRouter> }) {
+  const [events, setEvents] = useState<DashEvent[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!userId) return
+    async function load() {
+      const { data: evs } = await supabase
+        .from('events')
+        .select('id,title,event_type,status,starts_at,ends_at,submission_deadline,theme,cover_image_url')
+        .in('status', ['open', 'judging', 'closed'])
+        .order('starts_at', { ascending: false })
+        .limit(20)
+
+      if (!evs) { setLoaded(true); return }
+
+      const { data: subs } = await supabase
+        .from('event_submissions')
+        .select('event_id, user_id')
+        .in('event_id', evs.map(e => e.id))
+
+      setEvents(evs.map(e => ({
+        ...e,
+        submission_count: (subs ?? []).filter(s => s.event_id === e.id).length,
+        my_submission: (subs ?? []).some(s => s.event_id === e.id && s.user_id === userId),
+      })))
+      setLoaded(true)
+    }
+    load()
+  }, [userId])
+
+  if (!loaded) return <div style={{ padding: 20, textAlign: 'center', color: '#3d6e00' }}>読み込み中...</div>
+
+  return (
+    <div>
+      <div style={{ background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)', borderRadius: 10, padding: '20px 28px', marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
+        <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.12em', marginBottom: 4 }}>EVENTS</p>
+        <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', margin: '0 0 4px' }}>🎉 イベント</h2>
+        <p style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, margin: 0 }}>コンテスト・作品発表会・ワークショップ</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => router.push('/events')}
+          style={{ background: '#6aac14', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 'bold', boxShadow: '0 3px 0 #3d6e00' }}
+        >
+          イベント一覧を見る →
+        </button>
+        <button
+          onClick={() => router.push('/proposals')}
+          style={{ background: '#fff', color: '#3d6e00', border: '2px solid #6aac14', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 'bold' }}
+        >
+          💡 イベントを提案する
+        </button>
+      </div>
+
+      {events.length === 0 ? (
+        <div style={{ background: '#fff', border: '3px solid #c8e6a0', borderRadius: 12, padding: 32, textAlign: 'center', color: '#888' }}>
+          現在公開中のイベントはありません
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {events.map(ev => (
+            <button
+              key={ev.id}
+              onClick={() => router.push(`/events/${ev.id}`)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+            >
+              <div style={{ background: '#fff', border: '3px solid #c8e6a0', borderRadius: 12, padding: 16, display: 'flex', gap: 14, alignItems: 'center', transition: 'border-color 0.15s' }}>
+                <div style={{ width: 60, height: 60, borderRadius: 10, background: `${DASH_TYPE_COLORS[ev.event_type]}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                  {ev.cover_image_url
+                    ? <img src={ev.cover_image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: 28 }}>{ev.event_type === 'bontest' ? '🏆' : ev.event_type === 'presentation' ? '🎭' : ev.event_type === 'workshop' ? '🔧' : '🎉'}</span>
+                  }
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                    <span style={{ background: DASH_TYPE_COLORS[ev.event_type], color: '#fff', fontSize: 10, borderRadius: 4, padding: '1px 6px', fontWeight: 'bold' }}>{DASH_TYPE_LABELS[ev.event_type]}</span>
+                    <span style={{ background: DASH_STATUS_COLORS[ev.status] + '22', color: DASH_STATUS_COLORS[ev.status], fontSize: 10, borderRadius: 4, padding: '1px 6px', border: `1px solid ${DASH_STATUS_COLORS[ev.status]}`, fontWeight: 'bold' }}>{DASH_STATUS_LABELS[ev.status]}</span>
+                    {ev.my_submission && <span style={{ background: '#6aac1422', color: '#3d6e00', fontSize: 10, borderRadius: 4, padding: '1px 6px', border: '1px solid #6aac14' }}>応募済み ✓</span>}
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 'bold', color: '#3d6e00', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</div>
+                  {ev.theme && <div style={{ fontSize: 12, color: '#888' }}>テーマ: 「{ev.theme}」</div>}
+                  {ev.status === 'open' && ev.submission_deadline && (
+                    <div style={{ fontSize: 11, color: '#e67e22', marginTop: 2 }}>⏰ {dashCountdown(ev.submission_deadline)}</div>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: '#888', flexShrink: 0, textAlign: 'right' }}>
+                  {ev.submission_count}件
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
