@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS sns_sample_tweets (
   id         uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
   content    text        NOT NULL,
+  use_for_ai boolean     NOT NULL DEFAULT true,
   created_at timestamptz DEFAULT now()
 );
 
@@ -87,26 +88,3 @@ CREATE POLICY "sns_posts_delete" ON sns_posts
     )
   );
 
--- BONJORYの過去ツイートのサンプルデータ
-INSERT INTO sns_sample_tweets (content) VALUES
-('🎮 今週のBONJORY活動報告！
-Unityコースのメンバーがついにシェーダー課題を完成させました✨
-次のステージも全力で頑張っていきましょ〜！
-
-#ゲーム制作 #BONJORY'),
-('新しい課題テーマが追加されました！📋
-今回はBlenderコースのメンバー向けにキャラクターモデリングにチャレンジ🔥
-締め切りは日曜日なのでみんな頑張ろう〜！
-#3DCG #Blender #BONJORY'),
-('【BON-TOPICS更新🗞️】
-Unreal Engine 5の新機能について詳しく解説した記事を公開しました！
-ぜひ読んでみてね📖✨
-#UE5 #ゲーム開発 #BONJORY'),
-('メンバーの作品が完成しました〜🎉🎉
-クオリティ高くて感動...！
-BONJORYはこれからもみんなの成長を全力サポートするよ💪
-#ゲーム制作 #BONJORY'),
-('今月のポイントランキング発表〜！🏆
-1位のメンバーは圧倒的なスコアで首位キープ！
-みんなもどんどんタスクをこなして上位を目指そう💯
-#BONJORY #がんばろう');

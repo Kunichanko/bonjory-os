@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/supabase'
 import { getEffectivePermissions } from '@/lib/permissions'
-import { Twitter, Wand2, Save, ChevronDown, ChevronUp, Check, Trash2 } from 'lucide-react'
+import { XIcon as Twitter, Wand2, Save, ChevronDown, ChevronUp, Check, Trash2, List } from 'lucide-react'
 
 interface SnsPost {
   id: string
@@ -17,7 +17,7 @@ export default function SnsManagePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
 
-  const [samples, setSamples] = useState<string[]>([])
+  const [samples, setSamples] = useState<{ id: string; content: string; use_for_ai: boolean }[]>([])
   const [posts, setPosts] = useState<SnsPost[]>([])
 
   const [inputText, setInputText] = useState('')
@@ -43,11 +43,11 @@ export default function SnsManagePage() {
       }
 
       const [samplesRes, postsRes] = await Promise.all([
-        supabase.from('sns_sample_tweets').select('content').order('created_at'),
+        supabase.from('sns_sample_tweets').select('id, content, use_for_ai').order('created_at'),
         supabase.from('sns_posts').select('*').order('created_at', { ascending: false }),
       ])
 
-      setSamples((samplesRes.data ?? []).map(s => s.content))
+      setSamples((samplesRes.data ?? []) as { id: string; content: string; use_for_ai: boolean }[])
       setPosts((postsRes.data ?? []) as SnsPost[])
       setLoading(false)
     }
@@ -68,7 +68,7 @@ export default function SnsManagePage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token ?? ''}`,
         },
-        body: JSON.stringify({ input: inputText, samples }),
+        body: JSON.stringify({ input: inputText, samples: samples.filter(s => s.use_for_ai).map(s => s.content) }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? '変換に失敗しました')
@@ -107,6 +107,17 @@ export default function SnsManagePage() {
     setMarkingId(null)
   }
 
+  async function handleMarkPending(post: SnsPost) {
+    setMarkingId(post.id)
+    const { error } = await supabase
+      .from('sns_posts')
+      .update({ status: 'pending', posted_at: null })
+      .eq('id', post.id)
+    if (error) { alert('更新に失敗しました: ' + error.message); setMarkingId(null); return }
+    setPosts(prev => prev.map(p => p.id === post.id ? { ...p, status: 'pending', posted_at: null } : p))
+    setMarkingId(null)
+  }
+
   async function handleDelete(postId: string) {
     if (!confirm('この投稿を削除しますか？')) return
     setDeletingId(postId)
@@ -137,6 +148,20 @@ export default function SnsManagePage() {
           boxShadow: '0 4px 0 #0d2000',
         }}>
           ← ダッシュボード
+        </button>
+      </a>
+
+      {/* サンプル記録ボタン */}
+      <a href="/admin/sns/samples" style={{ textDecoration: 'none' }}>
+        <button style={{
+          position: 'fixed', top: 20, right: 16, zIndex: 50,
+          background: '#1a3a00', border: '3px solid #6aac14', borderRadius: 12,
+          color: '#a8d870', fontSize: 13, fontWeight: 'bold',
+          padding: '10px 18px', cursor: 'pointer',
+          boxShadow: '0 4px 0 #0d2000',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <List size={14} />サンプル記録
         </button>
       </a>
 
@@ -328,14 +353,23 @@ export default function SnsManagePage() {
                       border: '2px solid #e0e0e0', borderRadius: 10, padding: '12px 14px',
                       background: '#f5f5f5', opacity: 0.75,
                     }}>
-                      {/* 投稿済みチェックマーク */}
-                      <div style={{
-                        flexShrink: 0, width: 24, height: 24, marginTop: 2,
-                        border: '2px solid #999', borderRadius: 6,
-                        background: '#999', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <Check size={14} color="white" />
-                      </div>
+                      {/* チェックボックス（クリックで投稿予定に戻す） */}
+                      <button
+                        onClick={() => handleMarkPending(post)}
+                        disabled={markingId === post.id}
+                        title="投稿予定に戻す"
+                        style={{
+                          flexShrink: 0, width: 24, height: 24, marginTop: 2,
+                          border: '2px solid #999', borderRadius: 6,
+                          background: '#999', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: markingId === post.id ? 'not-allowed' : 'pointer',
+                          transition: 'background 0.15s',
+                        }}
+                      >
+                        {markingId === post.id
+                          ? <span style={{ fontSize: 10, color: 'white' }}>...</span>
+                          : <Check size={14} color="white" />}
+                      </button>
 
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#666' }}>

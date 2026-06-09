@@ -9,19 +9,31 @@ const supabaseAdmin = createClient(
 const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
 
 async function callGemini(apiKey: string, prompt: string): Promise<string> {
-  const body = JSON.stringify({
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.85, maxOutputTokens: 1024 },
-  })
   const errors: string[] = []
   for (const model of MODELS) {
+    const body = JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.85,
+        maxOutputTokens: 1024,
+        // gemini-2.5-flash はデフォルトで thinking を使いトークン予算を消費するため無効化
+        ...(model.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+      },
+    })
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
     )
     if (res.ok) {
       const data = await res.json()
-      return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      const candidate = data?.candidates?.[0]
+      const finishReason = candidate?.finishReason
+      if (finishReason && finishReason !== 'STOP' && finishReason !== 'MAX_TOKENS') {
+        errors.push(`[${model}] finishReason=${finishReason}`)
+        continue
+      }
+      const parts: { text?: string }[] = candidate?.content?.parts ?? []
+      return parts.map(p => p.text ?? '').join('')
     }
     const errText = await res.text()
     errors.push(`[${model}] ${res.status}: ${errText}`)
@@ -59,21 +71,30 @@ export async function POST(req: NextRequest) {
   const { input, samples } = await req.json() as { input: string; samples: string[] }
   if (!input?.trim()) return NextResponse.json({ error: '入力が空です' }, { status: 400 })
 
-  const samplesText = (samples ?? [])
+  const sampleList = samples ?? []
+  const samplesText = sampleList
     .map((s, i) => `【例${i + 1}】\n${s}`)
     .join('\n\n')
 
-  const prompt = `あなたはSNS投稿の文体変換アシスタントです。
-以下のサンプル投稿を参考に、同じ文体・トーン・絵文字の使い方・ハッシュタグのスタイル・文字数を意識して、
-指定された内容を魅力的なX（旧Twitter）投稿に変換してください。
+  const avgLen = sampleList.length > 0
+    ? Math.round(sampleList.reduce((sum, s) => sum + s.length, 0) / sampleList.length)
+    : 140
+  const lenMin = Math.max(20, Math.round(avgLen * 0.8))
+  const lenMax = Math.round(avgLen * 1.2)
 
-【サンプル投稿】
-${samplesText}
+  const samplesSection = samplesText
+    ? `以下はBONJORYの実際の投稿サンプルです。このアカウントの口調・テンション・熱量・絵文字の使い方・語尾・ハッシュタグのスタイルを忠実に再現してください。\n\n【BONJORYの投稿サンプル】\n${samplesText}\n\n`
+    : ''
 
-【変換したい内容】
+  const prompt = `あなたはBONJORYというゲーム制作コミュニティの中の人として、SNS投稿を書くアシスタントです。
+${samplesSection}【最重要】上記サンプルの口調・テンション・熱量・語尾・絵文字の密度を忠実に再現してください。サンプルと同じキャラクターが書いたと感じられるよう、なりきって書いてください。
+
+以下の内容をX（旧Twitter）投稿に変換してください。文字数は${lenMin}〜${lenMax}文字程度にしてください。必ず文章を最後まで書き切り、途中で終わらせないでください。
+
+【投稿したい内容】
 ${input.trim()}
 
-変換後の投稿文のみを返してください。説明や前置きは不要です。`
+投稿文のみを返してください。説明や前置きは不要です。`
 
   try {
     const result = await callGemini(apiKey, prompt)
