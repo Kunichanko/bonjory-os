@@ -12,6 +12,12 @@ interface SampleTweet {
   created_at: string
 }
 
+interface Profile {
+  id: string
+  username: string | null
+  email: string | null
+}
+
 export default function SnsSamplesPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -20,6 +26,12 @@ export default function SnsSamplesPage() {
   const [adding, setAdding] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  const [allProfiles, setAllProfiles] = useState<Profile[]>([])
+  const [recipientIds, setRecipientIds] = useState<string[]>([])
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [addingRecipient, setAddingRecipient] = useState(false)
+  const [removingRecipientId, setRemovingRecipientId] = useState<string | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -33,12 +45,15 @@ export default function SnsSamplesPage() {
         if (!perms.sns_management) { router.push('/dashboard'); return }
       }
 
-      const { data } = await supabase
-        .from('sns_sample_tweets')
-        .select('id, content, use_for_ai, created_at')
-        .order('created_at')
+      const [samplesRes, profilesRes, recipientsRes] = await Promise.all([
+        supabase.from('sns_sample_tweets').select('id, content, use_for_ai, created_at').order('created_at'),
+        supabase.from('profiles').select('id, username, email').order('username'),
+        supabase.from('sns_notification_recipients').select('user_id'),
+      ])
 
-      setSamples((data ?? []) as SampleTweet[])
+      setSamples((samplesRes.data ?? []) as SampleTweet[])
+      setAllProfiles((profilesRes.data ?? []) as Profile[])
+      setRecipientIds((recipientsRes.data ?? []).map((r: { user_id: string }) => r.user_id))
       setLoading(false)
     }
     init()
@@ -78,6 +93,29 @@ export default function SnsSamplesPage() {
     setDeletingId(null)
   }
 
+  async function handleAddRecipient() {
+    if (!selectedUserId) return
+    setAddingRecipient(true)
+    const { error } = await supabase
+      .from('sns_notification_recipients')
+      .insert({ user_id: selectedUserId })
+    if (error) { alert('追加に失敗しました: ' + error.message); setAddingRecipient(false); return }
+    setRecipientIds(prev => [...prev, selectedUserId])
+    setSelectedUserId('')
+    setAddingRecipient(false)
+  }
+
+  async function handleRemoveRecipient(userId: string) {
+    setRemovingRecipientId(userId)
+    const { error } = await supabase
+      .from('sns_notification_recipients')
+      .delete()
+      .eq('user_id', userId)
+    if (error) { alert('削除に失敗しました: ' + error.message); setRemovingRecipientId(null); return }
+    setRecipientIds(prev => prev.filter(id => id !== userId))
+    setRemovingRecipientId(null)
+  }
+
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <p style={{ color: '#3d6e00', fontWeight: 'bold' }}>読み込み中...</p>
@@ -85,6 +123,8 @@ export default function SnsSamplesPage() {
   )
 
   const enabledCount = samples.filter(s => s.use_for_ai).length
+  const recipientProfiles = allProfiles.filter(p => recipientIds.includes(p.id))
+  const addableProfiles = allProfiles.filter(p => !recipientIds.includes(p.id))
 
   return (
     <div style={{ minHeight: '100vh', padding: '80px 16px 60px' }}>
@@ -150,7 +190,7 @@ export default function SnsSamplesPage() {
         {/* サンプルリスト */}
         <div style={{
           background: 'white', border: '3px solid #3d6e00', borderRadius: 16,
-          padding: 24,
+          padding: 24, marginBottom: 24,
           boxShadow: '0 4px 0 #1a3a00',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -219,6 +259,90 @@ export default function SnsSamplesPage() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* 予約投稿通知を受け取る部員 */}
+        <div style={{
+          background: 'white', border: '3px solid #3d6e00', borderRadius: 16,
+          padding: 24,
+          boxShadow: '0 4px 0 #1a3a00',
+        }}>
+          <h2 style={{ fontSize: 17, fontWeight: 'bold', color: '#1a3a00', marginBottom: 4 }}>
+            通知を送る部員
+          </h2>
+          <p style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>
+            投稿予定日の17:00にプッシュ通知が届きます。タップするとテキストが自動コピーされます。
+          </p>
+
+          {/* 現在の受信者リスト */}
+          {recipientProfiles.length === 0 ? (
+            <p style={{ color: '#999', fontSize: 14, textAlign: 'center', padding: '8px 0', marginBottom: 16 }}>
+              通知を受け取る部員が設定されていません
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {recipientProfiles.map(p => (
+                <div key={p.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  border: '2px solid #6aac14', borderRadius: 8,
+                  padding: '8px 12px', background: '#f6fff0',
+                }}>
+                  <span style={{ fontSize: 14, color: '#1a3a00', fontWeight: 'bold' }}>
+                    {p.username ?? p.email ?? p.id}
+                  </span>
+                  <button
+                    onClick={() => handleRemoveRecipient(p.id)}
+                    disabled={removingRecipientId === p.id}
+                    title="削除"
+                    style={{
+                      background: 'none', border: 'none',
+                      cursor: removingRecipientId === p.id ? 'not-allowed' : 'pointer',
+                      color: '#ccc', padding: 4,
+                      display: 'flex', alignItems: 'center',
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 部員を追加 */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select
+              value={selectedUserId}
+              onChange={e => setSelectedUserId(e.target.value)}
+              style={{
+                flex: 1, border: '2px solid #3d6e00', borderRadius: 8,
+                padding: '8px 10px', fontSize: 14, color: '#333',
+                background: 'white', outline: 'none',
+              }}
+            >
+              <option value="">通知を送る部員を追加...</option>
+              {addableProfiles.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.username ?? p.email ?? p.id}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleAddRecipient}
+              disabled={addingRecipient || !selectedUserId}
+              style={{
+                background: addingRecipient || !selectedUserId ? '#aaa' : '#3d6e00',
+                border: 'none', borderRadius: 8, color: 'white',
+                fontSize: 14, fontWeight: 'bold', padding: '8px 20px',
+                cursor: addingRecipient || !selectedUserId ? 'not-allowed' : 'pointer',
+                boxShadow: addingRecipient || !selectedUserId ? 'none' : '0 3px 0 #1a3a00',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <Plus size={14} />
+              {addingRecipient ? '追加中...' : '追加'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

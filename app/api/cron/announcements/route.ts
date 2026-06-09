@@ -102,5 +102,55 @@ export async function GET(req: NextRequest) {
     totalSent += (subs?.length ?? 0) - goneEndpoints.length
   }
 
+  // SNS予約投稿通知: JST 17:00 ±2分 に当日分を送信
+  const jstDateStr = jst.toISOString().slice(0, 10)
+  const targetMinutes = 17 * 60
+  if (Math.abs(nowMinutes - targetMinutes) <= 2) {
+    const { data: scheduledPosts } = await supabaseAdmin
+      .from('sns_posts')
+      .select('id, content')
+      .eq('scheduled_date', jstDateStr)
+      .is('notified_at', null)
+      .eq('status', 'pending')
+
+    const { data: recipients } = await supabaseAdmin
+      .from('sns_notification_recipients')
+      .select('user_id')
+
+    const recipientIds = (recipients ?? []).map((r: { user_id: string }) => r.user_id)
+
+    if ((scheduledPosts ?? []).length > 0 && recipientIds.length > 0) {
+      const { data: snsSubs } = await supabaseAdmin
+        .from('push_subscriptions')
+        .select('*')
+        .in('user_id', recipientIds)
+
+      for (const post of (scheduledPosts ?? [])) {
+        const preview = post.content.length > 60 ? post.content.slice(0, 60) + '…' : post.content
+        const payload = {
+          title: '📢 本日の予約投稿',
+          body: preview,
+          url: `/admin/sns/copy?id=${post.id}`,
+        }
+        const goneEndpoints: string[] = []
+
+        await Promise.all((snsSubs ?? []).map(async (sub: { endpoint: string; p256dh: string; auth: string }) => {
+          const result = await sendPushNotification(
+            { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
+            payload
+          )
+          if (result.gone) goneEndpoints.push(sub.endpoint)
+        }))
+
+        if (goneEndpoints.length > 0) {
+          await supabaseAdmin.from('push_subscriptions').delete().in('endpoint', goneEndpoints)
+        }
+
+        await supabaseAdmin.from('sns_posts').update({ notified_at: now.toISOString() }).eq('id', post.id)
+        totalSent += (snsSubs?.length ?? 0) - goneEndpoints.length
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true, processed: allAnns.length, sent: totalSent })
 }
