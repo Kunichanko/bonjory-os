@@ -10,6 +10,8 @@ interface SnsPost {
   content: string
   status: 'pending' | 'posted'
   posted_at: string | null
+  scheduled_date: string | null
+  notified_at: string | null
   created_at: string
 }
 
@@ -29,6 +31,7 @@ export default function SnsManagePage() {
   const [showPosted, setShowPosted] = useState(false)
   const [markingId, setMarkingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [schedulingId, setSchedulingId] = useState<string | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -105,6 +108,17 @@ export default function SnsManagePage() {
     if (error) { alert('更新に失敗しました: ' + error.message); setMarkingId(null); return }
     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, status: 'posted', posted_at: new Date().toISOString() } : p))
     setMarkingId(null)
+  }
+
+  async function handleSetSchedule(postId: string, date: string | null) {
+    setSchedulingId(postId)
+    const { error } = await supabase
+      .from('sns_posts')
+      .update({ scheduled_date: date, notified_at: null })
+      .eq('id', postId)
+    if (error) { alert('日付の更新に失敗しました: ' + error.message); setSchedulingId(null); return }
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, scheduled_date: date, notified_at: null } : p))
+    setSchedulingId(null)
   }
 
   async function handleMarkPending(post: SnsPost) {
@@ -297,9 +311,30 @@ export default function SnsManagePage() {
                     {markingId === post.id && <span style={{ fontSize: 10, color: '#aaa' }}>...</span>}
                   </button>
 
-                  {/* 投稿内容 */}
-                  <div style={{ flex: 1, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#1a1a1a' }}>
-                    {post.content}
+                  {/* 投稿内容 + 日付指定 */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#1a1a1a', marginBottom: 8 }}>
+                      {post.content}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="date"
+                        value={post.scheduled_date ?? ''}
+                        disabled={schedulingId === post.id}
+                        onChange={e => handleSetSchedule(post.id, e.target.value || null)}
+                        style={{
+                          border: '1px solid #ccc', borderRadius: 6,
+                          padding: '4px 8px', fontSize: 12, color: '#333',
+                          background: 'white', cursor: 'pointer',
+                        }}
+                      />
+                      {post.scheduled_date && (
+                        <span style={{ fontSize: 11, color: post.notified_at ? '#3d6e00' : '#888' }}>
+                          {post.notified_at ? '✅ 通知済み' : '🔔 17:00に通知'}
+                        </span>
+                      )}
+                      {schedulingId === post.id && <span style={{ fontSize: 11, color: '#aaa' }}>更新中...</span>}
+                    </div>
                   </div>
 
                   {/* 削除ボタン */}
