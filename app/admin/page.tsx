@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Film, Tag, X } from 'lucide-react'
