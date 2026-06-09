@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -33,7 +33,7 @@ const EMPTY_PERMS: Record<PermissionKey, boolean> = {
   submission_review: false, finance: false, timeline_management: false,
   dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
   dev_management: false,
-  news_management: false, ticket_admin: false, debug: false,
+  news_management: false, ticket_admin: false, debug: false, sns_management: false,
   }
 
 export default function GimmickPage() {
@@ -84,7 +84,7 @@ export default function GimmickPage() {
     if (settingsRes.data) setSettings(settingsRes.data)
   }
 
-  // ── グローバル設定 ───────────────────────────────────────
+  // 笏笏 繧ｰ繝ｭ繝ｼ繝舌Ν險ｭ螳・笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
   async function saveSettings() {
     setSettingsSaving(true); setSettingsMsg(null)
@@ -93,7 +93,7 @@ export default function GimmickPage() {
     const { error } = await supabase.from('gimmick_settings').update({ block_interval_min_sec: min, block_interval_max_sec: max }).eq('id', 1)
     setSettingsSaving(false)
     setSettings(s => ({ ...s, block_interval_min_sec: min, block_interval_max_sec: max }))
-    setSettingsMsg(error ? `エラー: ${error.message}` : '保存しました')
+    setSettingsMsg(error ? `繧ｨ繝ｩ繝ｼ: ${error.message}` : '菫晏ｭ倥＠縺ｾ縺励◆')
     setTimeout(() => setSettingsMsg(null), 2500)
   }
 
@@ -103,11 +103,11 @@ export default function GimmickPage() {
     await supabase.from('gimmick_settings').update({ sakura_enabled: newVal }).eq('id', 1)
   }
 
-  // ── ブロック操作 ─────────────────────────────────────────
+  // 笏笏 繝悶Ο繝・け謫堺ｽ・笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
   async function addBlock() {
     const nextOrder = blocks.length
-    const { data, error } = await supabase.from('speech_blocks').insert({ label: '新しいブロック', sort_order: nextOrder }).select().single()
+    const { data, error } = await supabase.from('speech_blocks').insert({ label: '譁ｰ縺励＞繝悶Ο繝・け', sort_order: nextOrder }).select().single()
     if (error || !data) return
     setBlocks(prev => [...prev, data])
     setExpandedBlock(data.id)
@@ -124,14 +124,14 @@ export default function GimmickPage() {
   }
 
   async function deleteBlock(id: string) {
-    if (!confirm('このブロックとすべての一言を削除しますか？')) return
+    if (!confirm('縺薙・繝悶Ο繝・け縺ｨ縺吶∋縺ｦ縺ｮ荳險繧貞炎髯､縺励∪縺吶°・・)) return
     await supabase.from('speech_blocks').delete().eq('id', id)
     setBlocks(prev => prev.filter(b => b.id !== id))
     setLines(prev => prev.filter(l => l.block_id !== id))
     if (expandedBlock === id) setExpandedBlock(null)
   }
 
-  // ── ライン操作 ───────────────────────────────────────────
+  // 笏笏 繝ｩ繧､繝ｳ謫堺ｽ・笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
   function linesForBlock(blockId: string) {
     return lines.filter(l => l.block_id === blockId).sort((a, b) => a.sort_order - b.sort_order)
@@ -175,11 +175,11 @@ export default function GimmickPage() {
     ])
   }
 
-  // ── レンダリング ─────────────────────────────────────────
+  // 笏笏 繝ｬ繝ｳ繝繝ｪ繝ｳ繧ｰ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: '#a8d870' }}>読み込み中…</p>
+      <p style={{ color: '#a8d870' }}>隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ窶ｦ</p>
     </div>
   )
 
@@ -189,41 +189,41 @@ export default function GimmickPage() {
         position: 'fixed', top: 20, left: 16, zIndex: 50,
         background: '#3d6e00', color: '#a8d870', border: '2px solid #6aac14',
         borderRadius: 8, padding: '6px 14px', fontSize: 13, cursor: 'pointer',
-      }}>← ダッシュボード</button>
+      }}>竊・繝繝・す繝･繝懊・繝・/button>
 
       <div style={{ maxWidth: 640, margin: '0 auto', paddingTop: 56 }}>
         <h1 className="game-title" style={{ fontSize: 28, marginBottom: 32, textAlign: 'center', color: '#ffffff', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-          <Sparkles size={26}/>ギミック管理
+          <Sparkles size={26}/>繧ｮ繝溘ャ繧ｯ邂｡逅・
         </h1>
 
-        {/* グローバル設定 */}
+        {/* 繧ｰ繝ｭ繝ｼ繝舌Ν險ｭ螳・*/}
         <div className="game-card" style={{ padding: '24px 28px', marginBottom: 24 }}>
-          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 16 }}>ブロック間隔設定</h2>
+          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 16 }}>繝悶Ο繝・け髢馴囈險ｭ螳・/h2>
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
             <div>
-              <label className="game-label">最小（秒）</label>
+              <label className="game-label">譛蟆擾ｼ育ｧ抵ｼ・/label>
               <input className="game-input" type="number" min={1} style={{ width: 90 }}
                 value={settings.block_interval_min_sec}
                 onChange={e => setSettings(s => ({ ...s, block_interval_min_sec: Number(e.target.value) }))} />
             </div>
             <div>
-              <label className="game-label">最大（秒）</label>
+              <label className="game-label">譛螟ｧ・育ｧ抵ｼ・/label>
               <input className="game-input" type="number" min={1} style={{ width: 90 }}
                 value={settings.block_interval_max_sec}
                 onChange={e => setSettings(s => ({ ...s, block_interval_max_sec: Number(e.target.value) }))} />
             </div>
             <button className="game-button" style={{ width: 'auto', padding: '10px 20px', fontSize: 14 }}
               onClick={saveSettings} disabled={settingsSaving}>
-              {settingsSaving ? '保存中…' : '保存'}
+              {settingsSaving ? '菫晏ｭ倅ｸｭ窶ｦ' : '菫晏ｭ・}
             </button>
           </div>
           {settingsMsg && <p style={{ color: '#3d6e00', fontSize: 13, marginTop: 8 }}>{settingsMsg}</p>}
           <p style={{ color: '#a8d870', fontSize: 12, marginTop: 8 }}>
-            ブロック間の間隔をランダムで決定します（最小〜最大秒）
+            繝悶Ο繝・け髢薙・髢馴囈繧偵Λ繝ｳ繝繝縺ｧ豎ｺ螳壹＠縺ｾ縺呻ｼ域怙蟆上懈怙螟ｧ遘抵ｼ・
           </p>
 
           <hr style={{ border: 'none', borderTop: '1px solid #c8e89a', margin: '16px 0' }} />
-          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Flower size={15}/>エフェクト</h2>
+          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}><Flower size={15}/>繧ｨ繝輔ぉ繧ｯ繝・/h2>
           <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
             <input
               type="checkbox"
@@ -231,21 +231,21 @@ export default function GimmickPage() {
               onChange={toggleSakura}
               style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#6aac14' }}
             />
-            <span style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 14 }}>桜吹雪（全員のダッシュボードに表示）</span>
+            <span style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 14 }}>譯懷聖髮ｪ・亥・蜩｡縺ｮ繝繝・す繝･繝懊・繝峨↓陦ｨ遉ｺ・・/span>
           </label>
 
           <hr style={{ border: 'none', borderTop: '1px solid #c8e89a', margin: '16px 0' }} />
-          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>新規一言のデフォルト値</h2>
-          <p style={{ color: '#a8d870', fontSize: 12, marginBottom: 12 }}>「一言を追加」時に自動で設定される値です</p>
+          <h2 style={{ color: '#6aac14', fontSize: 16, fontWeight: 'bold', marginBottom: 12 }}>譁ｰ隕丈ｸ險縺ｮ繝・ヵ繧ｩ繝ｫ繝亥､</h2>
+          <p style={{ color: '#a8d870', fontSize: 12, marginBottom: 12 }}>縲御ｸ險繧定ｿｽ蜉縲肴凾縺ｫ閾ｪ蜍輔〒險ｭ螳壹＆繧後ｋ蛟､縺ｧ縺・/p>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <div>
-              <label className="game-label">タイピング速度 (秒/文字)</label>
+              <label className="game-label">繧ｿ繧､繝斐Φ繧ｰ騾溷ｺｦ (遘・譁・ｭ・</label>
               <input className="game-input" type="number" min={0.01} max={2} step={0.01} style={{ width: 110 }}
                 value={defaultTypeSpeedSec}
                 onChange={e => setDefaultTypeSpeedSec(Number(e.target.value))} />
             </div>
             <div>
-              <label className="game-label">表示時間 (秒)</label>
+              <label className="game-label">陦ｨ遉ｺ譎る俣 (遘・</label>
               <input className="game-input" type="number" min={0.5} step={0.1} style={{ width: 110 }}
                 value={defaultDisplaySec}
                 onChange={e => setDefaultDisplaySec(Number(e.target.value))} />
@@ -253,13 +253,13 @@ export default function GimmickPage() {
           </div>
         </div>
 
-        {/* ブロック一覧 */}
+        {/* 繝悶Ο繝・け荳隕ｧ */}
         {blocks.map(block => {
           const blockLines = linesForBlock(block.id)
           const isExpanded = expandedBlock === block.id
           return (
             <div key={block.id} className="game-card" style={{ padding: '20px 24px', marginBottom: 16 }}>
-              {/* ブロックヘッダー */}
+              {/* 繝悶Ο繝・け繝倥ャ繝繝ｼ */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <input
                   className="game-input"
@@ -273,23 +273,23 @@ export default function GimmickPage() {
                   color: 'white', border: 'none', borderRadius: 12,
                   padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap',
                 }}>
-                  {block.is_active ? '有効' : '無効'}
+                  {block.is_active ? '譛牙柑' : '辟｡蜉ｹ'}
                 </button>
                 <button onClick={() => setExpandedBlock(isExpanded ? null : block.id)} style={{
                   background: '#e8ffd4', color: '#3d6e00', border: '2px solid #6aac14',
                   borderRadius: 8, padding: '4px 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
                 }}>
-                  {isExpanded ? '▲ 閉じる' : `▼ 一言 (${blockLines.length})`}
+                  {isExpanded ? '笆ｲ 髢峨§繧・ : `笆ｼ 荳險 (${blockLines.length})`}
                 </button>
                 <button onClick={() => deleteBlock(block.id)} style={{
                   background: '#fdecea', color: '#c0392b', border: '2px solid #c0392b',
                   borderRadius: 8, padding: '4px 12px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
                 }}>
-                  削除
+                  蜑企勁
                 </button>
               </div>
 
-              {/* 一言リスト */}
+              {/* 荳險繝ｪ繧ｹ繝・*/}
               {isExpanded && (
                 <div style={{ marginTop: 16 }}>
                   {blockLines.map((line, idx) => (
@@ -303,29 +303,29 @@ export default function GimmickPage() {
                           className="game-input"
                           style={{ flex: 1, minHeight: 60, resize: 'vertical', fontSize: 14 }}
                           value={line.text}
-                          placeholder="セリフを入力…"
+                          placeholder="繧ｻ繝ｪ繝輔ｒ蜈･蜉帚ｦ"
                           onChange={e => updateLine(line.id, 'text', e.target.value)}
                           onBlur={e => updateLine(line.id, 'text', e.target.value)}
                         />
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           <button onClick={() => moveLine(line.id, 'up', block.id)} disabled={idx === 0}
-                            style={{ background: idx === 0 ? '#eee' : '#e8ffd4', border: '1px solid #6aac14', borderRadius: 6, padding: '4px 8px', cursor: idx === 0 ? 'default' : 'pointer', fontSize: 12 }}>↑</button>
+                            style={{ background: idx === 0 ? '#eee' : '#e8ffd4', border: '1px solid #6aac14', borderRadius: 6, padding: '4px 8px', cursor: idx === 0 ? 'default' : 'pointer', fontSize: 12 }}>竊・/button>
                           <button onClick={() => moveLine(line.id, 'down', block.id)} disabled={idx === blockLines.length - 1}
-                            style={{ background: idx === blockLines.length - 1 ? '#eee' : '#e8ffd4', border: '1px solid #6aac14', borderRadius: 6, padding: '4px 8px', cursor: idx === blockLines.length - 1 ? 'default' : 'pointer', fontSize: 12 }}>↓</button>
+                            style={{ background: idx === blockLines.length - 1 ? '#eee' : '#e8ffd4', border: '1px solid #6aac14', borderRadius: 6, padding: '4px 8px', cursor: idx === blockLines.length - 1 ? 'default' : 'pointer', fontSize: 12 }}>竊・/button>
                           <button onClick={() => deleteLine(line.id)}
                             style={{ background: '#fdecea', color: '#c0392b', border: '1px solid #c0392b', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><X size={11}/></button>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                         <div>
-                          <label className="game-label" style={{ fontSize: 11 }}>タイピング速度 (秒/文字)</label>
+                          <label className="game-label" style={{ fontSize: 11 }}>繧ｿ繧､繝斐Φ繧ｰ騾溷ｺｦ (遘・譁・ｭ・</label>
                           <input className="game-input" type="number" min={0.01} max={2} step={0.01} style={{ width: 100, fontSize: 13 }}
                             value={+(line.type_speed_ms / 1000).toFixed(3)}
                             onChange={e => updateLine(line.id, 'type_speed_ms', Math.round(Number(e.target.value) * 1000))}
                             onBlur={e => updateLine(line.id, 'type_speed_ms', Math.round(Number(e.target.value) * 1000))} />
                         </div>
                         <div>
-                          <label className="game-label" style={{ fontSize: 11 }}>表示時間 (秒)</label>
+                          <label className="game-label" style={{ fontSize: 11 }}>陦ｨ遉ｺ譎る俣 (遘・</label>
                           <input className="game-input" type="number" min={0.5} step={0.1} style={{ width: 100, fontSize: 13 }}
                             value={+(line.display_ms / 1000).toFixed(2)}
                             onChange={e => updateLine(line.id, 'display_ms', Math.round(Number(e.target.value) * 1000))}
@@ -339,7 +339,7 @@ export default function GimmickPage() {
                     color: '#3d6e00', border: '2px dashed #6aac14', borderRadius: 10,
                     cursor: 'pointer', fontWeight: 'bold', fontSize: 14,
                   }}>
-                    ＋ 一言を追加
+                    ・・荳險繧定ｿｽ蜉
                   </button>
                 </div>
               )}
@@ -348,9 +348,10 @@ export default function GimmickPage() {
         })}
 
         <button onClick={addBlock} className="game-button" style={{ marginTop: 8 }}>
-          ＋ 新しいブロックを追加
+          ・・譁ｰ縺励＞繝悶Ο繝・け繧定ｿｽ蜉
         </button>
       </div>
     </div>
   )
 }
+

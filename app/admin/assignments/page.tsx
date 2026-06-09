@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { Fragment, useEffect, useState } from 'react'
 import { CheckSquare } from 'lucide-react'
@@ -44,20 +44,20 @@ interface TaskOption {
 }
 
 const STATUS_LABELS: Record<string, { label: string; bg: string; color: string }> = {
-  assigned:    { label: 'アサイン済',  bg: '#e8e8e8', color: '#555' },
-  in_progress: { label: '取り組み中', bg: '#d4f0a0', color: '#3d6e00' },
-  submitted:   { label: '提出済',     bg: '#3d6e00', color: '#fff' },
+  assigned:    { label: '繧｢繧ｵ繧､繝ｳ貂・,  bg: '#e8e8e8', color: '#555' },
+  in_progress: { label: '蜿悶ｊ邨・∩荳ｭ', bg: '#d4f0a0', color: '#3d6e00' },
+  submitted:   { label: '謠仙・貂・,     bg: '#3d6e00', color: '#fff' },
 }
 
 const COURSE_OPTIONS = [
-  { label: '全コース', value: '' },
+  { label: '蜈ｨ繧ｳ繝ｼ繧ｹ', value: '' },
   { label: 'Unity', value: 'Unity' },
   { label: 'Blender', value: 'Blender' },
-  { label: 'Web開発', value: 'Web' },
+  { label: 'Web髢狗匱', value: 'Web' },
 ]
 
 const STAGE_OPTIONS = [
-  { label: '全ステージ', value: '' },
+  { label: '蜈ｨ繧ｹ繝・・繧ｸ', value: '' },
   { label: 'Foundation', value: 'Foundation' },
   { label: 'Development', value: 'Development' },
   { label: 'Production', value: 'Production' },
@@ -112,19 +112,19 @@ export default function AssignmentsPage() {
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, gimmick_management: false,
     dev_management: false,
-    news_management: false, ticket_admin: false, debug: false,
+    news_management: false, ticket_admin: false, debug: false, sns_management: false,
   })
 
-  // フィルター
+  // 繝輔ぅ繝ｫ繧ｿ繝ｼ
   const [filterText, setFilterText]   = useState('')
   const [filterCourse, setFilterCourse] = useState('')
   const [filterStage, setFilterStage]   = useState('')
   const [showSelectedOnly, setShowSelectedOnly] = useState(false)
 
-  // チェックボックス選択（localStorageで保持）
+  // 繝√ぉ繝・け繝懊ャ繧ｯ繧ｹ驕ｸ謚橸ｼ・ocalStorage縺ｧ菫晄戟・・
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  // アサインモーダル
+  // 繧｢繧ｵ繧､繝ｳ繝｢繝ｼ繝繝ｫ
   const [modalUserId, setModalUserId]     = useState<string | null>(null)
   const [modalType, setModalType]         = useState<'normal' | 'reserved' | null>(null)
   const [modalFilter, setModalFilter]     = useState('')
@@ -132,7 +132,7 @@ export default function AssignmentsPage() {
   const [modalError, setModalError]       = useState<string | null>(null)
   const [modalSaving, setModalSaving]     = useState(false)
 
-  // 自動アサイン切替中
+  // 閾ｪ蜍輔い繧ｵ繧､繝ｳ蛻・崛荳ｭ
   const [togglingAuto, setTogglingAuto]   = useState<string | null>(null)
 
   useEffect(() => {
@@ -259,7 +259,7 @@ export default function AssignmentsPage() {
         }))
       }
     } else {
-      // 予約アサイン: 現在の課題の期限の翌月曜日を activate_at に
+      // 莠育ｴ・い繧ｵ繧､繝ｳ: 迴ｾ蝨ｨ縺ｮ隱ｲ鬘後・譛滄剞縺ｮ鄙梧怦譖懈律繧・activate_at 縺ｫ
       const currentAssignments = activeMap[modalUserId] ?? []
       const current = currentAssignments.find(a => a.status !== 'submitted') ?? currentAssignments[0]
       let activateAt: Date
@@ -267,7 +267,7 @@ export default function AssignmentsPage() {
         const deadline = getAssignmentDeadline(current)
         activateAt = getNextMonday(deadline)
       } else {
-        // 現在課題がなければ翌月曜日
+        // 迴ｾ蝨ｨ隱ｲ鬘後′縺ｪ縺代ｌ縺ｰ鄙梧怦譖懈律
         const today = new Date()
         activateAt = getNextMonday(today)
       }
@@ -295,7 +295,7 @@ export default function AssignmentsPage() {
     closeModal()
   }
 
-  // フィルター & ソート（選択済み先頭）
+  // 繝輔ぅ繝ｫ繧ｿ繝ｼ & 繧ｽ繝ｼ繝茨ｼ磯∈謚樊ｸ医∩蜈磯ｭ・・
   const filteredProfiles = profiles
     .filter(p => {
       if (showSelectedOnly && !selectedIds.has(p.id)) return false
@@ -316,7 +316,7 @@ export default function AssignmentsPage() {
     </div>
   )
 
-  // モーダル用：既アサイン済みの task_id 集合
+  // 繝｢繝ｼ繝繝ｫ逕ｨ・壽里繧｢繧ｵ繧､繝ｳ貂医∩縺ｮ task_id 髮・粋
   const modalAlreadyAssigned = new Set([
     ...(activeMap[modalUserId ?? ''] ?? []).map(a => a.task_id),
     ...(reservedMap[modalUserId ?? ''] ?? []).map(r => r.task_id),
@@ -331,21 +331,21 @@ export default function AssignmentsPage() {
     <div style={{ minHeight: '100vh', padding: '32px 24px' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
 
-        {/* ヘッダー */}
+        {/* 繝倥ャ繝繝ｼ */}
         <div className="game-card" style={{ padding: '20px 28px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <a href="/dashboard" style={{ color: '#6aac14', fontWeight: 'bold', fontSize: 13, textDecoration: 'none' }}>← ダッシュボード</a>
-            <h1 className="game-title" style={{ fontSize: 26, flex: 1 }}>アサイン管理</h1>
+            <a href="/dashboard" style={{ color: '#6aac14', fontWeight: 'bold', fontSize: 13, textDecoration: 'none' }}>竊・繝繝・す繝･繝懊・繝・/a>
+            <h1 className="game-title" style={{ fontSize: 26, flex: 1 }}>繧｢繧ｵ繧､繝ｳ邂｡逅・/h1>
           </div>
         </div>
 
-        {/* フィルター */}
+        {/* 繝輔ぅ繝ｫ繧ｿ繝ｼ */}
         <div className="game-card" style={{ padding: '16px 24px', marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <input
               className="game-input"
               type="text"
-              placeholder="名前で検索…"
+              placeholder="蜷榊燕縺ｧ讀懃ｴ｢窶ｦ"
               value={filterText}
               onChange={e => setFilterText(e.target.value)}
               style={{ flex: 1, minWidth: 120, fontSize: 14 }}
@@ -365,21 +365,21 @@ export default function AssignmentsPage() {
                 color: showSelectedOnly ? 'white' : '#3d6e00',
               }}
             >
-              <CheckSquare size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }}/>選択済みのみ
+              <CheckSquare size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }}/>驕ｸ謚樊ｸ医∩縺ｮ縺ｿ
             </button>
           </div>
           {selectedIds.size > 0 && (
             <p style={{ fontSize: 12, color: '#6aac14', marginTop: 8, fontWeight: 'bold' }}>
-              {selectedIds.size} 名選択中
+              {selectedIds.size} 蜷埼∈謚樔ｸｭ
             </p>
           )}
         </div>
 
-        {/* 部員カードリスト */}
+        {/* 驛ｨ蜩｡繧ｫ繝ｼ繝峨Μ繧ｹ繝・*/}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filteredProfiles.length === 0 && (
             <div className="game-card" style={{ padding: 24, textAlign: 'center', color: '#888' }}>
-              表示できる部員がいません
+              陦ｨ遉ｺ縺ｧ縺阪ｋ驛ｨ蜩｡縺後＞縺ｾ縺帙ｓ
             </div>
           )}
           {filteredProfiles.map(profile => {
@@ -397,7 +397,7 @@ export default function AssignmentsPage() {
                   background: isSelected ? '#f0fae0' : undefined,
                 }}
               >
-                {/* ヘッダー行 */}
+                {/* 繝倥ャ繝繝ｼ陦・*/}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                   <input
                     type="checkbox"
@@ -406,7 +406,7 @@ export default function AssignmentsPage() {
                     style={{ width: 16, height: 16, cursor: 'pointer', flexShrink: 0 }}
                   />
                   <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 16, flex: 1 }}>
-                    {profile.username ?? '（名前なし）'}
+                    {profile.username ?? '・亥錐蜑阪↑縺暦ｼ・}
                   </span>
                   {profile.course && (
                     <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '2px 9px', fontSize: 12, fontWeight: 'bold' }}>
@@ -420,22 +420,22 @@ export default function AssignmentsPage() {
                   )}
                 </div>
 
-                {/* アサイン済み課題一覧 */}
+                {/* 繧｢繧ｵ繧､繝ｳ貂医∩隱ｲ鬘御ｸ隕ｧ */}
                 <div style={{ marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, color: '#888', fontWeight: 'bold' }}>アサイン済み課題: </span>
+                  <span style={{ fontSize: 12, color: '#888', fontWeight: 'bold' }}>繧｢繧ｵ繧､繝ｳ貂医∩隱ｲ鬘・ </span>
                   {active.length === 0 ? (
-                    <span style={{ color: '#aaa', fontSize: 13 }}>なし</span>
+                    <span style={{ color: '#aaa', fontSize: 13 }}>縺ｪ縺・/span>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
                       {active.map(a => {
                         const s = STATUS_LABELS[a.status]
                         const deadline = getAssignmentDeadline(a)
-                        const dl = `${deadline.getMonth() + 1}/${deadline.getDate()}(日)`
+                        const dl = `${deadline.getMonth() + 1}/${deadline.getDate()}(譌･)`
                         return (
                           <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, flexWrap: 'wrap' }}>
                             <span style={{ background: s.bg, color: s.color, borderRadius: 8, padding: '2px 8px', fontWeight: 'bold', fontSize: 12, whiteSpace: 'nowrap' }}>{s.label}</span>
                             <span style={{ color: '#2d5500', fontWeight: 'bold' }}>{a.task.title}</span>
-                            <span style={{ color: '#888', fontSize: 12, whiteSpace: 'nowrap' }}>期限: {dl}</span>
+                            <span style={{ color: '#888', fontSize: 12, whiteSpace: 'nowrap' }}>譛滄剞: {dl}</span>
                           </div>
                         )
                       })}
@@ -443,46 +443,46 @@ export default function AssignmentsPage() {
                   )}
                 </div>
 
-                {/* 予約アサイン一覧 */}
+                {/* 莠育ｴ・い繧ｵ繧､繝ｳ荳隕ｧ */}
                 {reserved.length > 0 && (
                   <div style={{ marginBottom: 10 }}>
-                    <span style={{ fontSize: 12, color: '#888', fontWeight: 'bold' }}>予約アサイン: </span>
+                    <span style={{ fontSize: 12, color: '#888', fontWeight: 'bold' }}>莠育ｴ・い繧ｵ繧､繝ｳ: </span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                       {reserved.map(r => (
                         <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#f0f8e0', border: '1px solid #6aac14', borderRadius: 8, padding: '3px 8px', fontSize: 12 }}>
                           <span style={{ background: r.type === 'auto' ? '#3d6e00' : '#6aac14', color: 'white', borderRadius: 6, padding: '0 5px', fontSize: 10, fontWeight: 'bold' }}>
-                            {r.type === 'auto' ? '自動' : '予約'}
+                            {r.type === 'auto' ? '閾ｪ蜍・ : '莠育ｴ・}
                           </span>
                           <span style={{ color: '#2d5500', fontWeight: 'bold' }}>{r.task.title}</span>
-                          <span style={{ color: '#888' }}>{formatDate(r.activate_at)}〜</span>
+                          <span style={{ color: '#888' }}>{formatDate(r.activate_at)}縲・/span>
                           <button
                             onClick={() => cancelReservation(r.id, profile.id)}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c0392b', fontWeight: 'bold', fontSize: 13, padding: '0 2px', lineHeight: 1 }}
-                          >×</button>
+                          >ﾃ・/button>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* 操作行 */}
+                {/* 謫堺ｽ懆｡・*/}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <button
                     onClick={() => openModal(profile.id, 'normal')}
                     style={{ padding: '6px 14px', borderRadius: 8, border: '2px solid #6aac14', background: 'white', color: '#2d5500', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
                   >
-                    通常アサイン
+                    騾壼ｸｸ繧｢繧ｵ繧､繝ｳ
                   </button>
                   <button
                     onClick={() => openModal(profile.id, 'reserved')}
                     style={{ padding: '6px 14px', borderRadius: 8, border: '2px solid #3d6e00', background: 'white', color: '#2d5500', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
                   >
-                    予約アサイン
+                    莠育ｴ・い繧ｵ繧､繝ｳ
                   </button>
 
-                  {/* 自動アサイン スイッチ */}
+                  {/* 閾ｪ蜍輔い繧ｵ繧､繝ｳ 繧ｹ繧､繝・メ */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginLeft: 'auto' }}>
-                    <span style={{ fontSize: 12, color: '#555', fontWeight: 'bold', whiteSpace: 'nowrap' }}>自動アサイン</span>
+                    <span style={{ fontSize: 12, color: '#555', fontWeight: 'bold', whiteSpace: 'nowrap' }}>閾ｪ蜍輔い繧ｵ繧､繝ｳ</span>
                     <div
                       onClick={() => !togglingAuto && toggleAutoAssign(profile)}
                       style={{
@@ -507,7 +507,7 @@ export default function AssignmentsPage() {
         </div>
       </div>
 
-      {/* 課題選択モーダル */}
+      {/* 隱ｲ鬘碁∈謚槭Δ繝ｼ繝繝ｫ */}
       {modalUserId && modalType && (
         <div
           onClick={e => { if (e.target === e.currentTarget) closeModal() }}
@@ -519,14 +519,14 @@ export default function AssignmentsPage() {
         >
           <div className="game-card" style={{ width: '100%', maxWidth: 500, maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: '20px 24px', gap: 12 }}>
             <h2 className="game-title" style={{ fontSize: 20, marginBottom: 0 }}>
-              {modalType === 'normal' ? '通常アサイン' : '予約アサイン'} — 課題を選択
+              {modalType === 'normal' ? '騾壼ｸｸ繧｢繧ｵ繧､繝ｳ' : '莠育ｴ・い繧ｵ繧､繝ｳ'} 窶・隱ｲ鬘後ｒ驕ｸ謚・
             </h2>
 
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 className="game-input"
                 type="text"
-                placeholder="課題名で検索…"
+                placeholder="隱ｲ鬘悟錐縺ｧ讀懃ｴ｢窶ｦ"
                 value={modalFilter}
                 onChange={e => setModalFilter(e.target.value)}
                 style={{ flex: 1, fontSize: 13 }}
@@ -540,7 +540,7 @@ export default function AssignmentsPage() {
 
             <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
               {modalTasks.length === 0 && (
-                <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 16 }}>課題が見つかりません</p>
+                <p style={{ color: '#aaa', fontSize: 13, textAlign: 'center', padding: 16 }}>隱ｲ鬘後′隕九▽縺九ｊ縺ｾ縺帙ｓ</p>
               )}
               {modalTasks.map(task => {
                 const alreadyAssigned = modalAlreadyAssigned.has(task.id)
@@ -579,7 +579,7 @@ export default function AssignmentsPage() {
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {alreadyAssigned ? '済み' : 'アサイン'}
+                      {alreadyAssigned ? '貂医∩' : '繧｢繧ｵ繧､繝ｳ'}
                     </button>
                   </div>
                 )
@@ -590,7 +590,7 @@ export default function AssignmentsPage() {
               onClick={closeModal}
               style={{ padding: '8px', borderRadius: 8, border: '2px solid #888', background: 'none', color: '#888', fontWeight: 'bold', cursor: 'pointer', fontSize: 14 }}
             >
-              閉じる
+              髢峨§繧・
             </button>
           </div>
         </div>
@@ -598,3 +598,4 @@ export default function AssignmentsPage() {
     </div>
   )
 }
+

@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -44,14 +44,14 @@ interface TaskOption {
 }
 
 const COURSE_OPTIONS = [
-  { label: 'Unityコース', value: 'Unity' },
-  { label: 'Blenderコース', value: 'Blender' },
-  { label: 'Webコース', value: 'Web' },
+  { label: 'Unity繧ｳ繝ｼ繧ｹ', value: 'Unity' },
+  { label: 'Blender繧ｳ繝ｼ繧ｹ', value: 'Blender' },
+  { label: 'Web繧ｳ繝ｼ繧ｹ', value: 'Web' },
 ]
 const ASPECT_PRESETS = [
-  { label: '横長 (16:9)', value: 16 / 9 },
-  { label: '正方形 (1:1)', value: 1 },
-  { label: '縦長 (3:4)',  value: 3 / 4 },
+  { label: '讓ｪ髟ｷ (16:9)', value: 16 / 9 },
+  { label: '豁｣譁ｹ蠖｢ (1:1)', value: 1 },
+  { label: '邵ｦ髟ｷ (3:4)',  value: 3 / 4 },
 ]
 const TITLE_COLOR_PRESETS = [
   '#ffffff', '#f0f0f0', '#ffeb3b', '#ff9800', '#f44336',
@@ -81,13 +81,13 @@ export default function NewsAdminPage() {
     course_management: false, task_management: false, point_settings: false,
     submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, assignment_management: false,
-    gimmick_management: false, news_management: false, dev_management: false, ticket_admin: false, debug: false,
+    gimmick_management: false, news_management: false, dev_management: false, ticket_admin: false, debug: false, sns_management: false,
   })
 
   const [topics, setTopics]   = useState<BonTopic[]>([])
   const [allTasks, setAllTasks] = useState<TaskOption[]>([])
 
-  // ── フォーム ──────────────────────────────────────
+  // 笏笏 繝輔か繝ｼ繝 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   const [editId, setEditId]             = useState<string | null>(null)
   const [formTitle, setFormTitle]       = useState('')
   const [titleColor, setTitleColor]     = useState('#ffffff')
@@ -95,7 +95,7 @@ export default function NewsAdminPage() {
   const [isPublished, setIsPublished]   = useState(true)
   const [blocks, setBlocks]             = useState<BlockDraft[]>([])
 
-  // ── サムネイル ─────────────────────────────────────
+  // 笏笏 繧ｵ繝繝阪う繝ｫ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   const [thumbSrc, setThumbSrc]             = useState<string | null>(null)  // for cropper (data URL)
   const [thumbPreview, setThumbPreview]     = useState<string | null>(null)  // after crop
   const [existingThumbUrl, setExistingThumbUrl] = useState<string | null>(null)
@@ -107,7 +107,7 @@ export default function NewsAdminPage() {
   const [croppedBlob, setCroppedBlob]       = useState<Blob | null>(null)
   const [croppedAspect, setCroppedAspect]   = useState(16 / 9)
 
-  // ── AIステーション ────────────────────────────────
+  // 笏笏 AI繧ｹ繝・・繧ｷ繝ｧ繝ｳ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   const [aiCandidates, setAiCandidates] = useState<string[]>([])
   const [aiSearchTerm, setAiSearchTerm] = useState('')
   const [aiMaxTokens, setAiMaxTokens]   = useState(2000)
@@ -120,13 +120,13 @@ export default function NewsAdminPage() {
   const [aiTaskStage, setAiTaskStage]   = useState('')
   const [aiTaskIds, setAiTaskIds]       = useState<string[]>([])
 
-  // ── 保存 ──────────────────────────────────────────
+  // 笏笏 菫晏ｭ・笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   const [saving, setSaving]     = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // ── 初期化 ─────────────────────────────────────────
+  // 笏笏 蛻晄悄蛹・笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   useEffect(() => {
     async function init() {
       const { data, error } = await supabase.auth.getUser()
@@ -155,7 +155,7 @@ export default function NewsAdminPage() {
     init()
   }, [router])
 
-  // ── ヘルパー ──────────────────────────────────────
+  // 笏笏 繝倥Ν繝代・ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   const isAdmin = userRole === 'admin'
 
   function resetForm() {
@@ -230,7 +230,7 @@ export default function NewsAdminPage() {
     setBlocks(prev => prev.filter(b => b.draftId !== draftId))
   }
 
-  // ── サムネイルトリミング ──────────────────────────
+  // 笏笏 繧ｵ繝繝阪う繝ｫ繝医Μ繝溘Φ繧ｰ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   const onCropComplete = useCallback((_: Area, areaPixels: Area) => {
     setCroppedAreaPixels(areaPixels)
   }, [])
@@ -244,7 +244,7 @@ export default function NewsAdminPage() {
     setCropOpen(false)
   }
 
-  // ── AIステーション関数 ────────────────────────────
+  // 笏笏 AI繧ｹ繝・・繧ｷ繝ｧ繝ｳ髢｢謨ｰ 笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   async function callGenerateNews(body: object) {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token ?? ''
@@ -255,7 +255,7 @@ export default function NewsAdminPage() {
     })
     if (!res.ok) {
       const e = await res.json()
-      throw new Error(e.error ?? 'APIエラー')
+      throw new Error(e.error ?? 'API繧ｨ繝ｩ繝ｼ')
     }
     return res.json()
   }
@@ -315,9 +315,9 @@ export default function NewsAdminPage() {
     finally { setAiLoading(false) }
   }
 
-  // ── 保存 ──────────────────────────────────────────
+  // 笏笏 菫晏ｭ・笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏
   async function handleSave() {
-    if (!formTitle.trim()) { setSaveError('タイトルを入力してください'); return }
+    if (!formTitle.trim()) { setSaveError('繧ｿ繧､繝医Ν繧貞・蜉帙＠縺ｦ縺上□縺輔＞'); return }
     setSaving(true); setSaveError(null); setSaveSuccess(false)
 
     let topicId = editId
@@ -340,7 +340,7 @@ export default function NewsAdminPage() {
       setEditId(topicId)
     }
 
-    // 2. サムネイルアップロード
+    // 2. 繧ｵ繝繝阪う繝ｫ繧｢繝・・繝ｭ繝ｼ繝・
     if (croppedBlob && topicId) {
       const { data: upData, error: upErr } = await supabase.storage
         .from('media')
@@ -351,14 +351,14 @@ export default function NewsAdminPage() {
       }
     }
 
-    // 3. ブロック保存（全削除→再 insert）
+    // 3. 繝悶Ο繝・け菫晏ｭ假ｼ亥・蜑企勁竊貞・ insert・・
     await supabase.from('bon_topic_blocks').delete().eq('topic_id', topicId)
 
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i]
       let imageUrl = b.imageUrl ?? null
 
-      // 画像ブロックのアップロード
+      // 逕ｻ蜒上ヶ繝ｭ繝・け縺ｮ繧｢繝・・繝ｭ繝ｼ繝・
       if (b.type === 'image' && b.imageFile) {
         const ext = b.imageFile.name.split('.').pop() ?? 'jpg'
         const path = `bon-topics-blocks/${topicId}-${i}.${ext}`
@@ -383,7 +383,7 @@ export default function NewsAdminPage() {
       })
     }
 
-    // 4. 一覧更新
+    // 4. 荳隕ｧ譖ｴ譁ｰ
     const { data: refreshed } = await supabase.from('bon_topics').select('*').order('created_at', { ascending: false })
     setTopics(refreshed ?? [])
 
@@ -394,7 +394,7 @@ export default function NewsAdminPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('この記事を削除しますか？')) return
+    if (!confirm('縺薙・險倅ｺ九ｒ蜑企勁縺励∪縺吶°・・)) return
     await supabase.from('bon_topics').delete().eq('id', id)
     setTopics(prev => prev.filter(t => t.id !== id))
     if (editId === id) resetForm()
@@ -405,47 +405,47 @@ export default function NewsAdminPage() {
     setTopics(prev => prev.map(t => t.id === topic.id ? { ...t, is_published: !t.is_published } : t))
   }
 
-  if (loading) return <div style={{ color: '#a8d870', textAlign: 'center', marginTop: 80 }}>読み込み中…</div>
+  if (loading) return <div style={{ color: '#a8d870', textAlign: 'center', marginTop: 80 }}>隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ窶ｦ</div>
 
   const labelStyle: React.CSSProperties = { fontSize: 12, color: '#3d6e00', fontWeight: 'bold', marginBottom: 4, display: 'block' }
   const sectionGap: React.CSSProperties = { marginBottom: 16 }
 
   return (
     <div style={{ minHeight: '100vh', padding: '56px 24px 48px', maxWidth: 900, margin: '0 auto' }}>
-      {/* 戻るボタン */}
+      {/* 謌ｻ繧九・繧ｿ繝ｳ */}
       <button
         onClick={() => router.push('/dashboard')}
         style={{ position: 'fixed', top: 20, left: 16, zIndex: 50, background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer', textShadow: '0 1px 4px rgba(0,0,0,0.4)' }}
-      >←</button>
+      >竊・/button>
 
       <div>
         <div className="game-card" style={{ marginBottom: 24, padding: '16px 20px' }}>
-          <h1 className="game-title" style={{ fontSize: 20, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><Newspaper size={18}/>ニュース管理</h1>
-          <p style={{ fontSize: 12, color: '#6aac14', margin: 0 }}>BON-TOPICSの記事を作成・編集します</p>
+          <h1 className="game-title" style={{ fontSize: 20, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><Newspaper size={18}/>繝九Η繝ｼ繧ｹ邂｡逅・/h1>
+          <p style={{ fontSize: 12, color: '#6aac14', margin: 0 }}>BON-TOPICS縺ｮ險倅ｺ九ｒ菴懈・繝ｻ邱ｨ髮・＠縺ｾ縺・/p>
         </div>
 
-        {/* 上段: 編集フォーム + AIステーション */}
+        {/* 荳頑ｮｵ: 邱ｨ髮・ヵ繧ｩ繝ｼ繝 + AI繧ｹ繝・・繧ｷ繝ｧ繝ｳ */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
 
-          {/* ── 編集フォーム ── */}
+          {/* 笏笏 邱ｨ髮・ヵ繧ｩ繝ｼ繝 笏笏 */}
           <div className="game-card" style={{ padding: '20px 24px' }}>
             <h2 style={{ fontSize: 16, color: '#3d6e00', fontWeight: 'bold', marginBottom: 16 }}>
-              {editId ? '記事を編集' : '新しい記事を作成'}
+              {editId ? '險倅ｺ九ｒ邱ｨ髮・ : '譁ｰ縺励＞險倅ｺ九ｒ菴懈・'}
             </h2>
 
             {saveError && <div className="game-error" style={{ marginBottom: 12 }}>{saveError}</div>}
-            {saveSuccess && <div className="game-success" style={{ marginBottom: 12 }}>保存しました！</div>}
+            {saveSuccess && <div className="game-success" style={{ marginBottom: 12 }}>菫晏ｭ倥＠縺ｾ縺励◆・・/div>}
 
-            {/* タイトル */}
+            {/* 繧ｿ繧､繝医Ν */}
             <div style={sectionGap}>
-              <label style={labelStyle}>タイトル</label>
+              <label style={labelStyle}>繧ｿ繧､繝医Ν</label>
               <input className="game-input" value={formTitle} onChange={e => setFormTitle(e.target.value)}
-                placeholder="記事タイトルを入力" style={{ width: '100%', fontSize: 14 }} />
+                placeholder="險倅ｺ九ち繧､繝医Ν繧貞・蜉・ style={{ width: '100%', fontSize: 14 }} />
             </div>
 
-            {/* タイトル色 */}
+            {/* 繧ｿ繧､繝医Ν濶ｲ */}
             <div style={sectionGap}>
-              <label style={labelStyle}>タイトル文字色</label>
+              <label style={labelStyle}>繧ｿ繧､繝医Ν譁・ｭ苓牡</label>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                 {TITLE_COLOR_PRESETS.map(c => (
                   <button key={c} onClick={() => setTitleColor(c)}
@@ -457,9 +457,9 @@ export default function NewsAdminPage() {
               </div>
             </div>
 
-            {/* サムネイル */}
+            {/* 繧ｵ繝繝阪う繝ｫ */}
             <div style={sectionGap}>
-              <label style={labelStyle}>サムネイル</label>
+              <label style={labelStyle}>繧ｵ繝繝阪う繝ｫ</label>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                 {ASPECT_PRESETS.map(p => (
                   <button key={p.label} onClick={() => setAspectRatio(p.value)}
@@ -482,15 +482,15 @@ export default function NewsAdminPage() {
                     style={{ height: 80, borderRadius: 8, border: '2px solid #c8e89a', objectFit: 'cover' }} />
                   {thumbPreview && (
                     <button onClick={() => { setCroppedBlob(null); setThumbPreview(null) }}
-                      style={{ position: 'absolute', top: -6, right: -6, background: '#e74c3c', color: '#fff', border: 'none', borderRadius: '50%', width: 18, height: 18, fontSize: 10, cursor: 'pointer', lineHeight: '18px', textAlign: 'center' }}>×</button>
+                      style={{ position: 'absolute', top: -6, right: -6, background: '#e74c3c', color: '#fff', border: 'none', borderRadius: '50%', width: 18, height: 18, fontSize: 10, cursor: 'pointer', lineHeight: '18px', textAlign: 'center' }}>ﾃ・/button>
                   )}
                 </div>
               )}
             </div>
 
-            {/* 対象コース */}
+            {/* 蟇ｾ雎｡繧ｳ繝ｼ繧ｹ */}
             <div style={sectionGap}>
-              <label style={labelStyle}>対象コース <span style={{ fontWeight: 'normal', color: '#6aac14' }}>(未選択=全コース向け)</span></label>
+              <label style={labelStyle}>蟇ｾ雎｡繧ｳ繝ｼ繧ｹ <span style={{ fontWeight: 'normal', color: '#6aac14' }}>(譛ｪ驕ｸ謚・蜈ｨ繧ｳ繝ｼ繧ｹ蜷代￠)</span></label>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 {COURSE_OPTIONS.map(c => (
                   <label key={c.value} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, cursor: 'pointer', color: '#3d6e00' }}>
@@ -502,36 +502,36 @@ export default function NewsAdminPage() {
               </div>
             </div>
 
-            {/* 公開設定 */}
+            {/* 蜈ｬ髢玖ｨｭ螳・*/}
             <div style={{ ...sectionGap, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <label style={{ ...labelStyle, marginBottom: 0 }}>公開する</label>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>蜈ｬ髢九☆繧・/label>
               <div onClick={() => setIsPublished(p => !p)}
                 style={{ width: 44, height: 24, borderRadius: 12, background: isPublished ? '#6aac14' : '#ccc', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
                 <div style={{ position: 'absolute', top: 2, left: isPublished ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
               </div>
             </div>
 
-            {/* ブロックエディタ */}
+            {/* 繝悶Ο繝・け繧ｨ繝・ぅ繧ｿ */}
             <div style={{ ...sectionGap, marginTop: 20 }}>
-              <label style={labelStyle}>コンテンツブロック</label>
+              <label style={labelStyle}>繧ｳ繝ｳ繝・Φ繝・ヶ繝ｭ繝・け</label>
 
               {blocks.map((b, idx) => (
                 <div key={b.draftId} style={{ border: '2px solid #c8e89a', borderRadius: 8, padding: 12, marginBottom: 8, background: '#f8fef0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                     <span style={{ fontSize: 11, fontWeight: 'bold', color: '#3d6e00', background: '#c8e89a', borderRadius: 4, padding: '2px 6px' }}>
-                      {b.type === 'text' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><FileText size={10}/>テキスト</span>
-                        : b.type === 'image' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ImageIcon size={10}/>画像</span>
-                        : b.type === 'link' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Link2 size={10}/>リンク</span>
-                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ClipboardList size={10}/>課題</span>
+                      {b.type === 'text' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><FileText size={10}/>繝・く繧ｹ繝・/span>
+                        : b.type === 'image' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ImageIcon size={10}/>逕ｻ蜒・/span>
+                        : b.type === 'link' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Link2 size={10}/>繝ｪ繝ｳ繧ｯ</span>
+                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><ClipboardList size={10}/>隱ｲ鬘・/span>
                       }
                     </span>
                     <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
                       <button onClick={() => moveBlock(b.draftId, -1)} disabled={idx === 0}
-                        style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #3d6e00', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#3d6e00' }}>↑</button>
+                        style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #3d6e00', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#3d6e00' }}>竊・/button>
                       <button onClick={() => moveBlock(b.draftId, 1)} disabled={idx === blocks.length - 1}
-                        style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #3d6e00', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#3d6e00' }}>↓</button>
+                        style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #3d6e00', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#3d6e00' }}>竊・/button>
                       <button onClick={() => removeBlock(b.draftId)}
-                        style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #e74c3c', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#e74c3c' }}>削除</button>
+                        style={{ fontSize: 12, padding: '2px 8px', border: '1px solid #e74c3c', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#e74c3c' }}>蜑企勁</button>
                     </div>
                   </div>
 
@@ -540,10 +540,10 @@ export default function NewsAdminPage() {
                       <textarea className="game-input" value={b.content}
                         onChange={e => updateBlock(b.draftId, { content: e.target.value })}
                         rows={4} style={{ width: '100%', fontSize: 13, resize: 'vertical' }}
-                        placeholder="テキストを入力…" />
+                        placeholder="繝・く繧ｹ繝医ｒ蜈･蜉帚ｦ" />
                       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#3d6e00', cursor: 'pointer', marginTop: 4 }}>
                         <input type="checkbox" checked={b.isMarkdown} onChange={e => updateBlock(b.draftId, { isMarkdown: e.target.checked })} />
-                        マークダウンで記述
+                        繝槭・繧ｯ繝繧ｦ繝ｳ縺ｧ險倩ｿｰ
                       </label>
                     </>
                   )}
@@ -570,7 +570,7 @@ export default function NewsAdminPage() {
                         placeholder="https://..." style={{ fontSize: 13 }} />
                       <input className="game-input" value={b.linkLabel}
                         onChange={e => updateBlock(b.draftId, { linkLabel: e.target.value })}
-                        placeholder="リンクのラベル" style={{ fontSize: 13 }} />
+                        placeholder="繝ｪ繝ｳ繧ｯ縺ｮ繝ｩ繝吶Ν" style={{ fontSize: 13 }} />
                     </div>
                   )}
 
@@ -578,9 +578,9 @@ export default function NewsAdminPage() {
                     <select className="game-input" value={b.taskId}
                       onChange={e => updateBlock(b.draftId, { taskId: e.target.value })}
                       style={{ width: '100%', fontSize: 13 }}>
-                      <option value="">-- 課題を選択 --</option>
+                      <option value="">-- 隱ｲ鬘後ｒ驕ｸ謚・--</option>
                       {allTasks.map(t => (
-                        <option key={t.id} value={t.id}>{t.title}（{t.target_course || '全コース'} / {t.target_stage || '全ステージ'}）</option>
+                        <option key={t.id} value={t.id}>{t.title}・・t.target_course || '蜈ｨ繧ｳ繝ｼ繧ｹ'} / {t.target_stage || '蜈ｨ繧ｹ繝・・繧ｸ'}・・/option>
                       ))}
                     </select>
                   )}
@@ -588,7 +588,7 @@ export default function NewsAdminPage() {
               ))}
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                {([['text', 'テキスト'], ['image', '画像'], ['link', 'リンク'], ['assignment', '課題']] as [BlockType, string][]).map(([t, label]) => {
+                {([['text', '繝・く繧ｹ繝・], ['image', '逕ｻ蜒・], ['link', '繝ｪ繝ｳ繧ｯ'], ['assignment', '隱ｲ鬘・]] as [BlockType, string][]).map(([t, label]) => {
                   const BIcon = t === 'text' ? FileText : t === 'image' ? ImageIcon : t === 'link' ? Link2 : ClipboardList
                   return (
                     <button key={t} onClick={() => addBlock(t)}
@@ -602,50 +602,50 @@ export default function NewsAdminPage() {
 
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button className="game-button" onClick={handleSave} disabled={saving} style={{ flex: 1 }}>
-                {saving ? '保存中…' : editId ? '更新する' : '作成する'}
+                {saving ? '菫晏ｭ倅ｸｭ窶ｦ' : editId ? '譖ｴ譁ｰ縺吶ｋ' : '菴懈・縺吶ｋ'}
               </button>
               {editId && (
                 <button onClick={resetForm}
                   style={{ padding: '10px 16px', border: '2px solid #3d6e00', borderRadius: 8, background: '#fff', color: '#3d6e00', cursor: 'pointer', fontSize: 14 }}>
-                  キャンセル
+                  繧ｭ繝｣繝ｳ繧ｻ繝ｫ
                 </button>
               )}
             </div>
           </div>
 
-          {/* ── AIステーション ── */}
+          {/* 笏笏 AI繧ｹ繝・・繧ｷ繝ｧ繝ｳ 笏笏 */}
           <div className="game-card" style={{ padding: '20px 24px' }}>
-            <h2 style={{ fontSize: 16, color: '#3d6e00', fontWeight: 'bold', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}><Bot size={15}/>AIステーション</h2>
+            <h2 style={{ fontSize: 16, color: '#3d6e00', fontWeight: 'bold', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}><Bot size={15}/>AI繧ｹ繝・・繧ｷ繝ｧ繝ｳ</h2>
 
             {aiError && <div className="game-error" style={{ marginBottom: 12 }}>{aiError}</div>}
 
-            {/* トークンスライダー */}
+            {/* 繝医・繧ｯ繝ｳ繧ｹ繝ｩ繧､繝繝ｼ */}
             <div style={sectionGap}>
-              <label style={labelStyle}>生成トークン上限: <strong>{aiMaxTokens.toLocaleString()}</strong></label>
+              <label style={labelStyle}>逕滓・繝医・繧ｯ繝ｳ荳企剞: <strong>{aiMaxTokens.toLocaleString()}</strong></label>
               <input type="range" min={500} max={8000} step={500} value={aiMaxTokens}
                 onChange={e => setAiMaxTokens(Number(e.target.value))}
                 style={{ width: '100%', marginBottom: 2 }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#6aac14' }}>
-                <span>500（短め）</span><span>8,000（長め）</span>
+                <span>500・育洒繧・ｼ・/span><span>8,000・磯聞繧・ｼ・/span>
               </div>
             </div>
 
-            {/* A. キーワードリサーチ */}
+            {/* A. 繧ｭ繝ｼ繝ｯ繝ｼ繝峨Μ繧ｵ繝ｼ繝・*/}
             <div style={sectionGap}>
-              <label style={labelStyle}>A. キーワードリサーチ</label>
+              <label style={labelStyle}>A. 繧ｭ繝ｼ繝ｯ繝ｼ繝峨Μ繧ｵ繝ｼ繝・/label>
               <input className="game-input" value={aiSearchTerm}
                 onChange={e => setAiSearchTerm(e.target.value)}
-                placeholder="例: Claude Code 並列開発、Unity 6 新機能…"
+                placeholder="萓・ Claude Code 荳ｦ蛻鈴幕逋ｺ縲ゞnity 6 譁ｰ讖溯・窶ｦ"
                 style={{ width: '100%', fontSize: 13, marginBottom: 8 }}
                 onKeyDown={e => { if (e.key === 'Enter' && aiSearchTerm.trim()) handleResearch() }} />
               <button className="game-button" onClick={handleResearch}
                 disabled={aiLoading || !aiSearchTerm.trim()}
                 style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
-                {aiLoading && aiCandidates.length === 0 ? '生成中…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Search size={13}/>リサーチ</span>}
+                {aiLoading && aiCandidates.length === 0 ? '逕滓・荳ｭ窶ｦ' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Search size={13}/>繝ｪ繧ｵ繝ｼ繝・/span>}
               </button>
               {aiCandidates.length > 0 && (
                 <div style={{ marginTop: 10 }}>
-                  <p style={{ fontSize: 12, color: '#3d6e00', marginBottom: 6 }}>タイトル候補（クリックで詳細生成）:</p>
+                  <p style={{ fontSize: 12, color: '#3d6e00', marginBottom: 6 }}>繧ｿ繧､繝医Ν蛟呵｣懶ｼ医け繝ｪ繝・け縺ｧ隧ｳ邏ｰ逕滓・・・</p>
                   {aiCandidates.map((c, i) => (
                     <button key={i} onClick={() => handleSelectCandidate(c)} disabled={aiLoading}
                       style={{ display: 'block', width: '100%', textAlign: 'left', marginBottom: 4, padding: '6px 10px',
@@ -658,20 +658,20 @@ export default function NewsAdminPage() {
               )}
             </div>
 
-            {/* B. 課題ベース記事生成 */}
+            {/* B. 隱ｲ鬘後・繝ｼ繧ｹ險倅ｺ狗函謌・*/}
             <div style={sectionGap}>
-              <label style={labelStyle}>B. 課題ベース記事生成</label>
+              <label style={labelStyle}>B. 隱ｲ鬘後・繝ｼ繧ｹ險倅ｺ狗函謌・/label>
               <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <select className="game-input" style={{ flex: 1, fontSize: 12 }}
                   value={aiTaskCourse}
                   onChange={e => { setAiTaskCourse(e.target.value); setAiTaskIds([]) }}>
-                  <option value="">全コース</option>
+                  <option value="">蜈ｨ繧ｳ繝ｼ繧ｹ</option>
                   {['Unity', 'Blender', 'Web'].map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <select className="game-input" style={{ flex: 1, fontSize: 12 }}
                   value={aiTaskStage}
                   onChange={e => { setAiTaskStage(e.target.value); setAiTaskIds([]) }}>
-                  <option value="">全ステージ</option>
+                  <option value="">蜈ｨ繧ｹ繝・・繧ｸ</option>
                   {['Foundation', 'Development', 'Production'].map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
@@ -684,7 +684,7 @@ export default function NewsAdminPage() {
                   <>
                     <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid #c8e89a', borderRadius: 6, padding: '6px 8px', background: '#f8fef0', marginBottom: 8 }}>
                       {filtered.length === 0
-                        ? <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>対象課題なし</p>
+                        ? <p style={{ fontSize: 12, color: '#aaa', margin: 0 }}>蟇ｾ雎｡隱ｲ鬘後↑縺・/p>
                         : filtered.map(t => (
                           <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#2d5500', cursor: 'pointer', marginBottom: 4 }}>
                             <input type="checkbox"
@@ -698,67 +698,67 @@ export default function NewsAdminPage() {
                     <button className="game-button" onClick={handleGenerateFromTask}
                       disabled={aiLoading || aiTaskIds.length === 0}
                       style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
-                      {aiLoading && aiTaskIds.length > 0 ? '生成中…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardList size={13}/>課題ベースで記事生成{aiTaskIds.length > 0 ? `（${aiTaskIds.length}件）` : ''}</span>}
+                      {aiLoading && aiTaskIds.length > 0 ? '逕滓・荳ｭ窶ｦ' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardList size={13}/>隱ｲ鬘後・繝ｼ繧ｹ縺ｧ險倅ｺ狗函謌須aiTaskIds.length > 0 ? `・・{aiTaskIds.length}莉ｶ・荏 : ''}</span>}
                     </button>
                   </>
                 )
               })()}
             </div>
 
-            {/* C. 入力ゾーン */}
+            {/* C. 蜈･蜉帙だ繝ｼ繝ｳ */}
             <div style={sectionGap}>
-              <label style={labelStyle}>C. 入力ゾーン</label>
+              <label style={labelStyle}>C. 蜈･蜉帙だ繝ｼ繝ｳ</label>
               <textarea value={aiInput} onChange={e => setAiInput(e.target.value)} rows={8}
                 className="game-input" style={{ width: '100%', fontSize: 12, resize: 'vertical' }}
-                placeholder="リサーチ結果 or 直接入力…" />
+                placeholder="繝ｪ繧ｵ繝ｼ繝∫ｵ先棡 or 逶ｴ謗･蜈･蜉帚ｦ" />
             </div>
 
-            {/* プロンプト + 実行 */}
+            {/* 繝励Ο繝ｳ繝励ヨ + 螳溯｡・*/}
             <div style={sectionGap}>
-              <label style={labelStyle}>プロンプト（修正指示）</label>
+              <label style={labelStyle}>繝励Ο繝ｳ繝励ヨ・井ｿｮ豁｣謖・､ｺ・・/label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}
                   className="game-input" style={{ flex: 1, fontSize: 13 }}
-                  placeholder="例: もっと初心者向けに、箇条書きを増やして…"
+                  placeholder="萓・ 繧ゅ▲縺ｨ蛻晏ｿ・・髄縺代↓縲∫ｮ・擅譖ｸ縺阪ｒ蠅励ｄ縺励※窶ｦ"
                   onKeyDown={e => { if (e.key === 'Enter') handleRefine() }} />
                 <button className="game-button" onClick={handleRefine}
                   disabled={aiLoading || !aiInput.trim() || !aiPrompt.trim()}
                   style={{ width: 'auto', padding: '8px 14px', fontSize: 13 }}>
-                  {aiLoading && aiPrompt.trim() ? '生成中…' : '実行'}
+                  {aiLoading && aiPrompt.trim() ? '逕滓・荳ｭ窶ｦ' : '螳溯｡・}
                 </button>
               </div>
             </div>
 
-            {/* 出力ゾーン */}
+            {/* 蜃ｺ蜉帙だ繝ｼ繝ｳ */}
             <div style={sectionGap}>
-              <label style={labelStyle}>出力ゾーン</label>
+              <label style={labelStyle}>蜃ｺ蜉帙だ繝ｼ繝ｳ</label>
               <textarea readOnly value={aiOutput} rows={8}
                 style={{ width: '100%', fontSize: 12, background: '#f0fae0', border: '2px solid #c8e89a',
                   borderRadius: 8, padding: '8px 10px', resize: 'vertical', color: '#1a3a00', boxSizing: 'border-box' }}
-                placeholder="出力結果がここに表示されます" />
+                placeholder="蜃ｺ蜉帷ｵ先棡縺後％縺薙↓陦ｨ遉ｺ縺輔ｌ縺ｾ縺・ />
               {aiOutput && (
                 <button onClick={() => { setAiInput(aiOutput); setAiPrompt(''); setAiOutput('') }}
                   style={{ marginTop: 6, padding: '6px 14px', border: '2px solid #3d6e00', borderRadius: 6,
                     background: '#3d6e00', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 'bold' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Check size={13}/>確定（入力に適用）</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Check size={13}/>遒ｺ螳夲ｼ亥・蜉帙↓驕ｩ逕ｨ・・/span>
                 </button>
               )}
             </div>
 
-            {/* D. マークダウン出力 */}
+            {/* D. 繝槭・繧ｯ繝繧ｦ繝ｳ蜃ｺ蜉・*/}
             <button className="game-button" onClick={handleMarkdown}
               disabled={aiLoading || !aiInput.trim()}
               style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}>
-              {aiLoading && !aiPrompt.trim() && aiInput.trim() ? '生成中…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardList size={13}/>D. マークダウン出力</span>}
+              {aiLoading && !aiPrompt.trim() && aiInput.trim() ? '逕滓・荳ｭ窶ｦ' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardList size={13}/>D. 繝槭・繧ｯ繝繧ｦ繝ｳ蜃ｺ蜉・/span>}
             </button>
           </div>
 
-        </div>{/* /上段グリッド */}
+        </div>{/* /荳頑ｮｵ繧ｰ繝ｪ繝・ラ */}
 
-        {/* 下段: 記事一覧（全幅） */}
+        {/* 荳区ｮｵ: 險倅ｺ倶ｸ隕ｧ・亥・蟷・ｼ・*/}
         <div className="game-card" style={{ padding: '16px 20px' }}>
-          <h2 style={{ fontSize: 15, color: '#3d6e00', fontWeight: 'bold', marginBottom: 12 }}>記事一覧 ({topics.length}件)</h2>
-          {topics.length === 0 && <p style={{ color: '#6aac14', fontSize: 13 }}>記事がありません</p>}
+          <h2 style={{ fontSize: 15, color: '#3d6e00', fontWeight: 'bold', marginBottom: 12 }}>險倅ｺ倶ｸ隕ｧ ({topics.length}莉ｶ)</h2>
+          {topics.length === 0 && <p style={{ color: '#6aac14', fontSize: 13 }}>險倅ｺ九′縺ゅｊ縺ｾ縺帙ｓ</p>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
             {topics.map(t => (
               <div key={t.id} style={{ border: '1px solid #c8e89a', borderRadius: 8, padding: 8, background: '#f8fef0' }}>
@@ -773,17 +773,17 @@ export default function NewsAdminPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: t.is_published ? '#c8f0c0' : '#f0d0c0', color: t.is_published ? '#1a6e00' : '#8a3000' }}>
-                    {t.is_published ? '公開中' : '非公開'}
+                    {t.is_published ? '蜈ｬ髢倶ｸｭ' : '髱槫・髢・}
                   </span>
                   <button onClick={() => togglePublish(t)}
                     style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #3d6e00', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#3d6e00' }}>
-                    {t.is_published ? '非公開に' : '公開する'}
+                    {t.is_published ? '髱槫・髢九↓' : '蜈ｬ髢九☆繧・}
                   </button>
                   <button onClick={() => startEdit(t)}
-                    style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #3d6e00', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#3d6e00' }}>編集</button>
+                    style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #3d6e00', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#3d6e00' }}>邱ｨ髮・/button>
                   {isAdmin && (
                     <button onClick={() => handleDelete(t.id)}
-                      style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #e74c3c', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#e74c3c' }}>削除</button>
+                      style={{ fontSize: 11, padding: '2px 8px', border: '1px solid #e74c3c', borderRadius: 4, background: '#fff', cursor: 'pointer', color: '#e74c3c' }}>蜑企勁</button>
                   )}
                 </div>
               </div>
@@ -792,7 +792,7 @@ export default function NewsAdminPage() {
         </div>
       </div>
 
-      {/* ── クロップモーダル ── */}
+      {/* 笏笏 繧ｯ繝ｭ繝・・繝｢繝ｼ繝繝ｫ 笏笏 */}
       {cropOpen && thumbSrc && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ width: '90vw', maxWidth: 500, background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
@@ -808,14 +808,14 @@ export default function NewsAdminPage() {
               />
             </div>
             <div style={{ padding: 16 }}>
-              <label style={labelStyle}>ズーム</label>
+              <label style={labelStyle}>繧ｺ繝ｼ繝</label>
               <input type="range" min={1} max={3} step={0.05} value={zoom}
                 onChange={e => setZoom(Number(e.target.value))}
                 style={{ width: '100%', marginBottom: 12 }} />
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button onClick={() => setCropOpen(false)}
-                  style={{ padding: '8px 16px', border: '2px solid #ccc', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>キャンセル</button>
-                <button className="game-button" onClick={applyCrop} style={{ width: 'auto', padding: '8px 24px' }}>決定</button>
+                  style={{ padding: '8px 16px', border: '2px solid #ccc', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>繧ｭ繝｣繝ｳ繧ｻ繝ｫ</button>
+                <button className="game-button" onClick={applyCrop} style={{ width: 'auto', padding: '8px 24px' }}>豎ｺ螳・/button>
               </div>
             </div>
           </div>
@@ -824,3 +824,4 @@ export default function NewsAdminPage() {
     </div>
   )
 }
+

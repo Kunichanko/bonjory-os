@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -37,17 +37,17 @@ interface TaskCourse {
 }
 
 const COURSE_OPTIONS = [
-  { label: '全コース', value: '' },
-  { label: 'Unityコース', value: 'Unity' },
-  { label: 'Blenderコース', value: 'Blender' },
-  { label: 'Web開発コース', value: 'Web' },
+  { label: '蜈ｨ繧ｳ繝ｼ繧ｹ', value: '' },
+  { label: 'Unity繧ｳ繝ｼ繧ｹ', value: 'Unity' },
+  { label: 'Blender繧ｳ繝ｼ繧ｹ', value: 'Blender' },
+  { label: 'Web髢狗匱繧ｳ繝ｼ繧ｹ', value: 'Web' },
 ]
 
 const STAGE_OPTIONS = [
-  { label: '全ステージ', value: '' },
-  { label: 'Ⅰ. 基礎 (Foundation)', value: 'Foundation' },
-  { label: 'Ⅱ. 応用 (Development)', value: 'Development' },
-  { label: 'Ⅲ. 実践 (Production)', value: 'Production' },
+  { label: '蜈ｨ繧ｹ繝・・繧ｸ', value: '' },
+  { label: '竇. 蝓ｺ遉・(Foundation)', value: 'Foundation' },
+  { label: '竇｡. 蠢懃畑 (Development)', value: 'Development' },
+  { label: '竇｢. 螳溯ｷｵ (Production)', value: 'Production' },
 ]
 
 function MarkdownToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -66,7 +66,7 @@ function MarkdownToggle({ checked, onChange }: { checked: boolean; onChange: (v:
         }} />
       </div>
       <span style={{ fontSize: 13, color: checked ? '#2d5500' : '#888', fontWeight: checked ? 'bold' : 'normal' }}>
-        マークダウンとして設定する
+        繝槭・繧ｯ繝繧ｦ繝ｳ縺ｨ縺励※險ｭ螳壹☆繧・
       </span>
     </label>
   )
@@ -91,7 +91,7 @@ export default function AdminTasksPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // 新規作成フォーム
+  // 譁ｰ隕丈ｽ懈・繝輔か繝ｼ繝
   const [title, setTitle]                     = useState('')
   const [description, setDescription]         = useState('')
   const [isMarkdown, setIsMarkdown]           = useState(false)
@@ -101,7 +101,7 @@ export default function AdminTasksPage() {
   const [allowImageAttachment, setAllowImageAttachment] = useState(true)
   const [isPublic, setIsPublic]                         = useState(false)
 
-  // 編集状態
+  // 邱ｨ髮・憾諷・
   const [editingId, setEditingId]                         = useState<string | null>(null)
   const [editTitle, setEditTitle]                         = useState('')
   const [editDescription, setEditDescription]             = useState('')
@@ -114,14 +114,14 @@ export default function AdminTasksPage() {
   const [editSaving, setEditSaving]                       = useState(false)
   const [editError, setEditError]                         = useState<string | null>(null)
 
-  // 初期課題設定
+  // 蛻晄悄隱ｲ鬘瑚ｨｭ螳・
   const [initialTasks, setInitialTasks]       = useState<Record<string, string>>({})
   const [initialSaving, setInitialSaving]     = useState<string | null>(null)
 
-  // 新規作成アコーディオン
+  // 譁ｰ隕丈ｽ懈・繧｢繧ｳ繝ｼ繝・ぅ繧ｪ繝ｳ
   const [createOpen, setCreateOpen]         = useState(false)
 
-  // コース管理
+  // 繧ｳ繝ｼ繧ｹ邂｡逅・
   const [courses, setCourses]                   = useState<TaskCourse[]>([])
   const [courseOpen, setCourseOpen]             = useState(false)
   const [courseExpandedId, setCourseExpandedId] = useState<string | null>(null)
@@ -132,12 +132,12 @@ export default function AdminTasksPage() {
   const [editingCourseId, setEditingCourseId]   = useState<string | null>(null)
   const [editingCourseName, setEditingCourseName] = useState('')
 
-  // コース作成フォーム
+  // 繧ｳ繝ｼ繧ｹ菴懈・繝輔か繝ｼ繝
   const [newCourseName, setNewCourseName]     = useState('')
   const [newCourseTarget, setNewCourseTarget] = useState('')
   const [newCourseStage, setNewCourseStage]   = useState('')
 
-  // AI 課題生成
+  // AI 隱ｲ鬘檎函謌・
   const [aiOpen, setAiOpen] = useState(false)
   const [aiCourse, setAiCourse] = useState<string>(() => {
     try { return JSON.parse(localStorage.getItem('admin-ai-settings') ?? '{}').aiCourse ?? '' } catch { return '' }
@@ -168,7 +168,7 @@ export default function AdminTasksPage() {
   const [themeSaveSuccess, setThemeSaveSuccess]         = useState(false)
   const themesLoadedRef                                 = useRef(false)
 
-  // アコーディオン & フィルター
+  // 繧｢繧ｳ繝ｼ繝・ぅ繧ｪ繝ｳ & 繝輔ぅ繝ｫ繧ｿ繝ｼ
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [filterText, setFilterText] = useState<string>(() => {
     try { return JSON.parse(localStorage.getItem('admin-tasks-filters') ?? '{}').filterText ?? '' } catch { return '' }
@@ -192,7 +192,7 @@ export default function AdminTasksPage() {
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, gimmick_management: false,
     dev_management: false,
-    news_management: false, ticket_admin: false, debug: false,
+    news_management: false, ticket_admin: false, debug: false, sns_management: false,
   })
 
   useEffect(() => {
@@ -244,7 +244,7 @@ export default function AdminTasksPage() {
       } catch (err: any) {
         const msg = err?.message ?? err?.details ?? JSON.stringify(err)
         console.error('tasks init error:', msg, err)
-        if (mounted) setError(`読み込みエラー: ${msg}`)
+        if (mounted) setError(`隱ｭ縺ｿ霎ｼ縺ｿ繧ｨ繝ｩ繝ｼ: ${msg}`)
       } finally {
         if (mounted) setLoading(false)
       }
@@ -328,7 +328,7 @@ export default function AdminTasksPage() {
       setProgressNumber('')
       setAllowImageAttachment(true)
       setIsPublic(false)
-      setSuccess('課題を作成しました！')
+      setSuccess('隱ｲ鬘後ｒ菴懈・縺励∪縺励◆・・)
     }
     setSubmitting(false)
   }
@@ -390,11 +390,11 @@ export default function AdminTasksPage() {
   }
 
   async function handleDelete(taskId: string, taskTitle: string) {
-    if (!window.confirm(`「${taskTitle}」を削除しますか？\nこの操作は取り消せません。`)) return
+    if (!window.confirm(`縲・{taskTitle}縲阪ｒ蜑企勁縺励∪縺吶°・歃n縺薙・謫堺ｽ懊・蜿悶ｊ豸医○縺ｾ縺帙ｓ縲Ａ)) return
     const { error } = await supabase.from('tasks').delete().eq('id', taskId)
     if (!error) {
       setTasks(prev => prev.filter(t => t.id !== taskId))
-      // 初期課題に設定されていたら解除
+      // 蛻晄悄隱ｲ鬘後↓險ｭ螳壹＆繧後※縺・◆繧芽ｧ｣髯､
       setInitialTasks(prev => {
         const next = { ...prev }
         for (const course of Object.keys(next)) {
@@ -437,7 +437,7 @@ export default function AdminTasksPage() {
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData?.session?.access_token
-      if (!token) throw new Error('ログインが必要です')
+      if (!token) throw new Error('繝ｭ繧ｰ繧､繝ｳ縺悟ｿ・ｦ√〒縺・)
 
       const inputTasks = tasks
         .filter(t => aiInputTaskIds.includes(t.id))
@@ -456,7 +456,7 @@ export default function AdminTasksPage() {
         }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error ?? '生成に失敗しました')
+      if (!res.ok) throw new Error(json.error ?? '逕滓・縺ｫ螟ｱ謨励＠縺ｾ縺励◆')
       setAiResultTitle(json.title ?? '')
       setAiResultDescription(json.description ?? '')
       setAiResultMarkdown(aiUseMarkdown)
@@ -494,7 +494,7 @@ export default function AdminTasksPage() {
       setTasks(prev => [newTask, ...prev])
       setAiResultTitle('')
       setAiResultDescription('')
-      setAiSuccess('課題を登録しました！')
+      setAiSuccess('隱ｲ鬘後ｒ逋ｻ骭ｲ縺励∪縺励◆・・)
     }
     setAiSubmitting(false)
   }
@@ -634,7 +634,7 @@ export default function AdminTasksPage() {
   }
 
   async function handleDeleteCourse(courseId: string, courseName: string) {
-    if (!window.confirm(`「${courseName}」を削除しますか？\n課題自体は削除されません。`)) return
+    if (!window.confirm(`縲・{courseName}縲阪ｒ蜑企勁縺励∪縺吶°・歃n隱ｲ鬘瑚・菴薙・蜑企勁縺輔ｌ縺ｾ縺帙ｓ縲Ａ)) return
     const { error } = await supabase.from('task_courses').delete().eq('id', courseId)
     if (!error) {
       setCourses(prev => prev.filter(c => c.id !== courseId))
@@ -661,7 +661,7 @@ export default function AdminTasksPage() {
     <div style={{ minHeight: '100vh', padding: '32px 24px' }}>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
 
-        {/* ヘッダー */}
+        {/* 繝倥ャ繝繝ｼ */}
         <div style={{
           background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)',
           borderRadius: 10, padding: '24px 32px', marginBottom: 24,
@@ -670,14 +670,14 @@ export default function AdminTasksPage() {
           <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
           <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.14em', margin: '0 0 6px' }}>TASK MANAGEMENT</p>
           <h1 style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <ClipboardList size={24} />課題管理
+            <ClipboardList size={24} />隱ｲ鬘檎ｮ｡逅・
           </h1>
           <p style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, fontWeight: 'bold', margin: 0 }}>
-            課題数: {tasks.length} 件
+            隱ｲ鬘梧焚: {tasks.length} 莉ｶ
           </p>
         </div>
 
-        {/* コース管理 */}
+        {/* 繧ｳ繝ｼ繧ｹ邂｡逅・*/}
         <div className="game-card" style={{ padding: 0, marginBottom: 24, overflow: 'hidden' }}>
           <div
             onClick={() => setCourseOpen(o => !o)}
@@ -687,33 +687,33 @@ export default function AdminTasksPage() {
               fontSize: 13, color: courseOpen ? '#6aac14' : '#888',
               transform: courseOpen ? 'rotate(90deg)' : 'rotate(0deg)',
               transition: 'transform 0.2s', display: 'inline-block', flexShrink: 0,
-            }}>▶</span>
-            <span className="game-title" style={{ fontSize: 20, flex: 1 }}>コース管理</span>
+            }}>笆ｶ</span>
+            <span className="game-title" style={{ fontSize: 20, flex: 1 }}>繧ｳ繝ｼ繧ｹ邂｡逅・/span>
           </div>
 
           {courseOpen && (
             <div style={{ borderTop: '1px solid #d4f0a0', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-              {/* コース作成フォーム */}
+              {/* 繧ｳ繝ｼ繧ｹ菴懈・繝輔か繝ｼ繝 */}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div style={{ flex: 2, minWidth: 160 }}>
-                  <label className="game-label">コース名</label>
+                  <label className="game-label">繧ｳ繝ｼ繧ｹ蜷・/label>
                   <input
                     className="game-input"
                     type="text"
                     value={newCourseName}
                     onChange={e => setNewCourseName(e.target.value)}
-                    placeholder="例：初心者向けUnity入門"
+                    placeholder="萓具ｼ壼・蠢・・髄縺繕nity蜈･髢"
                   />
                 </div>
                 <div style={{ flex: 1, minWidth: 120 }}>
-                  <label className="game-label">対象コース</label>
+                  <label className="game-label">蟇ｾ雎｡繧ｳ繝ｼ繧ｹ</label>
                   <select className="game-input" value={newCourseTarget} onChange={e => setNewCourseTarget(e.target.value)}>
                     {COURSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
                 <div style={{ flex: 1, minWidth: 140 }}>
-                  <label className="game-label">段階</label>
+                  <label className="game-label">谿ｵ髫・/label>
                   <select className="game-input" value={newCourseStage} onChange={e => setNewCourseStage(e.target.value)}>
                     {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
@@ -724,13 +724,13 @@ export default function AdminTasksPage() {
                   disabled={!newCourseName.trim()}
                   style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
                 >
-                  作成
+                  菴懈・
                 </button>
               </div>
 
-              {/* 作成済みコース一覧 */}
+              {/* 菴懈・貂医∩繧ｳ繝ｼ繧ｹ荳隕ｧ */}
               {courses.length === 0 ? (
-                <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（コースがまだありません）</p>
+                <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>・医さ繝ｼ繧ｹ縺後∪縺縺ゅｊ縺ｾ縺帙ｓ・・/p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {courses.map(course => {
@@ -738,7 +738,7 @@ export default function AdminTasksPage() {
                     const orderedTaskIds = courseTaskOrders[course.id] ?? []
                     return (
                       <div key={course.id} style={{ border: '1.5px solid #3d6e00', borderRadius: 10, overflow: 'hidden', background: '#f8fff0' }}>
-                        {/* サブヘッダー */}
+                        {/* 繧ｵ繝悶・繝・ム繝ｼ */}
                         <div
                           onClick={() => { if (editingCourseId !== course.id) setCourseExpandedId(isSubOpen ? null : course.id) }}
                           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', cursor: editingCourseId === course.id ? 'default' : 'pointer', userSelect: 'none' }}
@@ -747,7 +747,7 @@ export default function AdminTasksPage() {
                             fontSize: 12, color: isSubOpen ? '#6aac14' : '#888',
                             transform: isSubOpen ? 'rotate(90deg)' : 'rotate(0deg)',
                             transition: 'transform 0.2s', display: 'inline-block', flexShrink: 0,
-                          }}>▶</span>
+                          }}>笆ｶ</span>
                           {editingCourseId === course.id ? (
                             <div
                               onClick={e => e.stopPropagation()}
@@ -765,11 +765,11 @@ export default function AdminTasksPage() {
                                 onClick={() => handleRenameCourse(course.id)}
                                 disabled={!editingCourseName.trim()}
                                 style={{ padding: '3px 10px', borderRadius: 6, border: '1.5px solid #6aac14', background: '#6aac14', color: 'white', fontWeight: 'bold', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                              >保存</button>
+                              >菫晏ｭ・/button>
                               <button
                                 onClick={() => setEditingCourseId(null)}
                                 style={{ padding: '3px 10px', borderRadius: 6, border: '1.5px solid #888', background: 'none', color: '#888', fontWeight: 'bold', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                              >キャンセル</button>
+                              >繧ｭ繝｣繝ｳ繧ｻ繝ｫ</button>
                             </div>
                           ) : (
                             <>
@@ -777,7 +777,7 @@ export default function AdminTasksPage() {
                               <button
                                 onClick={e => { e.stopPropagation(); setEditingCourseId(course.id); setEditingCourseName(course.name) }}
                                 style={{ padding: '2px 8px', borderRadius: 6, border: '1.5px solid #3d6e00', background: 'white', color: '#3d6e00', fontSize: 11, fontWeight: 'bold', cursor: 'pointer', flexShrink: 0 }}
-                              >編集</button>
+                              >邱ｨ髮・/button>
                               <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
                                 {course.target_course && (
                                   <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>
@@ -793,11 +793,11 @@ export default function AdminTasksPage() {
                             </>
                           )}
                         </div>
-                        {/* サブボディ */}
+                        {/* 繧ｵ繝悶・繝・ぅ */}
                         {isSubOpen && (
                           <div style={{ borderTop: '1px solid #d4f0a0', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {orderedTaskIds.length === 0 ? (
-                              <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（課題が割り当てられていません）</p>
+                              <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>・郁ｪｲ鬘後′蜑ｲ繧雁ｽ薙※繧峨ｌ縺ｦ縺・∪縺帙ｓ・・/p>
                             ) : (
                               orderedTaskIds.map((tid, idx) => {
                                 const t = tasks.find(x => x.id === tid)
@@ -812,12 +812,12 @@ export default function AdminTasksPage() {
                                         onClick={() => handleMoveTask(course.id, tid, 'up')}
                                         disabled={idx === 0}
                                         style={{ padding: '2px 8px', borderRadius: 6, border: '1.5px solid #3d6e00', background: idx === 0 ? '#eee' : '#e8ffd4', color: idx === 0 ? '#bbb' : '#2d5500', cursor: idx === 0 ? 'default' : 'pointer', fontSize: 13, fontWeight: 'bold' }}
-                                      >▲</button>
+                                      >笆ｲ</button>
                                       <button
                                         onClick={() => handleMoveTask(course.id, tid, 'down')}
                                         disabled={idx === orderedTaskIds.length - 1}
                                         style={{ padding: '2px 8px', borderRadius: 6, border: '1.5px solid #3d6e00', background: idx === orderedTaskIds.length - 1 ? '#eee' : '#e8ffd4', color: idx === orderedTaskIds.length - 1 ? '#bbb' : '#2d5500', cursor: idx === orderedTaskIds.length - 1 ? 'default' : 'pointer', fontSize: 13, fontWeight: 'bold' }}
-                                      >▼</button>
+                                      >笆ｼ</button>
                                     </div>
                                   </div>
                                 )
@@ -827,7 +827,7 @@ export default function AdminTasksPage() {
                               <button
                                 onClick={() => handleDeleteCourse(course.id, course.name)}
                                 style={{ padding: '5px 14px', borderRadius: 8, border: '1.5px solid #c0392b', background: '#fdecea', color: '#c0392b', fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}
-                              >コースを削除</button>
+                              >繧ｳ繝ｼ繧ｹ繧貞炎髯､</button>
                             </div>
                           </div>
                         )}
@@ -840,7 +840,7 @@ export default function AdminTasksPage() {
           )}
         </div>
 
-        {/* 課題作成フォーム */}
+        {/* 隱ｲ鬘御ｽ懈・繝輔か繝ｼ繝 */}
         <div className="game-card" style={{ padding: '0', marginBottom: 24, overflow: 'hidden' }}>
           <div
             onClick={() => setCreateOpen(o => !o)}
@@ -853,32 +853,32 @@ export default function AdminTasksPage() {
               fontSize: 13, color: createOpen ? '#6aac14' : '#888',
               transform: createOpen ? 'rotate(90deg)' : 'rotate(0deg)',
               transition: 'transform 0.2s', display: 'inline-block', flexShrink: 0,
-            }}>▶</span>
-            <span className="game-title" style={{ fontSize: 20, flex: 1 }}>新しい課題を作成</span>
+            }}>笆ｶ</span>
+            <span className="game-title" style={{ fontSize: 20, flex: 1 }}>譁ｰ縺励＞隱ｲ鬘後ｒ菴懈・</span>
           </div>
           {createOpen && (
           <div style={{ borderTop: '1px solid #d4f0a0', padding: '20px 28px' }}>
           <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label className="game-label">課題タイトル *</label>
+              <label className="game-label">隱ｲ鬘後ち繧､繝医Ν *</label>
               <input
                 className="game-input"
                 type="text"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 required
-                placeholder="例：キャラクターモデルを1体完成させよう"
+                placeholder="萓具ｼ壹く繝｣繝ｩ繧ｯ繧ｿ繝ｼ繝｢繝・Ν繧・菴灘ｮ梧・縺輔○繧医≧"
               />
             </div>
 
             <div>
-              <label className="game-label">課題の説明</label>
+              <label className="game-label">隱ｲ鬘後・隱ｬ譏・/label>
               <textarea
                 className="game-input"
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 rows={4}
-                placeholder="課題の詳細・参考資料・提出条件などを記入..."
+                placeholder="隱ｲ鬘後・隧ｳ邏ｰ繝ｻ蜿り・ｳ・侭繝ｻ謠仙・譚｡莉ｶ縺ｪ縺ｩ繧定ｨ伜・..."
                 style={{ resize: 'vertical' }}
               />
               <MarkdownToggle checked={isMarkdown} onChange={setIsMarkdown} />
@@ -886,7 +886,7 @@ export default function AdminTasksPage() {
 
             <div style={{ display: 'flex', gap: 16 }}>
               <div style={{ flex: 1 }}>
-                <label className="game-label">対象コース</label>
+                <label className="game-label">蟇ｾ雎｡繧ｳ繝ｼ繧ｹ</label>
                 <select
                   className="game-input"
                   value={targetCourse}
@@ -898,7 +898,7 @@ export default function AdminTasksPage() {
                 </select>
               </div>
               <div style={{ flex: 1 }}>
-                <label className="game-label">対象ステージ</label>
+                <label className="game-label">蟇ｾ雎｡繧ｹ繝・・繧ｸ</label>
                 <select
                   className="game-input"
                   value={targetStage}
@@ -910,7 +910,7 @@ export default function AdminTasksPage() {
                 </select>
               </div>
               <div style={{ width: 120 }}>
-                <label className="game-label">進行番号</label>
+                <label className="game-label">騾ｲ陦檎分蜿ｷ</label>
                 <input
                   className="game-input"
                   type="number"
@@ -918,7 +918,7 @@ export default function AdminTasksPage() {
                   min="0"
                   value={progressNumber}
                   onChange={e => setProgressNumber(e.target.value)}
-                  placeholder="例: 1.0"
+                  placeholder="萓・ 1.0"
                 />
               </div>
             </div>
@@ -938,7 +938,7 @@ export default function AdminTasksPage() {
                   }} />
                 </div>
                 <span style={{ fontSize: 13, color: allowImageAttachment ? '#2d5500' : '#888', fontWeight: allowImageAttachment ? 'bold' : 'normal' }}>
-                  画像の添付を許可する
+                  逕ｻ蜒上・豺ｻ莉倥ｒ險ｱ蜿ｯ縺吶ｋ
                 </span>
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
@@ -955,13 +955,13 @@ export default function AdminTasksPage() {
                   }} />
                 </div>
                 <span style={{ fontSize: 13, color: isPublic ? '#2d5500' : '#888', fontWeight: isPublic ? 'bold' : 'normal' }}>
-                  課題一覧に公開する
+                  隱ｲ鬘御ｸ隕ｧ縺ｫ蜈ｬ髢九☆繧・
                 </span>
               </label>
             </div>
 
             <button className="game-button" type="submit" disabled={submitting} style={{ marginTop: 4 }}>
-              {submitting ? '作成中…' : '課題を作成'}
+              {submitting ? '菴懈・荳ｭ窶ｦ' : '隱ｲ鬘後ｒ菴懈・'}
             </button>
 
             {error   && <div className="game-error">{error}</div>}
@@ -971,7 +971,7 @@ export default function AdminTasksPage() {
           )}
         </div>
 
-        {/* AI 課題生成 */}
+        {/* AI 隱ｲ鬘檎函謌・*/}
         <div className="game-card" style={{ padding: '0', marginBottom: 24, overflow: 'hidden' }}>
           <div
             onClick={() => setAiOpen(o => !o)}
@@ -984,47 +984,47 @@ export default function AdminTasksPage() {
               fontSize: 13, color: aiOpen ? '#6aac14' : '#888',
               transform: aiOpen ? 'rotate(90deg)' : 'rotate(0deg)',
               transition: 'transform 0.2s', display: 'inline-block', flexShrink: 0,
-            }}>▶</span>
-            <span className="game-title" style={{ fontSize: 20, flex: 1 }}>AI課題生成 (Gemini)</span>
+            }}>笆ｶ</span>
+            <span className="game-title" style={{ fontSize: 20, flex: 1 }}>AI隱ｲ鬘檎函謌・(Gemini)</span>
             <span style={{ fontSize: 12, color: '#888', background: '#e8ffd4', padding: '2px 10px', borderRadius: 10, fontWeight: 'bold' }}>Beta</span>
           </div>
 
           {aiOpen && (
             <div style={{ borderTop: '1px solid #d4f0a0', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* コース・ステージ */}
+              {/* 繧ｳ繝ｼ繧ｹ繝ｻ繧ｹ繝・・繧ｸ */}
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 120 }}>
-                  <label className="game-label">対象コース</label>
+                  <label className="game-label">蟇ｾ雎｡繧ｳ繝ｼ繧ｹ</label>
                   <select className="game-input" value={aiCourse} onChange={e => { setAiCourse(e.target.value); setAiInputTaskIds([]) }}>
                     {COURSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
                 <div style={{ flex: 1, minWidth: 140 }}>
-                  <label className="game-label">対象ステージ</label>
+                  <label className="game-label">蟇ｾ雎｡繧ｹ繝・・繧ｸ</label>
                   <select className="game-input" value={aiStage} onChange={e => { setAiStage(e.target.value); setAiInputTaskIds([]) }}>
                     {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
                 <div style={{ flex: 1, minWidth: 160 }}>
-                  <label className="game-label">生成の種類</label>
+                  <label className="game-label">逕滓・縺ｮ遞ｮ鬘・/label>
                   <select
                     className="game-input"
                     value={aiGenType}
                     onChange={e => setAiGenType(e.target.value as typeof aiGenType)}
                   >
-                    <option value="sequential">連続課題（過去課題の続き）</option>
-                    <option value="individual">個別課題（テーマ指定）</option>
-                    <option value="event">イベント課題（短時間・簡単）</option>
-                    <option value="custom">指定課題（プロンプト直接指定）</option>
+                    <option value="sequential">騾｣邯夊ｪｲ鬘鯉ｼ磯℃蜴ｻ隱ｲ鬘後・邯壹″・・/option>
+                    <option value="individual">蛟句挨隱ｲ鬘鯉ｼ医ユ繝ｼ繝樊欠螳夲ｼ・/option>
+                    <option value="event">繧､繝吶Φ繝郁ｪｲ鬘鯉ｼ育洒譎る俣繝ｻ邁｡蜊假ｼ・/option>
+                    <option value="custom">謖・ｮ夊ｪｲ鬘鯉ｼ医・繝ｭ繝ｳ繝励ヨ逶ｴ謗･謖・ｮ夲ｼ・/option>
                   </select>
                 </div>
               </div>
 
-              {/* テーマ */}
+              {/* 繝・・繝・*/}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <label className="game-label" style={{ marginBottom: 0, flex: 1 }}>
-                    {aiGenType === 'custom' ? 'プロンプト（自由入力）' : 'テーマ'}
+                    {aiGenType === 'custom' ? '繝励Ο繝ｳ繝励ヨ・郁・逕ｱ蜈･蜉幢ｼ・ : '繝・・繝・}
                   </label>
                   <button
                     onClick={handleSaveTheme}
@@ -1036,7 +1036,7 @@ export default function AdminTasksPage() {
                       color: themeSaveSuccess ? '#2d5500' : '#3d6e00',
                       whiteSpace: 'nowrap', transition: 'all 0.2s',
                     }}
-                  >{themeSaveSuccess ? '保存済み ✓' : themeSaving ? '保存中…' : '保存'}</button>
+                  >{themeSaveSuccess ? '菫晏ｭ俶ｸ医∩ 笨・ : themeSaving ? '菫晏ｭ倅ｸｭ窶ｦ' : '菫晏ｭ・}</button>
                 </div>
                 <textarea
                   className="game-input"
@@ -1046,23 +1046,23 @@ export default function AdminTasksPage() {
                   style={{ resize: 'vertical', fontSize: 14 }}
                   placeholder={
                     aiGenType === 'custom'
-                      ? '生成の指示を自由に記述してください...'
-                      : '例: ShaderGraphを使った光のエフェクト、256ポリゴンでキャラクターを作る...'
+                      ? '逕滓・縺ｮ謖・､ｺ繧定・逕ｱ縺ｫ險倩ｿｰ縺励※縺上□縺輔＞...'
+                      : '萓・ ShaderGraph繧剃ｽｿ縺｣縺溷・縺ｮ繧ｨ繝輔ぉ繧ｯ繝医・56繝昴Μ繧ｴ繝ｳ縺ｧ繧ｭ繝｣繝ｩ繧ｯ繧ｿ繝ｼ繧剃ｽ懊ｋ...'
                   }
                 />
                 {savedThemes.length > 0 && (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap' }}>保存済み:</span>
+                    <span style={{ fontSize: 12, color: '#888', whiteSpace: 'nowrap' }}>菫晏ｭ俶ｸ医∩:</span>
                     <select
                       className="game-input"
                       style={{ fontSize: 12, flex: 1 }}
                       value=""
                       onChange={e => { if (e.target.value) setAiTheme(e.target.value) }}
                     >
-                      <option value="">── 選択して読み込む ──</option>
+                      <option value="">笏笏 驕ｸ謚槭＠縺ｦ隱ｭ縺ｿ霎ｼ繧 笏笏</option>
                       {savedThemes.map(t => (
                         <option key={t.id} value={t.content}>
-                          {t.content.length > 60 ? t.content.slice(0, 60) + '…' : t.content}
+                          {t.content.length > 60 ? t.content.slice(0, 60) + '窶ｦ' : t.content}
                         </option>
                       ))}
                     </select>
@@ -1070,13 +1070,13 @@ export default function AdminTasksPage() {
                 )}
               </div>
 
-              {/* インプット課題（custom以外） */}
+              {/* 繧､繝ｳ繝励ャ繝郁ｪｲ鬘鯉ｼ・ustom莉･螟厄ｼ・*/}
               {aiGenType !== 'custom' && (
                 <div>
                   <label className="game-label">
-                    インプット課題
+                    繧､繝ｳ繝励ャ繝郁ｪｲ鬘・
                     <span style={{ fontSize: 11, fontWeight: 'normal', color: '#888', marginLeft: 8 }}>
-                      多く選ぶほど生成精度が上がります
+                      螟壹￥驕ｸ縺ｶ縺ｻ縺ｩ逕滓・邊ｾ蠎ｦ縺御ｸ翫′繧翫∪縺・
                     </span>
                   </label>
                   {(() => {
@@ -1085,7 +1085,7 @@ export default function AdminTasksPage() {
                       (!aiStage  || t.target_stage  === aiStage)
                     )
                     if (filtered.length === 0) return (
-                      <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（該当する課題がありません）</p>
+                      <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>・郁ｩｲ蠖薙☆繧玖ｪｲ鬘後′縺ゅｊ縺ｾ縺帙ｓ・・/p>
                     )
                     return (
                       <div style={{
@@ -1115,7 +1115,7 @@ export default function AdminTasksPage() {
                 </div>
               )}
 
-              {/* トグル */}
+              {/* 繝医げ繝ｫ */}
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
                   <div
@@ -1124,7 +1124,7 @@ export default function AdminTasksPage() {
                   >
                     <div style={{ position: 'absolute', top: 2, left: aiUseMarkdown ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
                   </div>
-                  <span style={{ fontSize: 13, color: aiUseMarkdown ? '#2d5500' : '#888', fontWeight: aiUseMarkdown ? 'bold' : 'normal' }}>マークダウンで生成</span>
+                  <span style={{ fontSize: 13, color: aiUseMarkdown ? '#2d5500' : '#888', fontWeight: aiUseMarkdown ? 'bold' : 'normal' }}>繝槭・繧ｯ繝繧ｦ繝ｳ縺ｧ逕滓・</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
                   <div
@@ -1134,29 +1134,29 @@ export default function AdminTasksPage() {
                     <div style={{ position: 'absolute', top: 2, left: aiAutoProgress ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
                   </div>
                   <span style={{ fontSize: 13, color: aiAutoProgress ? '#2d5500' : '#888', fontWeight: aiAutoProgress ? 'bold' : 'normal' }}>
-                    進行番号を自動振り分け
-                    {aiAutoProgress && <span style={{ color: '#6aac14', marginLeft: 6 }}>→ #{suggestProgressNumber(aiCourse, aiStage)}</span>}
+                    騾ｲ陦檎分蜿ｷ繧定・蜍墓険繧雁・縺・
+                    {aiAutoProgress && <span style={{ color: '#6aac14', marginLeft: 6 }}>竊・#{suggestProgressNumber(aiCourse, aiStage)}</span>}
                   </span>
                 </label>
               </div>
 
-              {/* 生成ボタン */}
+              {/* 逕滓・繝懊ち繝ｳ */}
               <button
                 className="game-button"
                 onClick={handleGenerate}
                 disabled={aiGenerating || (!aiTheme.trim())}
                 style={{ background: '#3d6e00', borderColor: '#6aac14' }}
               >
-                {aiGenerating ? '生成中…' : 'AIで課題を生成'}
+                {aiGenerating ? '逕滓・荳ｭ窶ｦ' : 'AI縺ｧ隱ｲ鬘後ｒ逕滓・'}
               </button>
               {aiError && <div className="game-error" style={{ whiteSpace: 'pre-wrap' }}>{aiError}</div>}
 
-              {/* 生成結果 */}
+              {/* 逕滓・邨先棡 */}
               {(aiResultTitle || aiResultDescription) && (
                 <div style={{ borderTop: '1px dashed #b8d870', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <p style={{ fontSize: 13, color: '#3d6e00', margin: 0, fontWeight: 'bold' }}>生成結果（編集して登録してください）</p>
+                  <p style={{ fontSize: 13, color: '#3d6e00', margin: 0, fontWeight: 'bold' }}>逕滓・邨先棡・育ｷｨ髮・＠縺ｦ逋ｻ骭ｲ縺励※縺上□縺輔＞・・/p>
                   <div>
-                    <label className="game-label">課題タイトル</label>
+                    <label className="game-label">隱ｲ鬘後ち繧､繝医Ν</label>
                     <input
                       className="game-input"
                       value={aiResultTitle}
@@ -1165,7 +1165,7 @@ export default function AdminTasksPage() {
                     />
                   </div>
                   <div>
-                    <label className="game-label">課題の説明</label>
+                    <label className="game-label">隱ｲ鬘後・隱ｬ譏・/label>
                     <textarea
                       className="game-input"
                       value={aiResultDescription}
@@ -1180,7 +1180,7 @@ export default function AdminTasksPage() {
                     onClick={handleAiRegister}
                     disabled={aiSubmitting || !aiResultTitle.trim()}
                   >
-                    {aiSubmitting ? '登録中…' : 'このまま登録'}
+                    {aiSubmitting ? '逋ｻ骭ｲ荳ｭ窶ｦ' : '縺薙・縺ｾ縺ｾ逋ｻ骭ｲ'}
                   </button>
                   {aiSuccess && <div className="game-success">{aiSuccess}</div>}
                 </div>
@@ -1189,16 +1189,16 @@ export default function AdminTasksPage() {
           )}
         </div>
 
-        {/* 課題一覧 */}
+        {/* 隱ｲ鬘御ｸ隕ｧ */}
         <div className="game-card" style={{ padding: '24px 28px' }}>
-          <h2 className="game-title" style={{ fontSize: 22, marginBottom: 16 }}>課題一覧</h2>
+          <h2 className="game-title" style={{ fontSize: 22, marginBottom: 16 }}>隱ｲ鬘御ｸ隕ｧ</h2>
 
-          {/* フィルター */}
+          {/* 繝輔ぅ繝ｫ繧ｿ繝ｼ */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
             <input
               className="game-input"
               type="text"
-              placeholder="課題名で検索…"
+              placeholder="隱ｲ鬘悟錐縺ｧ讀懃ｴ｢窶ｦ"
               value={filterText}
               onChange={e => setFilterText(e.target.value)}
               style={{ fontSize: 14 }}
@@ -1226,9 +1226,9 @@ export default function AdminTasksPage() {
                 onChange={e => setFilterActive(e.target.value as 'all' | 'active' | 'inactive')}
                 style={{ flex: 1, minWidth: 100, fontSize: 13 }}
               >
-                <option value="all">全て</option>
-                <option value="active">有効のみ</option>
-                <option value="inactive">停止中</option>
+                <option value="all">蜈ｨ縺ｦ</option>
+                <option value="active">譛牙柑縺ｮ縺ｿ</option>
+                <option value="inactive">蛛懈ｭ｢荳ｭ</option>
               </select>
             </div>
             <select
@@ -1237,7 +1237,7 @@ export default function AdminTasksPage() {
               onChange={e => setFilterCustomCourse(e.target.value)}
               style={{ fontSize: 13 }}
             >
-              <option value="">カスタムコース: 全て</option>
+              <option value="">繧ｫ繧ｹ繧ｿ繝繧ｳ繝ｼ繧ｹ: 蜈ｨ縺ｦ</option>
               {courses.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -1245,7 +1245,7 @@ export default function AdminTasksPage() {
           </div>
 
           {tasks.length === 0 ? (
-            <p style={{ color: '#6aac14', textAlign: 'center', padding: 24 }}>まだ課題がありません</p>
+            <p style={{ color: '#6aac14', textAlign: 'center', padding: 24 }}>縺ｾ縺隱ｲ鬘後′縺ゅｊ縺ｾ縺帙ｓ</p>
           ) : (() => {
             const filtered = tasks.filter(t => {
               if (filterText && !t.title.toLowerCase().includes(filterText.toLowerCase())) return false
@@ -1257,7 +1257,7 @@ export default function AdminTasksPage() {
               return true
             })
             if (filtered.length === 0) return (
-              <p style={{ color: '#6aac14', textAlign: 'center', padding: 24 }}>該当する課題がありません</p>
+              <p style={{ color: '#6aac14', textAlign: 'center', padding: 24 }}>隧ｲ蠖薙☆繧玖ｪｲ鬘後′縺ゅｊ縺ｾ縺帙ｓ</p>
             )
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1274,7 +1274,7 @@ export default function AdminTasksPage() {
                         overflow: 'hidden',
                       }}
                     >
-                      {/* ─── 折りたたみヘッダー行 ─── */}
+                      {/* 笏笏笏 謚倥ｊ縺溘◆縺ｿ繝倥ャ繝繝ｼ陦・笏笏笏 */}
                       <div
                         onClick={() => {
                           if (isEditing) return
@@ -1291,7 +1291,7 @@ export default function AdminTasksPage() {
                           transition: 'transform 0.2s',
                           transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
                           display: 'inline-block', flexShrink: 0,
-                        }}>▶</span>
+                        }}>笆ｶ</span>
                         <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 15, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {task.title}
                         </span>
@@ -1300,34 +1300,34 @@ export default function AdminTasksPage() {
                             <span style={{ background: '#a8d870', color: '#1a3a00', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>#{task.progress_number}</span>
                           )}
                           <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                            {task.target_course ?? '全コース'}
+                            {task.target_course ?? '蜈ｨ繧ｳ繝ｼ繧ｹ'}
                           </span>
                           <span style={{ background: '#3d6e00', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                            {task.target_stage ?? '全ステージ'}
+                            {task.target_stage ?? '蜈ｨ繧ｹ繝・・繧ｸ'}
                           </span>
                           <span style={{ background: task.is_public ? '#2196f3' : '#9e9e9e', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                            {task.is_public ? '公開' : '非公開'}
+                            {task.is_public ? '蜈ｬ髢・ : '髱槫・髢・}
                           </span>
                           {!task.is_active && (
-                            <span style={{ background: '#999', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>停止中</span>
+                            <span style={{ background: '#999', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>蛛懈ｭ｢荳ｭ</span>
                           )}
                           {task.description_is_markdown && (
                             <span style={{ background: '#0288d1', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>MD</span>
                           )}
                           {!task.allow_image_attachment && (
-                            <span style={{ background: '#e65100', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>画像添付不可</span>
+                            <span style={{ background: '#e65100', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>逕ｻ蜒乗ｷｻ莉倅ｸ榊庄</span>
                           )}
                         </div>
                       </div>
 
-                      {/* ─── 展開部分 ─── */}
+                      {/* 笏笏笏 螻暮幕驛ｨ蛻・笏笏笏 */}
                       {(isExpanded || isEditing) && (
                         <div style={{ borderTop: '1px solid #d4f0a0', padding: '14px 16px' }}>
                           {isEditing ? (
-                            /* ─── 編集フォーム ─── */
+                            /* 笏笏笏 邱ｨ髮・ヵ繧ｩ繝ｼ繝 笏笏笏 */
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                               <div>
-                                <label className="game-label" style={{ fontSize: 12 }}>タイトル</label>
+                                <label className="game-label" style={{ fontSize: 12 }}>繧ｿ繧､繝医Ν</label>
                                 <input
                                   className="game-input"
                                   value={editTitle}
@@ -1336,7 +1336,7 @@ export default function AdminTasksPage() {
                                 />
                               </div>
                               <div>
-                                <label className="game-label" style={{ fontSize: 12 }}>説明</label>
+                                <label className="game-label" style={{ fontSize: 12 }}>隱ｬ譏・/label>
                                 <textarea
                                   className="game-input"
                                   value={editDescription}
@@ -1357,19 +1357,19 @@ export default function AdminTasksPage() {
                               </div>
                               <div style={{ display: 'flex', gap: 12 }}>
                                 <div style={{ flex: 1 }}>
-                                  <label className="game-label" style={{ fontSize: 12 }}>対象コース</label>
+                                  <label className="game-label" style={{ fontSize: 12 }}>蟇ｾ雎｡繧ｳ繝ｼ繧ｹ</label>
                                   <select className="game-input" value={editTargetCourse} onChange={e => setEditTargetCourse(e.target.value)} style={{ fontSize: 13 }}>
                                     {COURSE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                   </select>
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                  <label className="game-label" style={{ fontSize: 12 }}>対象ステージ</label>
+                                  <label className="game-label" style={{ fontSize: 12 }}>蟇ｾ雎｡繧ｹ繝・・繧ｸ</label>
                                   <select className="game-input" value={editTargetStage} onChange={e => setEditTargetStage(e.target.value)} style={{ fontSize: 13 }}>
                                     {STAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                   </select>
                                 </div>
                                 <div style={{ width: 100 }}>
-                                  <label className="game-label" style={{ fontSize: 12 }}>進行番号</label>
+                                  <label className="game-label" style={{ fontSize: 12 }}>騾ｲ陦檎分蜿ｷ</label>
                                   <input
                                     className="game-input"
                                     type="number"
@@ -1397,7 +1397,7 @@ export default function AdminTasksPage() {
                                     }} />
                                   </div>
                                   <span style={{ fontSize: 13, color: editAllowImageAttachment ? '#2d5500' : '#888', fontWeight: editAllowImageAttachment ? 'bold' : 'normal' }}>
-                                    画像の添付を許可する
+                                    逕ｻ蜒上・豺ｻ莉倥ｒ險ｱ蜿ｯ縺吶ｋ
                                   </span>
                                 </label>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
@@ -1414,7 +1414,7 @@ export default function AdminTasksPage() {
                                     }} />
                                   </div>
                                   <span style={{ fontSize: 13, color: editIsPublic ? '#2d5500' : '#888', fontWeight: editIsPublic ? 'bold' : 'normal' }}>
-                                    課題一覧に公開する
+                                    隱ｲ鬘御ｸ隕ｧ縺ｫ蜈ｬ髢九☆繧・
                                   </span>
                                 </label>
                               </div>
@@ -1424,54 +1424,54 @@ export default function AdminTasksPage() {
                                   onClick={handleSaveEdit}
                                   disabled={editSaving}
                                   style={{ padding: '6px 16px', borderRadius: 8, border: '2px solid #6aac14', background: '#6aac14', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
-                                  {editSaving ? '保存中…' : '保存'}
+                                  {editSaving ? '菫晏ｭ倅ｸｭ窶ｦ' : '菫晏ｭ・}
                                 </button>
                                 <button
                                   onClick={() => { cancelEdit(); setExpandedId(task.id) }}
                                   style={{ padding: '6px 16px', borderRadius: 8, border: '2px solid #888', background: 'none', color: '#888', fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
-                                  キャンセル
+                                  繧ｭ繝｣繝ｳ繧ｻ繝ｫ
                                 </button>
                               </div>
                             </div>
                           ) : (
-                            /* ─── 詳細表示 ─── */
+                            /* 笏笏笏 隧ｳ邏ｰ陦ｨ遉ｺ 笏笏笏 */
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                 <button
                                   onClick={() => { startEdit(task); setExpandedId(null) }}
                                   style={{ padding: '6px 14px', borderRadius: 8, border: '2px solid #3d6e00', background: 'white', color: '#3d6e00', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
                                 >
-                                  編集
+                                  邱ｨ髮・
                                 </button>
                                 <button
                                   onClick={() => toggleActive(task.id, task.is_active)}
                                   style={{ padding: '6px 14px', borderRadius: 8, border: `2px solid ${task.is_active ? '#c0392b' : '#6aac14'}`, background: task.is_active ? '#fdecea' : '#e8ffd4', color: task.is_active ? '#c0392b' : '#1a6e00', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
                                 >
-                                  {task.is_active ? '停止する' : '有効にする'}
+                                  {task.is_active ? '蛛懈ｭ｢縺吶ｋ' : '譛牙柑縺ｫ縺吶ｋ'}
                                 </button>
                                 <button
                                   onClick={() => togglePublic(task.id, task.is_public)}
                                   style={{ padding: '6px 14px', borderRadius: 8, border: `2px solid ${task.is_public ? '#1565c0' : '#2196f3'}`, background: task.is_public ? '#e3f2fd' : '#fff', color: task.is_public ? '#1565c0' : '#1976d2', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
                                 >
-                                  {task.is_public ? '非公開にする' : '公開する'}
+                                  {task.is_public ? '髱槫・髢九↓縺吶ｋ' : '蜈ｬ髢九☆繧・}
                                 </button>
                                 <button
                                   onClick={() => handleDelete(task.id, task.title)}
                                   style={{ padding: '6px 14px', borderRadius: 8, border: '2px solid #c0392b', background: '#fdecea', color: '#c0392b', fontWeight: 'bold', cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}
                                 >
-                                  削除
+                                  蜑企勁
                                 </button>
                               </div>
-                              {/* カスタムコース割り当て */}
+                              {/* 繧ｫ繧ｹ繧ｿ繝繧ｳ繝ｼ繧ｹ蜑ｲ繧雁ｽ薙※ */}
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <label className="game-label" style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>カスタムコース</label>
+                                <label className="game-label" style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>繧ｫ繧ｹ繧ｿ繝繧ｳ繝ｼ繧ｹ</label>
                                 <select
                                   className="game-input"
                                   style={{ fontSize: 13, flex: 1 }}
                                   value={taskCourseMap[task.id] ?? ''}
                                   onChange={e => handleCourseAssign(task.id, e.target.value)}
                                 >
-                                  <option value="">（なし）</option>
+                                  <option value="">・医↑縺暦ｼ・/option>
                                   {courses.map(c => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
                                   ))}
@@ -1482,7 +1482,7 @@ export default function AdminTasksPage() {
                                   ? <MarkdownContent content={task.description} />
                                   : <p style={{ color: '#3d6e00', fontSize: 14, whiteSpace: 'pre-wrap', margin: 0 }}>{task.description}</p>
                               ) : (
-                                <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（説明なし）</p>
+                                <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>・郁ｪｬ譏弱↑縺暦ｼ・/p>
                               )}
                             </div>
                           )}
@@ -1496,11 +1496,11 @@ export default function AdminTasksPage() {
           })()}
         </div>
 
-        {/* 初期課題設定 */}
+        {/* 蛻晄悄隱ｲ鬘瑚ｨｭ螳・*/}
         <div className="game-card" style={{ padding: '24px 28px', marginTop: 24 }}>
-          <h2 className="game-title" style={{ fontSize: 22, marginBottom: 6 }}>初期課題設定</h2>
+          <h2 className="game-title" style={{ fontSize: 22, marginBottom: 6 }}>蛻晄悄隱ｲ鬘瑚ｨｭ螳・/h2>
           <p style={{ color: '#3d6e00', fontSize: 13, marginBottom: 20 }}>
-            新入部員がコースを選択したとき自動で割り当てられる課題を設定します。
+            譁ｰ蜈･驛ｨ蜩｡縺後さ繝ｼ繧ｹ繧帝∈謚槭＠縺溘→縺崎・蜍輔〒蜑ｲ繧雁ｽ薙※繧峨ｌ繧玖ｪｲ鬘後ｒ險ｭ螳壹＠縺ｾ縺吶・
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {(['Unity', 'Blender', 'Web'] as const).map(course => (
@@ -1509,7 +1509,7 @@ export default function AdminTasksPage() {
                   minWidth: 110, fontWeight: 'bold', fontSize: 14, color: '#2d5500',
                   background: '#e8ffd4', borderRadius: 8, padding: '4px 12px', textAlign: 'center',
                 }}>
-                  {course}コース
+                  {course}繧ｳ繝ｼ繧ｹ
                 </span>
                 <select
                   className="game-input"
@@ -1518,13 +1518,13 @@ export default function AdminTasksPage() {
                   onChange={e => handleSaveInitialTask(course, e.target.value)}
                   disabled={initialSaving === course}
                 >
-                  <option value="">（なし）</option>
+                  <option value="">・医↑縺暦ｼ・/option>
                   {tasks.filter(t => t.is_active && (!t.target_course || t.target_course === course)).map(t => (
                     <option key={t.id} value={t.id}>{t.title}</option>
                   ))}
                 </select>
                 {initialSaving === course && (
-                  <span style={{ fontSize: 12, color: '#6aac14', whiteSpace: 'nowrap' }}>保存中…</span>
+                  <span style={{ fontSize: 12, color: '#6aac14', whiteSpace: 'nowrap' }}>菫晏ｭ倅ｸｭ窶ｦ</span>
                 )}
               </div>
             ))}
@@ -1541,9 +1541,10 @@ export default function AdminTasksPage() {
           padding: '10px 18px', cursor: 'pointer',
           boxShadow: '0 4px 0 #0d2000',
         }}>
-          ← ダッシュボード
+          竊・繝繝・す繝･繝懊・繝・
         </button>
       </a>
     </div>
   )
 }
+
