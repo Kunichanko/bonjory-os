@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '@/lib/supabase'
 import { getEffectivePermissions } from '@/lib/permissions'
-import { XIcon as Twitter, Wand2, Save, ChevronDown, ChevronUp, Check, Trash2, List } from 'lucide-react'
+import { XIcon as Twitter, Wand2, Save, ChevronDown, ChevronUp, Check, Trash2, List, Zap } from 'lucide-react'
 
 interface SnsPost {
   id: string
@@ -32,6 +32,8 @@ export default function SnsManagePage() {
   const [markingId, setMarkingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [schedulingId, setSchedulingId] = useState<string | null>(null)
+  const [sendingNowId, setSendingNowId] = useState<string | null>(null)
+  const [sendNowResult, setSendNowResult] = useState<string | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -139,6 +141,32 @@ export default function SnsManagePage() {
     if (error) { alert('削除に失敗しました: ' + error.message); setDeletingId(null); return }
     setPosts(prev => prev.filter(p => p.id !== postId))
     setDeletingId(null)
+  }
+
+  async function handleSendNow(postId: string) {
+    setSendingNowId(postId)
+    setSendNowResult(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/sns/send-now', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ postId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? '送信に失敗しました')
+      setSendNowResult(`送信完了（${json.sent}/${json.total}件）`)
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, notified_at: new Date().toISOString() } : p))
+      setTimeout(() => setSendNowResult(null), 3000)
+    } catch (e: unknown) {
+      setSendNowResult((e as Error).message)
+      setTimeout(() => setSendNowResult(null), 4000)
+    } finally {
+      setSendingNowId(null)
+    }
   }
 
   const pendingPosts = posts.filter(p => p.status === 'pending')
@@ -284,6 +312,17 @@ export default function SnsManagePage() {
             ☑ 投稿予定リスト
             <span style={{ fontSize: 13, color: '#666', fontWeight: 'normal' }}>（{pendingPosts.length}件）</span>
           </h2>
+          {sendNowResult && (
+            <div style={{
+              background: sendNowResult.includes('失敗') || sendNowResult.includes('エラー') ? '#fff0f0' : '#f0fff4',
+              border: `1px solid ${sendNowResult.includes('失敗') || sendNowResult.includes('エラー') ? '#e74c3c' : '#3d6e00'}`,
+              borderRadius: 8, padding: '8px 12px', marginBottom: 12,
+              fontSize: 13, fontWeight: 'bold',
+              color: sendNowResult.includes('失敗') || sendNowResult.includes('エラー') ? '#c0392b' : '#1a4a00',
+            }}>
+              {sendNowResult}
+            </div>
+          )}
 
           {pendingPosts.length === 0 ? (
             <p style={{ color: '#999', fontSize: 14, textAlign: 'center', padding: '12px 0' }}>投稿予定はありません</p>
@@ -316,7 +355,7 @@ export default function SnsManagePage() {
                     <div style={{ fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#1a1a1a', marginBottom: 8 }}>
                       {post.content}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <input
                         type="date"
                         value={post.scheduled_date ?? ''}
@@ -334,6 +373,22 @@ export default function SnsManagePage() {
                         </span>
                       )}
                       {schedulingId === post.id && <span style={{ fontSize: 11, color: '#aaa' }}>更新中...</span>}
+                      <button
+                        onClick={() => handleSendNow(post.id)}
+                        disabled={sendingNowId === post.id}
+                        title="今すぐ通知を送信"
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          background: sendingNowId === post.id ? '#ccc' : '#fff3e0',
+                          border: '1px solid #e67e22', borderRadius: 6,
+                          color: sendingNowId === post.id ? '#888' : '#a04000',
+                          fontSize: 11, fontWeight: 'bold', padding: '4px 10px',
+                          cursor: sendingNowId === post.id ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        <Zap size={11} />
+                        {sendingNowId === post.id ? '送信中...' : 'すぐに送信'}
+                      </button>
                     </div>
                   </div>
 
