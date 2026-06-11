@@ -11,9 +11,10 @@ import BonTopics from '../components/BonTopics'
 import Icon from '../components/Icon'
 import {
   Newspaper, ClipboardList, BookOpen, Globe, Archive, MessageCircle, Inbox,
-  Bug, Tag, Settings, LogOut, Menu, Bell, Trash2, MailOpen, Film, Search,
+  Bug, Tag, Settings, LogOut, Menu, Bell, MailOpen, Film, Search,
   EyeOff, User, Rocket, FileText, Image, Link2, Star, RefreshCw, Check,
   LayoutGrid, List, X, AlertTriangle, Flower2, PartyPopper, Pin, Flame, CheckCircle2,
+  Cloud,
 } from 'lucide-react'
 
 // ─── 定数・型 ─────────────────────────────────────────────
@@ -56,6 +57,17 @@ const NAV_ITEMS: { id: ViewId; icon: string; label: string }[] = [
   { id: 'history',  icon: 'BookOpen',      label: '過去の課題' },
   { id: 'timeline', icon: 'Globe',         label: 'タイムライン' },
 ]
+
+// ─── 時間帯テーマ（HUDヒーロー用） ─────────────────────────
+type TimeTheme = { greeting: string; sky: string; pageTint: string; celestial: 'sun' | 'moon' }
+
+function getTimeTheme(d = new Date()): TimeTheme {
+  const h = d.getHours()
+  if (h >= 5 && h < 10)  return { greeting: 'おはよう',   sky: 'linear-gradient(180deg, #7ec8e3 0%, #ffe9b0 100%)', pageTint: '#8cc63f', celestial: 'sun' }
+  if (h >= 10 && h < 16) return { greeting: 'こんにちは', sky: 'linear-gradient(180deg, #4aa3df 0%, #a8dcf0 100%)', pageTint: '#79b81e', celestial: 'sun' }
+  if (h >= 16 && h < 19) return { greeting: 'こんばんは', sky: 'linear-gradient(180deg, #e8884b 0%, #f7c873 100%)', pageTint: '#7aa31a', celestial: 'sun' }
+  return                        { greeting: 'こんばんは', sky: 'linear-gradient(180deg, #0e1a3a 0%, #2a4470 100%)', pageTint: '#4d7e0a', celestial: 'moon' }
+}
 
 // ─── タイムライン分類ユーティリティ ───────────────────────
 
@@ -303,8 +315,9 @@ export default function DashboardPage() {
   const [dmManageUnreadCount, setDmManageUnreadCount] = useState(0)
   const [notifOpen, setNotifOpen]         = useState(false)
   const [notifLogs, setNotifLogs]         = useState<NotifLog[]>([])
-  const [notifVisibleCount, setNotifVisibleCount] = useState(3)
   const [notifUnread, setNotifUnread] = useState(0)
+  const [notifLoaded, setNotifLoaded]   = useState(false)
+  const [notifLoading, setNotifLoading] = useState(false)
   const [positionNames, setPositionNames] = useState<string[]>([])
 
   // サイドバー
@@ -625,21 +638,17 @@ export default function DashboardPage() {
           setActiveTicket((activeTicketRes.data as unknown as ActiveTicket) ?? null)
         }
 
-        // 通知ログ読み込み
-        const { data: logs } = await supabase
+        // 通知未読数のみ取得（一覧はベルを開いたときに遅延読み込み）
+        const lastOpened = typeof window !== 'undefined'
+          ? localStorage.getItem('notif_last_opened') : null
+        let countQuery = supabase
           .from('notification_logs')
-          .select('id, title, body, url, created_at')
-          .order('created_at', { ascending: false })
-          .limit(50)
-        if (mounted) {
-          setNotifLogs((logs ?? []) as NotifLog[])
-          const lastOpened = typeof window !== 'undefined'
-            ? localStorage.getItem('notif_last_opened') : null
-          const unread = (logs ?? []).filter(l =>
-            !lastOpened || new Date(l.created_at) > new Date(lastOpened)
-          ).length
-          setNotifUnread(unread)
-        }
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', uid)
+          .is('deleted_at', null)
+        if (lastOpened) countQuery = countQuery.gt('created_at', lastOpened)
+        const { count: unreadCount } = await countQuery
+        if (mounted) setNotifUnread(unreadCount ?? 0)
 
         // プッシュ通知サブスクリプション登録（エラーは無視）
         subscribePush().catch(() => {})
@@ -658,6 +667,22 @@ export default function DashboardPage() {
 
     return () => { mounted = false; subscription.unsubscribe() }
   }, [router])
+
+  // ─── 通知一覧の遅延読み込み（ベルを開いたとき） ─────────
+  async function loadNotifLogs() {
+    if (!userId || notifLoading) return
+    setNotifLoading(true)
+    const { data: logs } = await supabase
+      .from('notification_logs')
+      .select('id, title, body, url, created_at')
+      .eq('user_id', userId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    setNotifLogs((logs ?? []) as NotifLog[])
+    setNotifLoaded(true)
+    setNotifLoading(false)
+  }
 
   // ─── タイムライン読み込み ───────────────────────────────
 
@@ -1021,6 +1046,11 @@ export default function DashboardPage() {
     ? sortedByPoints.find(r => r.min_points > currentRank.min_points) ?? null
     : null
 
+  const timeTheme = getTimeTheme()
+  const xpPct = currentRank && nextRank
+    ? Math.min(100, Math.max(0, ((coolPoints - currentRank.min_points) / (nextRank.min_points - currentRank.min_points)) * 100))
+    : 100
+
   // ─── タイムライン フィルター・分類 ─────────────────────
 
   function applyTimelineFilters(items: TimelineItem[]): TimelineItem[] {
@@ -1042,7 +1072,7 @@ export default function DashboardPage() {
   // ─── レンダリング ──────────────────────────────────────
 
   return (
-    <div style={{ minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh', background: `linear-gradient(180deg, ${timeTheme.pageTint} 0%, var(--green-main) 340px)` }}>
 
       {/* ── サイドバー overlay ──────────────────────────── */}
       {sidebarOpen && (
@@ -1249,12 +1279,7 @@ export default function DashboardPage() {
       <div style={{ padding: '24px 24px 40px' }}>
         {/* ハンバーガーボタン */}
         <div style={{ position: 'fixed', top: 16, left: 16, zIndex: 99, display: 'inline-block' }}>
-          <button onClick={() => setSidebarOpen(true)} style={{
-            background: '#1a3a00', border: '2px solid #3d6e00',
-            borderRadius: 8, padding: '6px 10px',
-            cursor: 'pointer', color: '#6aac14', fontSize: 20, lineHeight: 1,
-            display: 'inline-flex', alignItems: 'center',
-          }}>
+          <button onClick={() => setSidebarOpen(true)} className="hud-glass-btn">
             <Menu size={20}/>
           </button>
           {(dmUnreadCount > 0 || dmManageUnreadCount > 0) && (
@@ -1274,18 +1299,14 @@ export default function DashboardPage() {
               const opening = !notifOpen
               setNotifOpen(opening)
               if (opening) {
+                if (!notifLoaded) loadNotifLogs()
                 localStorage.setItem('notif_last_opened', new Date().toISOString())
                 setNotifUnread(0)
-                setNotifVisibleCount(3)
               }
             }}
-            style={{
-              background: '#1a3a00', border: '2px solid #3d6e00',
-              borderRadius: 8, padding: '6px 10px',
-              cursor: 'pointer', fontSize: 20, lineHeight: 1,
-            }}
+            className="hud-glass-btn"
           >
-            <Bell size={20} color="white"/>
+            <Bell size={20}/>
           </button>
           {notifUnread > 0 && (
             <span style={{
@@ -1376,9 +1397,9 @@ export default function DashboardPage() {
                 <AnimatePresence initial={false}>
                   {notifLogs.length === 0 ? (
                     <p style={{ color: '#a8d870', textAlign: 'center', marginTop: 24, fontSize: 14 }}>
-                      通知はありません
+                      {notifLoading ? '読み込み中…' : '通知はありません'}
                     </p>
-                  ) : notifLogs.slice(0, notifVisibleCount).map(log => (
+                  ) : notifLogs.map(log => (
                     <motion.div
                       key={log.id}
                       layout
@@ -1409,38 +1430,9 @@ export default function DashboardPage() {
                           {new Date(log.created_at).toLocaleString('ja-JP')}
                         </p>
                       </div>
-                      <button
-                        onClick={async () => {
-                          await supabase.from('notification_logs')
-                            .update({ deleted_at: new Date().toISOString() })
-                            .eq('id', log.id)
-                          setNotifLogs(prev => prev.filter(l => l.id !== log.id))
-                        }}
-                        style={{
-                          background: 'none', border: 'none',
-                          color: '#5a8a1a', fontSize: 16, cursor: 'pointer',
-                          padding: '2px 4px', flexShrink: 0, lineHeight: 1,
-                          display: 'inline-flex', alignItems: 'center',
-                        }}
-                      >
-                        <Trash2 size={16}/>
-                      </button>
                     </motion.div>
                   ))}
                 </AnimatePresence>
-                {notifLogs.length > notifVisibleCount && (
-                  <button
-                    onClick={() => setNotifVisibleCount(c => c + 3)}
-                    style={{
-                      width: '100%', padding: '8px 0',
-                      background: 'none', border: '1px solid #3d6e00',
-                      borderRadius: 8, color: '#6aac14',
-                      fontSize: 13, cursor: 'pointer', marginBottom: 8,
-                    }}
-                  >
-                    さらに読み込む
-                  </button>
-                )}
               </div>
             </motion.div>
           )}
@@ -1507,40 +1499,87 @@ export default function DashboardPage() {
 
         <div className="stagger-children" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 48, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* ── ウェルカムカード ─────────────────────────── */}
+          {/* ── ウェルカムカード（空+草原のHUDヒーロー） ───── */}
           <div style={{
-            background: 'linear-gradient(135deg, #4e8a00 0%, #3d6e00 60%, #2a4d00 100%)',
+            position: 'relative',
             border: '3px solid #6aac14',
             borderRadius: 20,
-            padding: '36px 32px',
             textAlign: 'center',
             boxShadow: '0 6px 0 #1a3a00',
           }}>
-            <SlimeIcon
-              size={80}
-              speechText={slimeSpeech}
-              speechFullText={slimeSpeechFull}
-              speechVisible={speechVisible}
-            />
-            <h1 className="game-title" style={{ fontSize: 36, marginBottom: 8, color: '#ffffff', fontWeight: 900, textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>ようこそ！</h1>
-            <p style={{ fontSize: 26, fontWeight: 'bold', color: '#d4f08a', marginBottom: 20 }}>
-              {username ?? '名無し'} さん
-            </p>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <span style={{
-                background: course ? 'rgba(106,172,20,0.35)' : 'rgba(255,255,255,0.15)', color: '#d4f08a',
-                borderRadius: 20, padding: '5px 16px', fontSize: 14, fontWeight: 'bold',
-                border: `2px solid ${course ? '#a8d870' : 'rgba(255,255,255,0.3)'}`,
-              }}>
-                {course ? COURSE_LABELS[course] : '未設定'}
-              </span>
-              <span style={{
-                background: stage ? 'rgba(42,77,0,0.5)' : 'rgba(255,255,255,0.15)', color: '#d4f08a',
-                borderRadius: 20, padding: '5px 16px', fontSize: 14, fontWeight: 'bold',
-                border: `2px solid ${stage ? '#a8d870' : 'rgba(255,255,255,0.3)'}`,
-              }}>
-                {stage ? STAGE_LABELS[stage] : '未設定'}
-              </span>
+            {/* 装飾レイヤー（ここだけクリップ。吹き出しはカード外にはみ出せる） */}
+            <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', borderRadius: 17 }}>
+              {/* 空 */}
+              <div style={{ position: 'absolute', inset: 0, background: timeTheme.sky }} />
+              {/* 太陽 / 月 */}
+              <div style={{
+                position: 'absolute', top: 18, right: 28, width: 44, height: 44, borderRadius: '50%',
+                background: timeTheme.celestial === 'sun' ? '#ffd75e' : '#f3eecd',
+                boxShadow: timeTheme.celestial === 'sun'
+                  ? '0 0 26px 8px rgba(255,224,110,0.65)'
+                  : '0 0 20px 6px rgba(240,238,210,0.45)',
+              }} />
+              {/* 雲（速度差で擬似パララックス） */}
+              <Cloud className="hud-cloud" size={46} fill="rgba(255,255,255,0.85)" color="rgba(255,255,255,0.85)" style={{ top: 14, animationDuration: '55s' }} />
+              <Cloud className="hud-cloud" size={28} fill="rgba(255,255,255,0.55)" color="rgba(255,255,255,0.55)" style={{ top: 56, animationDuration: '85s', animationDelay: '-40s' }} />
+              <Cloud className="hud-cloud" size={36} fill="rgba(255,255,255,0.7)" color="rgba(255,255,255,0.7)" style={{ top: 32, animationDuration: '70s', animationDelay: '-20s' }} />
+              {/* 草原 */}
+              <div style={{
+                position: 'absolute', bottom: 0, left: '-5%', width: '110%', height: '58%',
+                background: 'linear-gradient(180deg, #4e8a00 0%, #3d6e00 55%, #2a4d00 100%)',
+                borderRadius: '100% 100% 0 0 / 40px 40px 0 0',
+              }} />
+            </div>
+            {/* コンテンツ */}
+            <div style={{ position: 'relative', padding: '36px 32px 28px' }}>
+              <SlimeIcon
+                size={80}
+                speechText={slimeSpeech}
+                speechFullText={slimeSpeechFull}
+                speechVisible={speechVisible}
+              />
+              <h1 className="game-title" style={{ fontSize: 36, marginBottom: 8, color: '#ffffff', fontWeight: 900, textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>{timeTheme.greeting}！</h1>
+              <p style={{ fontSize: 26, fontWeight: 'bold', color: '#d4f08a', marginBottom: 20 }}>
+                {username ?? '名無し'} さん
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <span style={{
+                  background: course ? 'rgba(106,172,20,0.35)' : 'rgba(255,255,255,0.15)', color: '#d4f08a',
+                  borderRadius: 20, padding: '5px 16px', fontSize: 14, fontWeight: 'bold',
+                  border: `2px solid ${course ? '#a8d870' : 'rgba(255,255,255,0.3)'}`,
+                }}>
+                  {course ? COURSE_LABELS[course] : '未設定'}
+                </span>
+                <span style={{
+                  background: stage ? 'rgba(42,77,0,0.5)' : 'rgba(255,255,255,0.15)', color: '#d4f08a',
+                  borderRadius: 20, padding: '5px 16px', fontSize: 14, fontWeight: 'bold',
+                  border: `2px solid ${stage ? '#a8d870' : 'rgba(255,255,255,0.3)'}`,
+                }}>
+                  {stage ? STAGE_LABELS[stage] : '未設定'}
+                </span>
+              </div>
+              {/* XPバー */}
+              {currentRank && (
+                <div style={{ marginTop: 18, textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontWeight: 'bold', color: '#d4f08a', marginBottom: 4 }}>
+                    <span>ランク {currentRank.name}</span>
+                    <span>{nextRank ? `次まで ${nextRank.min_points - coolPoints} pt` : 'MAX'}</span>
+                  </div>
+                  <div style={{ height: 14, background: '#1a3a00', borderRadius: 7, border: '2px solid rgba(168,216,112,0.4)', overflow: 'hidden' }}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${xpPct}%` }}
+                      transition={{ duration: 1.1, ease: 'easeOut', delay: 0.3 }}
+                      style={{
+                        height: '100%', borderRadius: 5, position: 'relative', overflow: 'hidden',
+                        background: `linear-gradient(90deg, ${currentRank.color}, ${nextRank?.color ?? '#f0a000'})`,
+                      }}
+                    >
+                      <span className="xp-shine" />
+                    </motion.div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1550,13 +1589,22 @@ export default function DashboardPage() {
               <button key={item.id} onClick={() => setCurrentView(item.id)} style={{
                 flex: 1, padding: '9px 0', borderRadius: 9,
                 border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 'bold',
-                background: currentView === item.id ? '#6aac14' : 'none',
+                background: 'none', position: 'relative',
                 color: currentView === item.id ? '#fff' : '#a8d870',
-                transition: 'background 0.15s',
+                transition: 'color 0.2s',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                 whiteSpace: 'nowrap',
               }}>
-                <Icon name={item.icon} size={13}/>{item.label}
+                {currentView === item.id && (
+                  <motion.span
+                    layoutId="view-tab-pill"
+                    transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                    style={{ position: 'absolute', inset: 0, background: '#6aac14', borderRadius: 9, boxShadow: '0 2px 0 #3d6e00' }}
+                  />
+                )}
+                <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Icon name={item.icon} size={13}/>{item.label}
+                </span>
               </button>
             ))}
           </div>

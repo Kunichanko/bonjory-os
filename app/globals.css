@@ -410,3 +410,57 @@ body {
 .bon-modal-content {
   animation: bon-block-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
 }
+
+/* ─── Dashboard HUD ─────────────────────────────────── */
+.hud-glass-btn {
+  background: rgba(26, 58, 0, 0.55);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 2px solid rgba(168, 216, 112, 0.35);
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #a8d870;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  transition: transform 0.12s, background 0.15s;
+}
+
+.hud-glass-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(26, 58, 0, 0.72);
+}
+
+.hud-cloud {
+  position: absolute;
+  left: -120px;
+  pointer-events: none;
+  animation: cloudDrift linear infinite;
+}
+
+@keyframes cloudDrift {
+  from { transform: translateX(0); }
+  to   { transform: translateX(740px); }
+}
+
+.xp-shine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: xpShine 2.6s ease-in-out infinite;
+}
+
+@keyframes xpShine {
+  0%, 55% { transform: translateX(-110%); }
+  100%    { transform: translateX(280%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-cloud, .xp-shine { animation: none; }
+}

@@ -102,6 +102,12 @@ export async function GET(req: NextRequest) {
     totalSent += (subs?.length ?? 0) - goneEndpoints.length
   }
 
+  // 通知ログは各ユーザー最新5件のみ保持
+  if (allAnns.length > 0) {
+    const { error: pruneErr } = await supabaseAdmin.rpc('prune_notification_logs', { keep_count: 5 })
+    if (pruneErr) console.warn('[prune_notification_logs]', pruneErr.message)
+  }
+
   // SNS予約投稿通知: JST 17:00 ±2分 に当日分を送信
   const jstDateStr = jst.toISOString().slice(0, 10)
   const targetMinutes = 17 * 60

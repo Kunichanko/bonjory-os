@@ -95,6 +95,9 @@ export async function POST(req: NextRequest) {
           }))
         )
         if (logErr) console.warn('[notification_logs insert]', logErr.message)
+        // 通知ログは各ユーザー最新5件のみ保持
+        const { error: pruneErr } = await supabaseAdmin.rpc('prune_notification_logs', { keep_count: 5 })
+        if (pruneErr) console.warn('[prune_notification_logs]', pruneErr.message)
       }
     } catch (logEx) {
       console.warn('[notification_logs]', logEx)
