@@ -270,16 +270,29 @@ export default function SnsManagePage() {
               <label style={{ display: 'block', fontWeight: 'bold', color: '#1a3a00', marginBottom: 8, fontSize: 14 }}>
                 作成された投稿
               </label>
-              <div style={{
-                border: '2px solid #6aac14', borderRadius: 10,
-                padding: '12px 14px', fontSize: 15, lineHeight: 1.7,
-                background: '#f6fff0', minHeight: 80,
-                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                color: converting ? '#aaa' : '#1a1a1a',
-                marginBottom: 16,
-              }}>
-                {converting ? '生成中...' : generatedText}
-              </div>
+              {converting ? (
+                <div style={{
+                  border: '2px solid #6aac14', borderRadius: 10,
+                  padding: '12px 14px', fontSize: 15, lineHeight: 1.7,
+                  background: '#f6fff0', minHeight: 80, color: '#aaa',
+                  marginBottom: 16,
+                }}>
+                  生成中...
+                </div>
+              ) : (
+                <textarea
+                  value={generatedText}
+                  onChange={e => setGeneratedText(e.target.value)}
+                  rows={5}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    border: '2px solid #6aac14', borderRadius: 10,
+                    padding: '12px 14px', fontSize: 15, lineHeight: 1.7,
+                    background: '#f6fff0', resize: 'vertical', outline: 'none',
+                    fontFamily: 'inherit', marginBottom: 16,
+                  }}
+                />
+              )}
 
               <div style={{ textAlign: 'center' }}>
                 <button

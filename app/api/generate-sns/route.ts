@@ -14,7 +14,7 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
     const body = JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.85,
+        temperature: 0.5,
         maxOutputTokens: 1024,
         // gemini-2.5-flash はデフォルトで thinking を使いトークン予算を消費するため無効化
         ...(model.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
@@ -83,13 +83,17 @@ export async function POST(req: NextRequest) {
   const lenMax = Math.round(avgLen * 1.2)
 
   const samplesSection = samplesText
-    ? `以下はBONJORYの実際の投稿サンプルです。このアカウントの口調・テンション・熱量・絵文字の使い方・語尾・ハッシュタグのスタイルを忠実に再現してください。\n\n【BONJORYの投稿サンプル】\n${samplesText}\n\n`
+    ? `以下はBONJORYの実際の投稿サンプルです。絵文字の使い方・ハッシュタグのスタイル・文体の雰囲気の参考にしてください。\n\n【BONJORYの投稿サンプル】\n${samplesText}\n\n`
     : ''
 
   const prompt = `あなたはBONJORYというゲーム制作コミュニティの中の人として、SNS投稿を書くアシスタントです。
-${samplesSection}【最重要】上記サンプルの口調・テンション・熱量・語尾・絵文字の密度を忠実に再現してください。サンプルと同じキャラクターが書いたと感じられるよう、なりきって書いてください。
+${samplesSection}【絶対ルール】以下の「投稿したい内容」に書かれているテンション・熱量・口調・語尾をそのまま忠実に保ってください。
+- インプットが落ち着いたトーンなら落ち着いたまま
+- インプットが興奮・熱量高めなら同じエネルギーで
+- インプットの語尾（です・ます／だ・である／砕けた表現など）を変えない
+- テンションを勝手に上げたり下げたりしない
 
-以下の内容をX（旧Twitter）投稿に変換してください。文字数は${lenMin}〜${lenMax}文字程度にしてください。必ず文章を最後まで書き切り、途中で終わらせないでください。
+やること：上記の内容をX（旧Twitter）投稿として読みやすく整形する。文字数は${lenMin}〜${lenMax}文字程度。必ず文章を最後まで書き切ること。
 
 【投稿したい内容】
 ${input.trim()}
