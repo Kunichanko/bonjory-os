@@ -15,6 +15,9 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mantou+Sans&display=swap" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#6aac14" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#6aac14" media="(prefers-color-scheme: dark)" />

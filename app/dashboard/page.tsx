@@ -7,14 +7,22 @@ import { marked } from 'marked'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
 import SlimeIcon from '../components/SlimeIcon'
 import { AnimatePresence, motion } from 'framer-motion'
-import BonTopics from '../components/BonTopics'
+import dynamic from 'next/dynamic'
+const BonTopics = dynamic(() => import('../components/BonTopics'), {
+  ssr: false,
+  loading: () => (
+    <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
+      <p style={{ color: '#6aac14', fontSize: 16 }}>読み込み中…</p>
+    </div>
+  ),
+})
 import Icon from '../components/Icon'
 import {
-  Newspaper, ClipboardList, BookOpen, Globe, Archive, MessageCircle, Inbox,
+  Newspaper, ClipboardList, BookOpen, Globe, MessageCircle, Inbox,
   Bug, Tag, Settings, LogOut, Menu, Bell, MailOpen, Film, Search,
   EyeOff, User, Rocket, FileText, Image, Link2, Star, RefreshCw, Check,
   LayoutGrid, List, X, AlertTriangle, Flower2, PartyPopper, Pin, Flame, CheckCircle2,
-  Cloud,
+  Cloud, ChevronDown,
 } from 'lucide-react'
 
 // ─── 定数・型 ─────────────────────────────────────────────
@@ -49,7 +57,7 @@ const MILESTONES = [
   { key: 'final',   phase: 'final',   day: '日', label: '最終提出',  desc: '日曜日：動画・画像・自己評価をタイムラインに投稿しましょう。' },
 ]
 
-type ViewId = 'tasks' | 'history' | 'timeline' | 'past_timeline' | 'news'
+type ViewId = 'tasks' | 'history' | 'timeline' | 'news'
 
 const NAV_ITEMS: { id: ViewId; icon: string; label: string }[] = [
   { id: 'news',     icon: 'Newspaper',     label: 'BON-TOPICS' },
@@ -69,24 +77,9 @@ function getTimeTheme(d = new Date()): TimeTheme {
   return                        { greeting: 'こんばんは', sky: 'linear-gradient(180deg, #0e1a3a 0%, #2a4470 100%)', pageTint: '#4d7e0a', celestial: 'moon' }
 }
 
-// ─── タイムライン分類ユーティリティ ───────────────────────
+// ─── タイムライン ─────────────────────────────────────────
 
-function getMostRecentMonday(date: Date): Date {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = day === 0 ? 6 : day - 1
-  d.setDate(d.getDate() - diff)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function isCurrentTimeline(submittedAt: string | null): boolean {
-  if (!submittedAt) return false
-  const taskMonday = getMostRecentMonday(new Date(submittedAt))
-  const nowMonday  = getMostRecentMonday(new Date())
-  const cutoff     = new Date(nowMonday.getTime() - 14 * 24 * 60 * 60 * 1000)
-  return taskMonday >= cutoff
-}
+const TIMELINE_PAGE_SIZE = 8
 
 interface AssignmentTask {
   id: string
@@ -277,6 +270,7 @@ export default function DashboardPage() {
   const [stage, setStage]             = useState<string | null>(null)
   const [assignments, setAssignments] = useState<AssignmentRecord[]>([])
   const [loading, setLoading]         = useState(true)
+  const [tasksLoading, setTasksLoading] = useState(true)
 
   // ポイント・ランク
   const [totalPoints, setTotalPoints]   = useState(0)
@@ -359,10 +353,11 @@ export default function DashboardPage() {
   const [imagePreviews, setImagePreviews]     = useState<Record<string, string[]>>({})
   const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({})
 
-  // タイムライン
+  // タイムライン（timeline = 現在のフィルター×ソートでの累積取得リスト）
   const [timeline, setTimeline]               = useState<TimelineItem[]>([])
-  const [timelineLoading, setTimelineLoading] = useState(false)
-  const [timelineLoaded, setTimelineLoaded]   = useState(false)
+  const [timelineLoading, setTimelineLoading] = useState(true)
+  const [timelineLoadingMore, setTimelineLoadingMore] = useState(false)
+  const [timelineTotalCount, setTimelineTotalCount]   = useState(0)
   const [selectedPost, setSelectedPost]       = useState<TimelineItem | null>(null)
 
   // タイムライン ソート・フィルター
@@ -460,20 +455,48 @@ export default function DashboardPage() {
   useEffect(() => {
     let mounted = true
 
-    async function loadUser() {
-      try {
-        const { data, error } = await supabase.auth.getUser()
-        if (error || !data?.user) { router.replace('/login'); return }
+    // ─── クリティカルパス: ヒーロー表示に必要な最小データ ───
+    async function loadCritical(): Promise<string | null> {
+      // getSession はローカル読み（getUser のようなネットワーク往復なし）。データ保護はRLSが担う
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { router.replace('/login'); return null }
 
-        const uid = data.user.id
-        if (mounted) setUserId(uid)
+      const uid = session.user.id
+      if (mounted) setUserId(uid)
 
-        const [profileRes, assignmentRes, ranksRes, commentLimitRes, speechBlocksRes, speechLinesRes, gimmickSettingsRes] = await Promise.all([
-          supabase.from('profiles')
-            .select('username, course, stage, total_points, cool_points, role')
-            .eq('id', uid)
-            .single(),
-          supabase.from('task_assignments')
+      const [profileRes, ranksRes] = await Promise.all([
+        supabase.from('profiles')
+          .select('username, course, stage, total_points, cool_points, role')
+          .eq('id', uid)
+          .single(),
+        supabase.from('rank_settings')
+          .select('id, name, min_points, color, rank_order')
+          .order('rank_order'),
+      ])
+      if (!mounted) return null
+      // 無効トークン等はここで失敗 → catch → /login
+      if (profileRes.error) throw profileRes.error
+
+      const profile = profileRes.data
+      setUsername(profile?.username ?? null)
+      setCourse(profile?.course ?? null)
+      setStage(profile?.stage ?? null)
+      setTotalPoints(profile?.total_points ?? 0)
+      setCoolPoints(profile?.cool_points ?? 0)
+      setUserRole(profile?.role ?? null)
+      setRankSettings(ranksRes.data ?? [])
+      return uid
+    }
+
+    // ─── バックグラウンド読み込み: 独立タスクを並列実行 ───
+    function loadBackground(uid: string) {
+      // 失敗してもページは落とさない（クリティカルパスのみ /login へ）
+      const bg = (label: string, fn: () => Promise<void>) =>
+        fn().catch(err => console.warn(`[dashboard] background load failed: ${label}`, err))
+
+      bg('assignments', async () => {
+        try {
+          const assignmentRes = await supabase.from('task_assignments')
             .select(`
               id, status, plan_text, midterm_progress, midterm_correction,
               media_url, image_urls, self_evaluation, retrospective, submitted_at,
@@ -482,10 +505,74 @@ export default function DashboardPage() {
               task:tasks(id, title, description, description_is_markdown, target_course, target_stage, allow_image_attachment)
             `)
             .eq('user_id', uid)
-            .eq('is_assigned', true),
-          supabase.from('rank_settings')
-            .select('id, name, min_points, color, rank_order')
-            .order('rank_order'),
+            .eq('is_assigned', true)
+          if (!mounted) return
+          const assignmentData = assignmentRes.data
+          if (assignmentData) {
+            setAssignments(assignmentData as unknown as AssignmentRecord[])
+            // 子アコーディオン自動オープン（ページ読み込み時1回のみ）
+            const initSections: Record<string, { detail: boolean; plan: boolean; midterm: boolean; final: boolean }> = {}
+            for (const a of (assignmentData as any[])) {
+              if (a.status === 'assigned') {
+                initSections[a.id] = { detail: true, plan: true, midterm: false, final: false }
+              } else if (a.status === 'in_progress') {
+                initSections[a.id] = !a.midterm_progress
+                  ? { detail: false, plan: false, midterm: true, final: false }
+                  : { detail: false, plan: false, midterm: false, final: true }
+              } else {
+                initSections[a.id] = { detail: false, plan: false, midterm: false, final: false }
+              }
+            }
+            setTaskSectionOpen(initSections)
+            const plans: Record<string, string>   = {}
+            const midProg: Record<string, string> = {}
+            const midCorr: Record<string, string> = {}
+            const subComments: Record<string, string> = {}
+            const evals: Record<string, string>   = {}
+            const retro: Record<string, string>   = {}
+            const courseReqs: Record<string, string> = {}
+            const anon: Record<string, boolean>   = {}
+            assignmentData.forEach(a => {
+              plans[a.id]       = a.plan_text           ?? ''
+              midProg[a.id]     = a.midterm_progress    ?? ''
+              midCorr[a.id]     = a.midterm_correction  ?? ''
+              subComments[a.id] = (a as any).submission_comment  ?? ''
+              evals[a.id]       = a.self_evaluation     ?? ''
+              retro[a.id]       = a.retrospective       ?? ''
+              courseReqs[a.id]  = (a as any).course_request      ?? ''
+              anon[a.id]        = a.is_anonymous        ?? false
+            })
+            setPlanTexts(plans)
+            setMidtermProgress(midProg)
+            setMidtermCorrection(midCorr)
+            setSubmissionComments(subComments)
+            setSelfEvals(evals)
+            setRetros(retro)
+            setCourseRequests(courseReqs)
+            setIsAnonymous(anon)
+          }
+        } finally {
+          if (mounted) setTasksLoading(false)
+        }
+      })
+
+      bg('permissions', async () => {
+        const [perms, ppRes] = await Promise.all([
+          getEffectivePermissions(uid),
+          supabase.from('profile_positions').select('positions(name)').eq('profile_id', uid),
+        ])
+        if (!mounted) return
+        setEffectivePerms(perms)
+        setPositionNames(
+          (ppRes.data ?? []).map(pp => {
+            const pos = (pp as unknown as { positions: { name: string } | null }).positions
+            return pos?.name ?? ''
+          }).filter(Boolean)
+        )
+      })
+
+      bg('speech', async () => {
+        const [commentLimitRes, speechBlocksRes, speechLinesRes, gimmickSettingsRes] = await Promise.all([
           supabase.from('point_settings')
             .select('base_points')
             .eq('action_key', 'comment_daily_limit')
@@ -494,134 +581,71 @@ export default function DashboardPage() {
           supabase.from('speech_lines').select('id, block_id, text, type_speed_ms, display_ms, sort_order').order('sort_order'),
           supabase.from('gimmick_settings').select('block_interval_min_sec, block_interval_max_sec, sakura_enabled').single(),
         ])
-
         if (!mounted) return
+        setCommentDailyLimit(commentLimitRes.data?.base_points ?? 0)
+        setSpeechBlocks(speechBlocksRes.data ?? [])
+        setSpeechLines(speechLinesRes.data ?? [])
+        if (gimmickSettingsRes.data) setGimmickSettings(gimmickSettingsRes.data)
+      })
 
-        const profile = profileRes.data
-        setUsername(profile?.username ?? null)
-        setCourse(profile?.course ?? null)
-        setStage(profile?.stage ?? null)
-        setTotalPoints(profile?.total_points ?? 0)
-        setCoolPoints(profile?.cool_points ?? 0)
-        setUserRole(profile?.role ?? null)
-
-        // 役職・有効権限を取得
-        const [perms, ppRes] = await Promise.all([
-          getEffectivePermissions(uid),
-          supabase.from('profile_positions').select('positions(name)').eq('profile_id', uid),
-        ])
-        if (mounted) {
-          setEffectivePerms(perms)
-          setPositionNames(
-            (ppRes.data ?? []).map(pp => {
-              const pos = (pp as unknown as { positions: { name: string } | null }).positions
-              return pos?.name ?? ''
-            }).filter(Boolean)
-          )
-        }
-
-        // DM未読数を計算
+      bg('dm-unread', async () => {
         const [memberConvsRes, managerConvsRes, readsRes] = await Promise.all([
           supabase.from('dm_conversations').select('id, updated_at').eq('member_id', uid),
           supabase.from('dm_conversations').select('id, updated_at').eq('manager_id', uid),
           supabase.from('dm_reads').select('conversation_id, last_read_at').eq('user_id', uid),
         ])
-        if (mounted) {
-          const readsMap: Record<string, string> = {}
-          ;(readsRes.data ?? []).forEach(r => { readsMap[r.conversation_id] = r.last_read_at })
+        if (!mounted) return
+        const readsMap: Record<string, string> = {}
+        ;(readsRes.data ?? []).forEach(r => { readsMap[r.conversation_id] = r.last_read_at })
 
-          const allConvIds = [
-            ...(memberConvsRes.data ?? []).map(c => c.id),
-            ...(managerConvsRes.data ?? []).map(c => c.id),
-          ]
-          if (allConvIds.length > 0) {
-            const { data: latestMsgs } = await supabase
-              .from('dm_messages')
-              .select('conversation_id, created_at, sender_id')
-              .in('conversation_id', allConvIds)
-              .order('created_at', { ascending: false })
-
-            const memberConvIds = new Set((memberConvsRes.data ?? []).map(c => c.id))
-            const managerConvIds = new Set((managerConvsRes.data ?? []).map(c => c.id))
-
-            const seenMember  = new Set<string>()
-            const seenManager = new Set<string>()
-            let memberUnread  = 0
-            let managerUnread = 0
-
-            ;(latestMsgs ?? []).forEach(m => {
-              if (m.sender_id === uid) return
-              const lastRead = readsMap[m.conversation_id]
-              const isUnread = !lastRead || new Date(m.created_at) > new Date(lastRead)
-              if (isUnread) {
-                if (memberConvIds.has(m.conversation_id) && !seenMember.has(m.conversation_id)) {
-                  seenMember.add(m.conversation_id)
-                  memberUnread++
-                }
-                if (managerConvIds.has(m.conversation_id) && !seenManager.has(m.conversation_id)) {
-                  seenManager.add(m.conversation_id)
-                  managerUnread++
-                }
-              }
-            })
-
-            setDmUnreadCount(memberUnread)
-            setDmManageUnreadCount(managerUnread)
-          }
+        // 未読の可能性がある会話（最終更新が既読時刻より新しい）だけ照会
+        const allConvs = [...(memberConvsRes.data ?? []), ...(managerConvsRes.data ?? [])]
+        const candidateIds = allConvs
+          .filter(c => { const lr = readsMap[c.id]; return !lr || new Date(c.updated_at) > new Date(lr) })
+          .map(c => c.id)
+        if (candidateIds.length === 0) {
+          setDmUnreadCount(0)
+          setDmManageUnreadCount(0)
+          return
         }
 
-        setRankSettings(ranksRes.data ?? [])
-        setCommentDailyLimit(commentLimitRes.data?.base_points ?? 0)
-        setSpeechBlocks(speechBlocksRes.data ?? [])
-        setSpeechLines(speechLinesRes.data ?? [])
-        if (gimmickSettingsRes.data) setGimmickSettings(gimmickSettingsRes.data)
+        const { data: latestMsgs } = await supabase
+          .from('dm_messages')
+          .select('conversation_id, created_at, sender_id')
+          .in('conversation_id', candidateIds)
+          .order('created_at', { ascending: false })
+          .limit(500)
+        if (!mounted) return
 
-        const assignmentData = assignmentRes.data
-        if (assignmentData) {
-          setAssignments(assignmentData as unknown as AssignmentRecord[])
-          // 子アコーディオン自動オープン（ページ読み込み時1回のみ）
-          const initSections: Record<string, { detail: boolean; plan: boolean; midterm: boolean; final: boolean }> = {}
-          for (const a of (assignmentData as any[])) {
-            if (a.status === 'assigned') {
-              initSections[a.id] = { detail: true, plan: true, midterm: false, final: false }
-            } else if (a.status === 'in_progress') {
-              initSections[a.id] = !a.midterm_progress
-                ? { detail: false, plan: false, midterm: true, final: false }
-                : { detail: false, plan: false, midterm: false, final: true }
-            } else {
-              initSections[a.id] = { detail: false, plan: false, midterm: false, final: false }
+        const memberConvIds = new Set((memberConvsRes.data ?? []).map(c => c.id))
+        const managerConvIds = new Set((managerConvsRes.data ?? []).map(c => c.id))
+
+        const seenMember  = new Set<string>()
+        const seenManager = new Set<string>()
+        let memberUnread  = 0
+        let managerUnread = 0
+
+        ;(latestMsgs ?? []).forEach(m => {
+          if (m.sender_id === uid) return
+          const lastRead = readsMap[m.conversation_id]
+          const isUnread = !lastRead || new Date(m.created_at) > new Date(lastRead)
+          if (isUnread) {
+            if (memberConvIds.has(m.conversation_id) && !seenMember.has(m.conversation_id)) {
+              seenMember.add(m.conversation_id)
+              memberUnread++
+            }
+            if (managerConvIds.has(m.conversation_id) && !seenManager.has(m.conversation_id)) {
+              seenManager.add(m.conversation_id)
+              managerUnread++
             }
           }
-          setTaskSectionOpen(initSections)
-          const plans: Record<string, string>   = {}
-          const midProg: Record<string, string> = {}
-          const midCorr: Record<string, string> = {}
-          const subComments: Record<string, string> = {}
-          const evals: Record<string, string>   = {}
-          const retro: Record<string, string>   = {}
-          const courseReqs: Record<string, string> = {}
-          const anon: Record<string, boolean>   = {}
-          assignmentData.forEach(a => {
-            plans[a.id]       = a.plan_text           ?? ''
-            midProg[a.id]     = a.midterm_progress    ?? ''
-            midCorr[a.id]     = a.midterm_correction  ?? ''
-            subComments[a.id] = (a as any).submission_comment  ?? ''
-            evals[a.id]       = a.self_evaluation     ?? ''
-            retro[a.id]       = a.retrospective       ?? ''
-            courseReqs[a.id]  = (a as any).course_request      ?? ''
-            anon[a.id]        = a.is_anonymous        ?? false
-          })
-          setPlanTexts(plans)
-          setMidtermProgress(midProg)
-          setMidtermCorrection(midCorr)
-          setSubmissionComments(subComments)
-          setSelfEvals(evals)
-          setRetros(retro)
-          setCourseRequests(courseReqs)
-          setIsAnonymous(anon)
-        }
+        })
 
-        // チケット読み込み
+        setDmUnreadCount(memberUnread)
+        setDmManageUnreadCount(managerUnread)
+      })
+
+      bg('tickets', async () => {
         const [ticketTypesRes, activeTicketRes] = await Promise.all([
           supabase.from('ticket_types').select('id, label, color_start, color_end').order('created_at', { ascending: true }),
           supabase.from('tickets')
@@ -633,11 +657,12 @@ export default function DashboardPage() {
             .limit(1)
             .maybeSingle(),
         ])
-        if (mounted) {
-          setTicketTypes(ticketTypesRes.data ?? [])
-          setActiveTicket((activeTicketRes.data as unknown as ActiveTicket) ?? null)
-        }
+        if (!mounted) return
+        setTicketTypes(ticketTypesRes.data ?? [])
+        setActiveTicket((activeTicketRes.data as unknown as ActiveTicket) ?? null)
+      })
 
+      bg('notifications', async () => {
         // 通知未読数のみ取得（一覧はベルを開いたときに遅延読み込み）
         const lastOpened = typeof window !== 'undefined'
           ? localStorage.getItem('notif_last_opened') : null
@@ -649,13 +674,20 @@ export default function DashboardPage() {
         if (lastOpened) countQuery = countQuery.gt('created_at', lastOpened)
         const { count: unreadCount } = await countQuery
         if (mounted) setNotifUnread(unreadCount ?? 0)
+      })
 
-        // プッシュ通知サブスクリプション登録（エラーは無視）
-        subscribePush().catch(() => {})
+      // プッシュ通知サブスクリプション登録（エラーは無視）
+      subscribePush().catch(() => {})
+    }
+
+    async function loadUser() {
+      try {
+        const uid = await loadCritical()
+        if (!uid || !mounted) return
+        setLoading(false)
+        loadBackground(uid)
       } catch {
         router.replace('/login')
-      } finally {
-        if (mounted) setLoading(false)
       }
     }
 
@@ -684,61 +716,90 @@ export default function DashboardPage() {
     setNotifLoading(false)
   }
 
-  // ─── タイムライン読み込み ───────────────────────────────
+  // ─── タイムライン読み込み（8件ずつサーバーサイドページング） ───
 
-  useEffect(() => {
-    if (currentView !== 'timeline' && currentView !== 'past_timeline') return
-    if (timelineLoaded) return
-    let mounted = true
-    setTimelineLoading(true)
+  async function fetchTimelinePage(offset: number, fetchSize: number): Promise<{ items: TimelineItem[]; total: number } | null> {
+    try {
+      let q = supabase
+        .from('task_assignments')
+        .select(`
+          id, user_id, is_anonymous, thumbnail_url,
+          self_evaluation, retrospective, submission_comment, media_url, image_urls, submitted_at,
+          hidden_in_timeline, force_past_timeline, force_current_timeline,
+          task:tasks!inner(id, title, target_course, target_stage, created_at)
+        `, { count: 'exact' })
+        .eq('status', 'submitted')
+        .or('hidden_in_timeline.is.null,hidden_in_timeline.eq.false')
+      if (timelineFilterCourse) q = q.eq('task.target_course', timelineFilterCourse)
+      if (timelineFilterStage)  q = q.eq('task.target_stage', timelineFilterStage)
+      const { data: tlData, count, error: tlError } = await q
+        .order('submitted_at', { ascending: timelineSort === 'oldest', nullsFirst: false })
+        .range(offset, offset + fetchSize - 1)
 
-    async function fetchTimeline() {
-      try {
-        const { data: tlData, error: tlError } = await supabase
-          .from('task_assignments')
-          .select(`
-            id, user_id, is_anonymous, thumbnail_url,
-            self_evaluation, retrospective, submission_comment, media_url, image_urls, submitted_at,
-            hidden_in_timeline, force_past_timeline, force_current_timeline,
-            task:tasks(id, title, target_course, target_stage, created_at)
-          `)
-          .eq('status', 'submitted')
-          .order('submitted_at', { ascending: false })
+      if (tlError) {
+        console.error('Timeline fetch error:', tlError.message)
+        return null
+      }
 
-        if (tlError) {
-          console.error('Timeline fetch error:', tlError.message)
-          if (mounted) setTimelineLoading(false)
-          return
-        }
-
+      // プロフィールは取得したページの投稿者分のみ
+      const userIds = [...new Set((tlData ?? []).map(a => a.user_id))]
+      const profileMap: Record<string, { username: string | null; course: string | null; stage: string | null }> = {}
+      if (userIds.length > 0) {
         const { data: profilesData } = await supabase
           .from('profiles')
           .select('id, username, course, stage')
-
-        const profileMap: Record<string, { username: string | null; course: string | null; stage: string | null }> = {}
+          .in('id', userIds)
         for (const p of profilesData ?? []) {
           profileMap[p.id] = { username: p.username, course: p.course, stage: p.stage }
         }
-
-        const merged: TimelineItem[] = (tlData ?? []).map(a => ({
-          ...(a as unknown as Omit<TimelineItem, 'profile'>),
-          profile: profileMap[a.user_id] ?? null,
-        }))
-
-        if (mounted) {
-          setTimeline(merged)
-          setTimelineLoading(false)
-          setTimelineLoaded(true)
-        }
-      } catch (err) {
-        console.error('Timeline fetch failed:', err)
-        if (mounted) setTimelineLoading(false)
       }
-    }
 
-    fetchTimeline()
+      const items: TimelineItem[] = (tlData ?? []).map(a => ({
+        ...(a as unknown as Omit<TimelineItem, 'profile'>),
+        profile: profileMap[a.user_id] ?? null,
+      }))
+      return { items, total: count ?? 0 }
+    } catch (err) {
+      console.error('Timeline fetch failed:', err)
+      return null
+    }
+  }
+
+  useEffect(() => {
+    if (currentView !== 'timeline') return
+    let mounted = true
+    setTimelineLoading(true)
+
+    ;(async () => {
+      const res = await fetchTimelinePage(0, TIMELINE_PAGE_SIZE)
+      if (!mounted) return
+      if (res) {
+        setTimeline(res.items)
+        setTimelineTotalCount(res.total)
+      }
+      setTimelineLoading(false)
+    })()
+
     return () => { mounted = false }
-  }, [currentView, timelineLoaded])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView, timelineSort, timelineFilterCourse, timelineFilterStage])
+
+  // さらに表示 / すべて表示
+  async function loadMoreTimeline(fetchAll = false) {
+    if (timelineLoadingMore) return
+    const remaining = timelineTotalCount - timeline.length
+    if (remaining <= 0) return
+    setTimelineLoadingMore(true)
+    const res = await fetchTimelinePage(timeline.length, fetchAll ? remaining : TIMELINE_PAGE_SIZE)
+    if (res) {
+      setTimeline(prev => {
+        const seen = new Set(prev.map(i => i.id))
+        return [...prev, ...res.items.filter(i => !seen.has(i.id))]
+      })
+      setTimelineTotalCount(res.total)
+    }
+    setTimelineLoadingMore(false)
+  }
 
   // ─── ハンドラ ───────────────────────────────────────────
 
@@ -907,7 +968,7 @@ export default function DashboardPage() {
               image_urls: uploadedImageUrls.length > 0 ? uploadedImageUrls : a.image_urls }
           : a
       ))
-      setTimelineLoaded(false)
+      // タイムラインはビューを開くたびに再取得されるため明示的なリセットは不要
       // 初回提出のみポイント付与
       if (!wasSubmitted && userId) {
         const { data: pts } = await supabase.rpc('award_points', {
@@ -1051,23 +1112,6 @@ export default function DashboardPage() {
     ? Math.min(100, Math.max(0, ((coolPoints - currentRank.min_points) / (nextRank.min_points - currentRank.min_points)) * 100))
     : 100
 
-  // ─── タイムライン フィルター・分類 ─────────────────────
-
-  function applyTimelineFilters(items: TimelineItem[]): TimelineItem[] {
-    let list = [...items]
-    if (timelineFilterCourse) list = list.filter(i => i.task.target_course === timelineFilterCourse)
-    if (timelineFilterStage)  list = list.filter(i => i.task.target_stage === timelineFilterStage)
-    list.sort((a, b) => {
-      const dA = new Date(a.submitted_at ?? 0).getTime()
-      const dB = new Date(b.submitted_at ?? 0).getTime()
-      return timelineSort === 'newest' ? dB - dA : dA - dB
-    })
-    return list
-  }
-
-  const visibleTimeline = timeline.filter(i => !i.hidden_in_timeline)
-  const currentTimeline = applyTimelineFilters(visibleTimeline.filter(i => !i.force_past_timeline && (i.force_current_timeline || isCurrentTimeline(i.submitted_at))))
-  const pastTimeline    = applyTimelineFilters(visibleTimeline.filter(i => i.force_past_timeline || (!i.force_current_timeline && !isCurrentTimeline(i.submitted_at))))
 
   // ─── レンダリング ──────────────────────────────────────
 
@@ -1135,18 +1179,6 @@ export default function DashboardPage() {
             </button>
           </a>
 
-          <button onClick={() => navigate('past_timeline')} style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            width: '100%', padding: '12px 20px',
-            background: currentView === 'past_timeline' ? '#3d6e00' : 'none',
-            border: 'none', cursor: 'pointer',
-            color: currentView === 'past_timeline' ? '#fff' : '#a8d870',
-            fontSize: 15, fontWeight: currentView === 'past_timeline' ? 'bold' : 'normal',
-            textAlign: 'left', transition: 'background 0.15s',
-          }}>
-            <Archive size={18}/>
-            過去のタイムライン
-          </button>
 
           {/* ダイレクトメッセージ - 全ユーザー */}
           <div style={{ position: 'relative' }}>
@@ -1657,7 +1689,11 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {activeAssignments.length === 0 && assignments.length === 0 ? (
+              {tasksLoading ? (
+                <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
+                  <p style={{ color: '#6aac14', fontSize: 16 }}>課題を読み込み中…</p>
+                </div>
+              ) : activeAssignments.length === 0 && assignments.length === 0 ? (
                 <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><MailOpen size={28} color="#6aac14"/></div>
                   <p style={{ color: '#6aac14', fontSize: 16 }}>アサインされた課題はまだありません</p>
@@ -2244,21 +2280,17 @@ export default function DashboardPage() {
             </>
           )}
 
-          {/* ══ VIEW: タイムライン & 過去タイムライン ══════════ */}
-          {(currentView === 'timeline' || currentView === 'past_timeline') && (() => {
-            const isCurrentView = currentView === 'timeline'
-            const displayList   = isCurrentView ? currentTimeline : pastTimeline
-            return (
+          {/* ══ VIEW: タイムライン ════════════════════════════ */}
+          {currentView === 'timeline' && (
               <>
                 <div style={{ background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)', borderRadius: 10, padding: '20px 28px', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
-                  <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.12em', marginBottom: 4 }}>{isCurrentView ? 'TIMELINE' : 'ARCHIVE'}</p>
+                  <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.12em', marginBottom: 4 }}>TIMELINE</p>
                   <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', margin: '0 0 4px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    {isCurrentView ? <><Globe size={18}/>タイムライン</> : <><Archive size={18}/>過去のタイムライン</>}
+                    <Globe size={18}/>タイムライン
                   </h2>
                   <p style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, fontWeight: 'bold', margin: 0 }}>
-                    部員の提出作品 — {displayList.length} 件
-                    {(timelineFilterCourse || timelineFilterStage) && ` (全${isCurrentView ? currentTimeline.length : pastTimeline.length}件中)`}
+                    部員の提出作品 — {timelineTotalCount} 件
                   </p>
                 </div>
 
@@ -2307,7 +2339,7 @@ export default function DashboardPage() {
                   <div className="game-card" style={{ padding: 40, textAlign: 'center' }}>
                     <p style={{ color: '#6aac14', fontSize: 16 }}>読み込み中...</p>
                   </div>
-                ) : displayList.length === 0 ? (
+                ) : timeline.length === 0 ? (
                   <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><MailOpen size={28} color="#6aac14"/></div>
                     <p style={{ color: '#6aac14', fontSize: 16 }}>
@@ -2316,7 +2348,7 @@ export default function DashboardPage() {
                   </div>
                 ) : timelineViewMode === 'grid' ? (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    {displayList.map(item => (
+                    {timeline.map(item => (
                       <button key={item.id}
                         onClick={() => { setSelectedPost(item); loadComments(item.id) }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
@@ -2352,7 +2384,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {displayList.map(item => (
+                    {timeline.map(item => (
                       <button key={item.id}
                         onClick={() => { setSelectedPost(item); loadComments(item.id) }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
@@ -2401,9 +2433,19 @@ export default function DashboardPage() {
                     ))}
                   </div>
                 )}
+
+                {!timelineLoading && timeline.length < timelineTotalCount && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <button className="timeline-more-btn" disabled={timelineLoadingMore} onClick={() => loadMoreTimeline(false)}>
+                      {timelineLoadingMore ? '読み込み中…' : <>さらに表示 <ChevronDown className="chev" size={16}/></>}
+                    </button>
+                    <button className="timeline-more-btn timeline-more-btn--ghost" disabled={timelineLoadingMore} onClick={() => loadMoreTimeline(true)}>
+                      すべて表示（残り {timelineTotalCount - timeline.length} 件）
+                    </button>
+                  </div>
+                )}
               </>
-            )
-          })()}
+          )}
 
         </div>
       </div>
