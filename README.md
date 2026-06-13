@@ -14,9 +14,13 @@
 
 ## スクリーンショット
 
-| ダッシュボード | 課題管理 | 財務管理 |
+| ダッシュボード | 管理サイドバー | タイムライン |
 |:-:|:-:|:-:|
-| ![dashboard](docs/screenshots/dashboard.png) | ![tasks](docs/screenshots/tasks.png) | ![finance](docs/screenshots/finance.png) |
+| ![ダッシュボード](docs/screenshots/topmenu.png) | ![管理サイドバー](docs/screenshots/sidebar.png) | ![タイムライン](docs/screenshots/timeline.png) |
+
+| 課題詳細 | 課題一覧 |
+|:-:|:-:|
+| ![課題詳細](docs/screenshots/assignment.png) | ![課題一覧](docs/screenshots/assignmentlist.png) |
 
 ---
 
