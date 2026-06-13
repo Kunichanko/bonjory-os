@@ -14,6 +14,7 @@ import {
   Bug, Tag, Settings, LogOut, Menu, Bell, Trash2, MailOpen, Film, Search,
   EyeOff, User, Rocket, FileText, Image, Link2, Star, RefreshCw, Check,
   LayoutGrid, List, X, AlertTriangle, Flower2, PartyPopper, Pin, Flame, CheckCircle2,
+  Wrench, Activity, MessageSquare, Plus,
 } from 'lucide-react'
 
 // ─── 定数・型 ─────────────────────────────────────────────
@@ -168,6 +169,37 @@ interface NotifLog {
   body: string
   url: string | null
   created_at: string
+}
+
+interface AssignedDevTask {
+  id: string
+  summary: string
+  detail: string | null
+  deadline: string | null
+  status: 'todo' | 'in_progress' | 'done'
+  dev_task_assignees: { user_id: string }[]
+}
+interface DevTaskProgressEntry {
+  id: string
+  task_id: string
+  user_id: string
+  content: string
+  created_at: string
+  profiles: { username: string } | null
+}
+interface DevTaskFeedbackEntry {
+  id: string
+  task_id: string
+  user_id: string
+  content: string
+  created_at: string
+  profiles: { username: string } | null
+}
+interface DevTaskLazyData {
+  progress: DevTaskProgressEntry[]
+  feedback: DevTaskFeedbackEntry[]
+  loaded: boolean
+  loading: boolean
 }
 
 interface TicketType {
@@ -345,6 +377,14 @@ export default function DashboardPage() {
   const [imageFiles, setImageFiles]           = useState<Record<string, File[]>>({})
   const [imagePreviews, setImagePreviews]     = useState<Record<string, string[]>>({})
   const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({})
+
+  // 開発タスク（バックグラウンド読み込み）
+  const [assignedDevTasks, setAssignedDevTasks] = useState<AssignedDevTask[]>([])
+  const [devTasksLoaded, setDevTasksLoaded]     = useState(false)
+  const [devTaskSections, setDevTaskSections]   = useState<Record<string, { detail: boolean; progress: boolean; feedback: boolean }>>({})
+  const [devTaskLazy, setDevTaskLazy]           = useState<Record<string, DevTaskLazyData>>({})
+  const [devProgressInputs, setDevProgressInputs]   = useState<Record<string, string>>({})
+  const [addingDevProgress, setAddingDevProgress]   = useState<Record<string, boolean>>({})
 
   // タイムライン
   const [timeline, setTimeline]               = useState<TimelineItem[]>([])
@@ -643,6 +683,28 @@ export default function DashboardPage() {
 
         // プッシュ通知サブスクリプション登録（エラーは無視）
         subscribePush().catch(() => {})
+
+        // 開発タスクはバックグラウンドで読み込む（メインローダーをブロックしない）
+        supabase
+          .from('dev_task_assignees')
+          .select('task_id')
+          .eq('user_id', uid)
+          .then(async ({ data: assigneeRows }) => {
+            if (!mounted || !assigneeRows || assigneeRows.length === 0) {
+              if (mounted) setDevTasksLoaded(true)
+              return
+            }
+            const taskIds = assigneeRows.map(r => r.task_id)
+            const { data: devData } = await supabase
+              .from('dev_tasks')
+              .select('id, summary, detail, deadline, status, dev_task_assignees(user_id)')
+              .in('id', taskIds)
+              .order('created_at', { ascending: false })
+            if (mounted) {
+              setAssignedDevTasks((devData ?? []) as AssignedDevTask[])
+              setDevTasksLoaded(true)
+            }
+          })
       } catch {
         router.replace('/login')
       } finally {
@@ -1000,6 +1062,52 @@ export default function DashboardPage() {
 
   const currentMilestone     = MILESTONES.find(m => m.phase === todayPhase)!
   const activeAssignments    = assignments.filter(a => a.status !== 'submitted' || a.resubmit_requested)
+
+  async function loadDevTaskDetail(taskId: string) {
+    if (devTaskLazy[taskId]?.loaded || devTaskLazy[taskId]?.loading) return
+    setDevTaskLazy(prev => ({ ...prev, [taskId]: { progress: [], feedback: [], loaded: false, loading: true } }))
+    const [progressRes, feedbackRes] = await Promise.all([
+      supabase.from('dev_task_progress').select('*, profiles(username)').eq('task_id', taskId).order('created_at'),
+      supabase.from('dev_task_feedback').select('*, profiles(username)').eq('task_id', taskId).order('created_at'),
+    ])
+    setDevTaskLazy(prev => ({
+      ...prev,
+      [taskId]: {
+        progress: (progressRes.data ?? []) as DevTaskProgressEntry[],
+        feedback: (feedbackRes.data ?? []) as DevTaskFeedbackEntry[],
+        loaded: true,
+        loading: false,
+      },
+    }))
+  }
+
+  function toggleDevTaskSection(taskId: string, key: 'detail' | 'progress' | 'feedback') {
+    setDevTaskSections(prev => {
+      const cur = prev[taskId] ?? { detail: false, progress: false, feedback: false }
+      return { ...prev, [taskId]: { ...cur, [key]: !cur[key] } }
+    })
+    const cur = devTaskSections[taskId]
+    if (!cur?.[key]) loadDevTaskDetail(taskId)
+  }
+
+  async function handleAddDevProgress(taskId: string) {
+    const content = devProgressInputs[taskId]?.trim()
+    if (!content || !userId) return
+    setAddingDevProgress(prev => ({ ...prev, [taskId]: true }))
+    const { data, error } = await supabase
+      .from('dev_task_progress')
+      .insert({ task_id: taskId, user_id: userId, content })
+      .select('*, profiles(username)')
+      .single()
+    if (!error && data) {
+      setDevTaskLazy(prev => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], progress: [...(prev[taskId]?.progress ?? []), data as DevTaskProgressEntry] },
+      }))
+      setDevProgressInputs(prev => ({ ...prev, [taskId]: '' }))
+    }
+    setAddingDevProgress(prev => ({ ...prev, [taskId]: false }))
+  }
 
   function getDeadlineLabel(a: AssignmentRecord): string {
     let deadline: Date
@@ -1920,6 +2028,155 @@ export default function DashboardPage() {
                   <List size={16}/>課題一覧
                 </button>
               </a>
+
+              {/* ══ 開発タスク ══════════════════════════════ */}
+              {devTasksLoaded && assignedDevTasks.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                    <Wrench size={16} color="#6aac14"/>
+                    <p style={{ color: '#6aac14', fontWeight: 'bold', fontSize: 14, margin: 0 }}>開発タスク</p>
+                  </div>
+                  {assignedDevTasks.map(task => {
+                    const sec = devTaskSections[task.id] ?? { detail: false, progress: false, feedback: false }
+                    const lazy = devTaskLazy[task.id]
+                    const statusColors: Record<string, { bg: string; text: string }> = {
+                      todo:        { bg: '#3d6e00', text: 'white' },
+                      in_progress: { bg: '#b8860b', text: 'white' },
+                      done:        { bg: '#999',    text: 'white' },
+                    }
+                    const statusLabels: Record<string, string> = { todo: 'ToDo', in_progress: '進行中', done: '完了' }
+                    const sc = statusColors[task.status]
+                    return (
+                      <div key={task.id} className="game-card" style={{ padding: 0, overflow: 'hidden' }}>
+
+                        {/* タスクタイトル行（アコーディオンではない） */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', borderBottom: '2px solid #d4f0a0' }}>
+                          <span style={{ background: sc.bg, color: sc.text, borderRadius: 6, padding: '3px 10px', fontSize: 12, fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {statusLabels[task.status]}
+                          </span>
+                          <p style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 15, margin: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {task.summary}
+                          </p>
+                          {task.deadline && (
+                            <span style={{ color: '#5a8a1a', fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}>{task.deadline}</span>
+                          )}
+                        </div>
+
+                        {/* ── 詳細 サブアコーディオン */}
+                        <div style={{ borderBottom: '1px solid #e8ffd4' }}>
+                          <div
+                            onClick={() => toggleDevTaskSection(task.id, 'detail')}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}
+                          >
+                            <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.detail ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              <ClipboardList size={14}/>詳細
+                            </span>
+                          </div>
+                          {sec.detail && (
+                            <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4' }}>
+                              {task.detail
+                                ? <p style={{ color: '#3d6e00', fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0 }}>{task.detail}</p>
+                                : <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>（詳細なし）</p>
+                              }
+                            </div>
+                          )}
+                        </div>
+
+                        {/* ── 進捗 サブアコーディオン */}
+                        <div style={{ borderBottom: '1px solid #e8ffd4' }}>
+                          <div
+                            onClick={() => toggleDevTaskSection(task.id, 'progress')}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}
+                          >
+                            <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.progress ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              <Activity size={14}/>進捗
+                            </span>
+                            {lazy?.loaded && lazy.progress.length > 0 && (
+                              <span style={{ background: '#c8f0c0', color: '#1a6e00', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>{lazy.progress.length}件</span>
+                            )}
+                          </div>
+                          {sec.progress && (
+                            <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {lazy?.loading && <p style={{ color: '#5a8a1a', fontSize: 13, margin: 0 }}>読み込み中...</p>}
+                              {lazy?.loaded && lazy.progress.length === 0 && (
+                                <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>進捗報告はまだありません</p>
+                              )}
+                              {lazy?.loaded && lazy.progress.map(p => (
+                                <div key={p.id} style={{ background: '#f0f9e4', border: '1px solid #c8e8a0', borderRadius: 8, padding: '10px 12px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <span style={{ color: '#3d6e00', fontSize: 12, fontWeight: 'bold' }}>{p.profiles?.username ?? '不明'}</span>
+                                    <span style={{ color: '#888', fontSize: 11 }}>{new Date(p.created_at).toLocaleString('ja-JP')}</span>
+                                  </div>
+                                  <p style={{ color: '#2d5500', fontSize: 13, margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{p.content}</p>
+                                </div>
+                              ))}
+                              {/* 進捗追加フォーム */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                                <textarea
+                                  className="game-input" rows={2}
+                                  placeholder="進捗を報告する..."
+                                  value={devProgressInputs[task.id] ?? ''}
+                                  onChange={e => setDevProgressInputs(prev => ({ ...prev, [task.id]: e.target.value }))}
+                                  style={{ resize: 'vertical' }}
+                                />
+                                <button
+                                  onClick={() => handleAddDevProgress(task.id)}
+                                  disabled={addingDevProgress[task.id] || !(devProgressInputs[task.id]?.trim())}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    padding: '8px 16px', background: '#3d6e00', border: 'none', borderRadius: 8,
+                                    color: 'white', fontWeight: 'bold', fontSize: 13, cursor: 'pointer',
+                                    opacity: addingDevProgress[task.id] || !(devProgressInputs[task.id]?.trim()) ? 0.5 : 1,
+                                    alignSelf: 'flex-start',
+                                    boxShadow: '0 3px 0 #0d2000',
+                                  }}
+                                >
+                                  <Plus size={14}/>{addingDevProgress[task.id] ? '追加中...' : '進捗を追加'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* ── フィードバック サブアコーディオン（読み取り専用） */}
+                        <div>
+                          <div
+                            onClick={() => toggleDevTaskSection(task.id, 'feedback')}
+                            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 20px', cursor: 'pointer', userSelect: 'none', background: '#f8fff0' }}
+                          >
+                            <span style={{ fontSize: 12, color: '#6aac14', display: 'inline-block', transform: sec.feedback ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>▶</span>
+                            <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 14, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                              <MessageSquare size={14}/>フィードバック
+                            </span>
+                            {lazy?.loaded && lazy.feedback.length > 0 && (
+                              <span style={{ background: '#fff3c8', color: '#b8860b', borderRadius: 10, padding: '1px 7px', fontSize: 11, fontWeight: 'bold' }}>{lazy.feedback.length}件</span>
+                            )}
+                          </div>
+                          {sec.feedback && (
+                            <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {lazy?.loading && <p style={{ color: '#5a8a1a', fontSize: 13, margin: 0 }}>読み込み中...</p>}
+                              {lazy?.loaded && lazy.feedback.length === 0 && (
+                                <p style={{ color: '#aaa', fontSize: 13, margin: 0 }}>フィードバックはまだありません</p>
+                              )}
+                              {lazy?.loaded && lazy.feedback.map(f => (
+                                <div key={f.id} style={{ background: '#fffbe6', border: '1px solid #f5e07a', borderRadius: 8, padding: '10px 12px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <span style={{ color: '#b8860b', fontSize: 12, fontWeight: 'bold' }}>{f.profiles?.username ?? '不明'}</span>
+                                    <span style={{ color: '#888', fontSize: 11 }}>{new Date(f.created_at).toLocaleString('ja-JP')}</span>
+                                  </div>
+                                  <p style={{ color: '#5a4000', fontSize: 13, margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{f.content}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
 
               {/* ══ 今週の課題チケット ══════════════════════ */}
               {activeTicket !== undefined && ticketTypes.length > 0 && (() => {
