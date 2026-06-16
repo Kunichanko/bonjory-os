@@ -352,6 +352,12 @@ export default function DashboardPage() {
   const [imageFiles, setImageFiles]           = useState<Record<string, File[]>>({})
   const [imagePreviews, setImagePreviews]     = useState<Record<string, string[]>>({})
   const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({})
+  // 公式X紹介同意（デフォルトtrue）
+  const [xConsent, setXConsent]               = useState<Record<string, boolean>>({})
+  const [xUsernames, setXUsernames]           = useState<Record<string, string>>({})
+  // フィールドバリデーションエラー
+  const [submitFieldErrors, setSubmitFieldErrors] = useState<Record<string, { comment?: boolean; selfEval?: boolean; retro?: boolean }>>({})
+
 
   // タイムライン（timeline = 現在のフィルター×ソートでの累積取得リスト）
   const [timeline, setTimeline]               = useState<TimelineItem[]>([])
@@ -889,6 +895,19 @@ export default function DashboardPage() {
   }
 
   async function submitWork(assignmentId: string) {
+    // バリデーション
+    const fieldErrors = {
+      comment:  !(submissionComments[assignmentId] ?? '').trim(),
+      selfEval: !(selfEvals[assignmentId] ?? '').trim(),
+      retro:    !(retros[assignmentId] ?? '').trim(),
+    }
+    if (fieldErrors.comment || fieldErrors.selfEval || fieldErrors.retro) {
+      setSubmitFieldErrors(prev => ({ ...prev, [assignmentId]: fieldErrors }))
+      setSubmitError(prev => ({ ...prev, [assignmentId]: '必須項目を入力してください' }))
+      return
+    }
+    setSubmitFieldErrors(prev => ({ ...prev, [assignmentId]: {} }))
+
     const wasSubmitted = assignments.find(a => a.id === assignmentId)?.status === 'submitted'
 
     setSubmitting(prev => ({ ...prev, [assignmentId]: true }))
@@ -1943,28 +1962,40 @@ export default function DashboardPage() {
                                 </div>
                               )}
                               <div>
-                                <label className="game-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ClipboardList size={13}/>提出物を記載</label>
+                                <label className="game-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ClipboardList size={13}/>提出物を記載<span style={{ color: '#e00', marginLeft: 2 }}>*</span></label>
                                 <textarea className="game-input" rows={3}
                                   placeholder="今回作ったものを説明してください。どんな機能を実装したか、工夫した点など..."
                                   value={submissionComments[assignment.id] ?? ''}
-                                  onChange={e => setSubmissionComments(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                                  style={{ resize: 'vertical' }} />
+                                  onChange={e => {
+                                    setSubmissionComments(prev => ({ ...prev, [assignment.id]: e.target.value }))
+                                    if (e.target.value.trim()) setSubmitFieldErrors(prev => ({ ...prev, [assignment.id]: { ...prev[assignment.id], comment: false } }))
+                                  }}
+                                  style={{ resize: 'vertical', border: submitFieldErrors[assignment.id]?.comment ? '2px solid #e00' : undefined }} />
+                                {submitFieldErrors[assignment.id]?.comment && <p style={{ color: '#e00', fontSize: 12, marginTop: 2 }}>この項目は必須です</p>}
                               </div>
                               <div>
-                                <label className="game-label">自己評価</label>
+                                <label className="game-label">自己評価<span style={{ color: '#e00', marginLeft: 2 }}>*</span></label>
                                 <textarea className="game-input" rows={3}
                                   placeholder="今週の制作を振り返って、自分で評価してみよう..."
                                   value={selfEvals[assignment.id] ?? ''}
-                                  onChange={e => setSelfEvals(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                                  style={{ resize: 'vertical' }} />
+                                  onChange={e => {
+                                    setSelfEvals(prev => ({ ...prev, [assignment.id]: e.target.value }))
+                                    if (e.target.value.trim()) setSubmitFieldErrors(prev => ({ ...prev, [assignment.id]: { ...prev[assignment.id], selfEval: false } }))
+                                  }}
+                                  style={{ resize: 'vertical', border: submitFieldErrors[assignment.id]?.selfEval ? '2px solid #e00' : undefined }} />
+                                {submitFieldErrors[assignment.id]?.selfEval && <p style={{ color: '#e00', fontSize: 12, marginTop: 2 }}>この項目は必須です</p>}
                               </div>
                               <div>
-                                <label className="game-label">計画の振り返り</label>
+                                <label className="game-label">計画の振り返り<span style={{ color: '#e00', marginLeft: 2 }}>*</span></label>
                                 <textarea className="game-input" rows={3}
                                   placeholder="月曜に立てた計画と、実際の進捗の差を振り返ろう..."
                                   value={retros[assignment.id] ?? ''}
-                                  onChange={e => setRetros(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                                  style={{ resize: 'vertical' }} />
+                                  onChange={e => {
+                                    setRetros(prev => ({ ...prev, [assignment.id]: e.target.value }))
+                                    if (e.target.value.trim()) setSubmitFieldErrors(prev => ({ ...prev, [assignment.id]: { ...prev[assignment.id], retro: false } }))
+                                  }}
+                                  style={{ resize: 'vertical', border: submitFieldErrors[assignment.id]?.retro ? '2px solid #e00' : undefined }} />
+                                {submitFieldErrors[assignment.id]?.retro && <p style={{ color: '#e00', fontSize: 12, marginTop: 2 }}>この項目は必須です</p>}
                               </div>
                               <div>
                                 <label className="game-label">サムネイル画像（任意）</label>
@@ -2006,6 +2037,45 @@ export default function DashboardPage() {
                                 <p style={{ color: '#888', fontSize: 12, marginTop: 6 }}>
                                   {isAnonymous[assignment.id] ? 'タイムラインには名前が表示されません' : 'タイムラインにあなたの名前と作品が公開されます'}
                                 </p>
+                              </div>
+                              <div>
+                                <label className="game-label">公式Xでの紹介</label>
+                                <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>提出された作品を公式Xアカウントでご紹介することがあります</p>
+                                <div style={{ display: 'flex', gap: 20, marginTop: 4 }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14, color: '#3d6e00', fontWeight: 'bold' }}>
+                                    <input
+                                      type="radio"
+                                      name={`x-consent-${assignment.id}`}
+                                      checked={xConsent[assignment.id] !== false}
+                                      onChange={() => setXConsent(prev => ({ ...prev, [assignment.id]: true }))}
+                                      style={{ accentColor: '#6aac14' }}
+                                    />
+                                    同意する
+                                  </label>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14, color: '#888' }}>
+                                    <input
+                                      type="radio"
+                                      name={`x-consent-${assignment.id}`}
+                                      checked={xConsent[assignment.id] === false}
+                                      onChange={() => setXConsent(prev => ({ ...prev, [assignment.id]: false }))}
+                                      style={{ accentColor: '#6aac14' }}
+                                    />
+                                    同意しない
+                                  </label>
+                                </div>
+                                {xConsent[assignment.id] !== false && (
+                                  <div style={{ marginTop: 10 }}>
+                                    <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>紹介時のXユーザー名（任意・変更がある場合）</label>
+                                    <input
+                                      type="text"
+                                      className="game-input"
+                                      placeholder="@username"
+                                      value={xUsernames[assignment.id] ?? ''}
+                                      onChange={e => setXUsernames(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                                      style={{ fontSize: 13 }}
+                                    />
+                                  </div>
+                                )}
                               </div>
                               <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 14 }}>
                                 <label className="game-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><MessageCircle size={13}/>コースへの要望</label>
