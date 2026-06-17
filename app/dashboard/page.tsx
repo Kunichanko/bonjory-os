@@ -352,6 +352,12 @@ export default function DashboardPage() {
   const [imageFiles, setImageFiles]           = useState<Record<string, File[]>>({})
   const [imagePreviews, setImagePreviews]     = useState<Record<string, string[]>>({})
   const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({})
+  // 公式X紹介同意（デフォルトtrue）
+  const [xConsent, setXConsent]               = useState<Record<string, boolean>>({})
+  const [xUsernames, setXUsernames]           = useState<Record<string, string>>({})
+  // フィールドバリデーションエラー
+  const [submitFieldErrors, setSubmitFieldErrors] = useState<Record<string, { comment?: boolean; selfEval?: boolean; retro?: boolean }>>({})
+
 
   // タイムライン（timeline = 現在のフィルター×ソートでの累積取得リスト）
   const [timeline, setTimeline]               = useState<TimelineItem[]>([])
@@ -889,6 +895,19 @@ export default function DashboardPage() {
   }
 
   async function submitWork(assignmentId: string) {
+    // バリデーション
+    const fieldErrors = {
+      comment:  !(submissionComments[assignmentId] ?? '').trim(),
+      selfEval: !(selfEvals[assignmentId] ?? '').trim(),
+      retro:    !(retros[assignmentId] ?? '').trim(),
+    }
+    if (fieldErrors.comment || fieldErrors.selfEval || fieldErrors.retro) {
+      setSubmitFieldErrors(prev => ({ ...prev, [assignmentId]: fieldErrors }))
+      setSubmitError(prev => ({ ...prev, [assignmentId]: '必須項目を入力してください' }))
+      return
+    }
+    setSubmitFieldErrors(prev => ({ ...prev, [assignmentId]: {} }))
+
     const wasSubmitted = assignments.find(a => a.id === assignmentId)?.status === 'submitted'
 
     setSubmitting(prev => ({ ...prev, [assignmentId]: true }))
@@ -941,6 +960,8 @@ export default function DashboardPage() {
       retrospective:      retros[assignmentId]      ?? '',
       course_request:     courseRequests[assignmentId] ?? '',
       is_anonymous:        isAnonymous[assignmentId] ?? false,
+      x_consent:           xConsent[assignmentId] !== false,
+      x_username:          xConsent[assignmentId] !== false ? (xUsernames[assignmentId] ?? '') : '',
       thumbnail_url:       thumbUrl,
       status:              'submitted',
       submitted_at:        now,
@@ -1902,59 +1923,109 @@ export default function DashboardPage() {
                                 <div>
                                   <label className="game-label">画像（最大5枚）</label>
                                   <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>制作物のスクリーンショットや完成画像を添付してください</p>
-                                  <input type="file" accept="image/*" multiple
-                                    onChange={e => {
-                                      const files = Array.from(e.target.files ?? []).slice(0, 5)
-                                      setImageFiles(prev => ({ ...prev, [assignment.id]: files }))
-                                      setImagePreviews(prev => ({
-                                        ...prev,
-                                        [assignment.id]: files.map(f => URL.createObjectURL(f)),
-                                      }))
-                                    }}
-                                    style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
-                                  <p style={{ color: '#888', fontSize: 12, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={12}/>1枚あたり10MBまで（jpg・png・gif・webp）</p>
-                                  {(imagePreviews[assignment.id] ?? []).length > 0 && (
-                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                                      {(imagePreviews[assignment.id] ?? []).map((src, i) => (
-                                        <img key={i} src={src} alt={`preview-${i}`}
-                                          style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '2px solid #c8e89a' }} />
-                                      ))}
+                                  {(imagePreviews[assignment.id] ?? []).map((src, i) => (
+                                    <div key={i} style={{ position: 'relative', marginBottom: 8, borderRadius: 12, overflow: 'hidden', border: '2px solid #c8e89a' }}>
+                                      <img src={src} alt={`preview-${i}`} style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newFiles = (imageFiles[assignment.id] ?? []).filter((_, j) => j !== i)
+                                          const newPreviews = (imagePreviews[assignment.id] ?? []).filter((_, j) => j !== i)
+                                          setImageFiles(prev => ({ ...prev, [assignment.id]: newFiles }))
+                                          setImagePreviews(prev => ({ ...prev, [assignment.id]: newPreviews }))
+                                        }}
+                                        style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(220,0,0,0.9)', color: 'white', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, lineHeight: '1' }}
+                                      >🗑</button>
                                     </div>
+                                  ))}
+                                  {(imagePreviews[assignment.id] ?? []).length < 5 && (
+                                    <>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        id={`image-add-${assignment.id}`}
+                                        style={{ display: 'none' }}
+                                        onChange={e => {
+                                          const file = e.target.files?.[0]
+                                          if (!file) return
+                                          setImageFiles(prev => ({ ...prev, [assignment.id]: [...(prev[assignment.id] ?? []), file] }))
+                                          setImagePreviews(prev => ({ ...prev, [assignment.id]: [...(prev[assignment.id] ?? []), URL.createObjectURL(file)] }))
+                                          e.target.value = ''
+                                        }}
+                                      />
+                                      <label
+                                        htmlFor={`image-add-${assignment.id}`}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 120, border: '2px dashed #c8e89a', borderRadius: 12, cursor: 'pointer', background: '#f5fff0', fontSize: 32, color: '#6aac14', marginBottom: 8 }}
+                                      >+</label>
+                                    </>
                                   )}
+                                  <p style={{ color: '#888', fontSize: 12, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={12}/>1枚あたり10MBまで（jpg・png・gif・webp）</p>
                                   {uploadingImages[assignment.id] && <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>画像アップロード中...</p>}
                                 </div>
                               )}
                               <div>
-                                <label className="game-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ClipboardList size={13}/>提出物を記載</label>
+                                <label className="game-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ClipboardList size={13}/>提出物を記載<span style={{ color: '#e00', marginLeft: 2 }}>*</span></label>
                                 <textarea className="game-input" rows={3}
                                   placeholder="今回作ったものを説明してください。どんな機能を実装したか、工夫した点など..."
                                   value={submissionComments[assignment.id] ?? ''}
-                                  onChange={e => setSubmissionComments(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                                  style={{ resize: 'vertical' }} />
+                                  onChange={e => {
+                                    setSubmissionComments(prev => ({ ...prev, [assignment.id]: e.target.value }))
+                                    if (e.target.value.trim()) setSubmitFieldErrors(prev => ({ ...prev, [assignment.id]: { ...prev[assignment.id], comment: false } }))
+                                  }}
+                                  style={{ resize: 'vertical', border: submitFieldErrors[assignment.id]?.comment ? '2px solid #e00' : undefined }} />
+                                {submitFieldErrors[assignment.id]?.comment && <p style={{ color: '#e00', fontSize: 12, marginTop: 2 }}>この項目は必須です</p>}
                               </div>
                               <div>
-                                <label className="game-label">自己評価</label>
+                                <label className="game-label">自己評価<span style={{ color: '#e00', marginLeft: 2 }}>*</span></label>
                                 <textarea className="game-input" rows={3}
                                   placeholder="今週の制作を振り返って、自分で評価してみよう..."
                                   value={selfEvals[assignment.id] ?? ''}
-                                  onChange={e => setSelfEvals(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                                  style={{ resize: 'vertical' }} />
+                                  onChange={e => {
+                                    setSelfEvals(prev => ({ ...prev, [assignment.id]: e.target.value }))
+                                    if (e.target.value.trim()) setSubmitFieldErrors(prev => ({ ...prev, [assignment.id]: { ...prev[assignment.id], selfEval: false } }))
+                                  }}
+                                  style={{ resize: 'vertical', border: submitFieldErrors[assignment.id]?.selfEval ? '2px solid #e00' : undefined }} />
+                                {submitFieldErrors[assignment.id]?.selfEval && <p style={{ color: '#e00', fontSize: 12, marginTop: 2 }}>この項目は必須です</p>}
                               </div>
                               <div>
-                                <label className="game-label">計画の振り返り</label>
+                                <label className="game-label">計画の振り返り<span style={{ color: '#e00', marginLeft: 2 }}>*</span></label>
                                 <textarea className="game-input" rows={3}
                                   placeholder="月曜に立てた計画と、実際の進捗の差を振り返ろう..."
                                   value={retros[assignment.id] ?? ''}
-                                  onChange={e => setRetros(prev => ({ ...prev, [assignment.id]: e.target.value }))}
-                                  style={{ resize: 'vertical' }} />
+                                  onChange={e => {
+                                    setRetros(prev => ({ ...prev, [assignment.id]: e.target.value }))
+                                    if (e.target.value.trim()) setSubmitFieldErrors(prev => ({ ...prev, [assignment.id]: { ...prev[assignment.id], retro: false } }))
+                                  }}
+                                  style={{ resize: 'vertical', border: submitFieldErrors[assignment.id]?.retro ? '2px solid #e00' : undefined }} />
+                                {submitFieldErrors[assignment.id]?.retro && <p style={{ color: '#e00', fontSize: 12, marginTop: 2 }}>この項目は必須です</p>}
                               </div>
                               <div>
                                 <label className="game-label">サムネイル画像（任意）</label>
                                 <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>タイムラインのカードに表示されるサムネイルです</p>
-                                <input type="file" accept="image/*"
-                                  onChange={e => handleThumbnailChange(assignment.id, e.target.files?.[0] ?? null)}
-                                  style={{ display: 'block', fontSize: 13, color: '#3d6e00' }} />
-                                {thumbPreviews[assignment.id] && <img src={thumbPreviews[assignment.id]} alt="preview" style={{ marginTop: 8, width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8, border: '2px solid #c8e89a' }} />}
+                                {thumbPreviews[assignment.id] ? (
+                                  <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', border: '2px solid #c8e89a' }}>
+                                    <img src={thumbPreviews[assignment.id]} alt="thumbnail-preview" style={{ width: '100%', maxHeight: 160, objectFit: 'cover', display: 'block' }} />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleThumbnailChange(assignment.id, null)}
+                                      style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(220,0,0,0.9)', color: 'white', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, lineHeight: '1' }}
+                                    >🗑</button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      id={`thumb-${assignment.id}`}
+                                      style={{ display: 'none' }}
+                                      onChange={e => handleThumbnailChange(assignment.id, e.target.files?.[0] ?? null)}
+                                    />
+                                    <label
+                                      htmlFor={`thumb-${assignment.id}`}
+                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 120, border: '2px dashed #c8e89a', borderRadius: 12, cursor: 'pointer', background: '#f5fff0', fontSize: 32, color: '#6aac14' }}
+                                    >+</label>
+                                  </>
+                                )}
                                 {uploadingThumb[assignment.id] && <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>アップロード中...</p>}
                               </div>
                               <div>
@@ -1968,6 +2039,45 @@ export default function DashboardPage() {
                                 <p style={{ color: '#888', fontSize: 12, marginTop: 6 }}>
                                   {isAnonymous[assignment.id] ? 'タイムラインには名前が表示されません' : 'タイムラインにあなたの名前と作品が公開されます'}
                                 </p>
+                              </div>
+                              <div>
+                                <label className="game-label">公式Xでの紹介</label>
+                                <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>提出された作品を公式Xアカウントでご紹介することがあります</p>
+                                <div style={{ display: 'flex', gap: 20, marginTop: 4 }}>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14, color: '#3d6e00', fontWeight: 'bold' }}>
+                                    <input
+                                      type="radio"
+                                      name={`x-consent-${assignment.id}`}
+                                      checked={xConsent[assignment.id] !== false}
+                                      onChange={() => setXConsent(prev => ({ ...prev, [assignment.id]: true }))}
+                                      style={{ accentColor: '#6aac14' }}
+                                    />
+                                    同意する
+                                  </label>
+                                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 14, color: '#888' }}>
+                                    <input
+                                      type="radio"
+                                      name={`x-consent-${assignment.id}`}
+                                      checked={xConsent[assignment.id] === false}
+                                      onChange={() => setXConsent(prev => ({ ...prev, [assignment.id]: false }))}
+                                      style={{ accentColor: '#6aac14' }}
+                                    />
+                                    同意しない
+                                  </label>
+                                </div>
+                                {xConsent[assignment.id] !== false && (
+                                  <div style={{ marginTop: 10 }}>
+                                    <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>紹介時のXユーザー名（任意・変更がある場合）</label>
+                                    <input
+                                      type="text"
+                                      className="game-input"
+                                      placeholder="@username"
+                                      value={xUsernames[assignment.id] ?? ''}
+                                      onChange={e => setXUsernames(prev => ({ ...prev, [assignment.id]: e.target.value }))}
+                                      style={{ fontSize: 13 }}
+                                    />
+                                  </div>
+                                )}
                               </div>
                               <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 14 }}>
                                 <label className="game-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><MessageCircle size={13}/>コースへの要望</label>

@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
-import { Film, Tag, CheckCircle2, Flame, Pin, Gamepad2, User, Search, Image, FileText, ClipboardList, Star, RefreshCw, MessageCircle } from 'lucide-react'
+import { Film, Tag, Gamepad2, User, Search, Image, FileText, ClipboardList, Star, RefreshCw, MessageCircle, X as XIcon } from 'lucide-react'
 import Icon from '../../components/Icon'
 
 // ─── 型 ───────────────────────────────────────────────────
@@ -32,6 +32,8 @@ interface AssignmentDetail {
   submitted_at: string | null
   is_anonymous: boolean
   thumbnail_url: string | null
+  x_consent: boolean
+  x_username: string | null
   task: {
     id: string
     title: string
@@ -40,13 +42,11 @@ interface AssignmentDetail {
   }
 }
 
-// ─── 定数 ─────────────────────────────────────────────────
-
-const STATUS_INFO: Record<string, { label: string; bg: string; color: string }> = {
-  assigned:    { label: 'アサイン済',  bg: '#e8e8e8', color: '#555' },
-  in_progress: { label: '取り組み中', bg: '#d4f0a0', color: '#3d6e00' },
-  submitted:   { label: '提出済',     bg: '#3d6e00', color: '#fff' },
+interface SubmissionRow extends AssignmentDetail {
+  profile: Profile
 }
+
+// ─── 定数 ─────────────────────────────────────────────────
 
 const COURSE_LABELS: Record<string, string> = {
   Unity:   'Unityコース',
@@ -59,14 +59,15 @@ const STAGE_LABELS: Record<string, string> = {
   Production:  'Ⅲ. 実践',
 }
 
+const PAGE_SIZE = 8
+
 // ─── コンポーネント ────────────────────────────────────────
 
 export default function AdminSubmissionsPage() {
   const router = useRouter()
-  const [profiles, setProfiles]     = useState<Profile[]>([])
-  const [assignments, setAssignments] = useState<Record<string, AssignmentDetail[]>>({})
-  const [expandedMember, setExpandedMember] = useState<string | null>(null)
-  const [expandedTask, setExpandedTask]     = useState<Record<string, boolean>>({})
+  const [rows, setRows]             = useState<SubmissionRow[]>([])
+  const [expanded, setExpanded]     = useState<Record<string, boolean>>({})
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [loading, setLoading]       = useState(true)
   const [userRole, setUserRole]     = useState<string | null>(null)
   const [effectivePerms, setEffectivePerms] = useState<Record<PermissionKey, boolean>>({
@@ -94,29 +95,27 @@ export default function AdminSubmissionsPage() {
 
         const [profilesRes, assignmentsRes] = await Promise.all([
           supabase.from('profiles')
-            .select('id, username, course, stage')
-            .order('created_at', { ascending: true }),
+            .select('id, username, course, stage'),
           supabase.from('task_assignments')
             .select(`
               id, user_id, status, plan_text, midterm_progress, midterm_correction,
               media_url, image_urls, submission_comment, self_evaluation, retrospective, course_request, submitted_at,
-              is_anonymous, thumbnail_url,
+              is_anonymous, thumbnail_url, x_consent, x_username,
               task:tasks(id, title, target_course, target_stage)
             `)
-            .order('created_at', { ascending: true }),
+            .not('submitted_at', 'is', null)
+            .order('submitted_at', { ascending: false }),
         ])
 
         if (!mounted) return
 
-        setProfiles(profilesRes.data ?? [])
+        const profileMap: Record<string, Profile> = {}
+        for (const p of (profilesRes.data ?? [])) profileMap[p.id] = p
 
-        // userId → AssignmentDetail[] のマップを構築
-        const map: Record<string, AssignmentDetail[]> = {}
-        for (const a of (assignmentsRes.data ?? [])) {
-          if (!map[a.user_id]) map[a.user_id] = []
-          map[a.user_id].push(a as unknown as AssignmentDetail)
-        }
-        setAssignments(map)
+        const merged: SubmissionRow[] = (assignmentsRes.data ?? [])
+          .map(a => ({ ...(a as unknown as AssignmentDetail), profile: profileMap[a.user_id] ?? { id: a.user_id, username: null, course: null, stage: null } }))
+
+        setRows(merged)
       } catch (err) {
         console.error(err)
         if (mounted) router.replace('/dashboard')
@@ -128,6 +127,9 @@ export default function AdminSubmissionsPage() {
     init()
     return () => { mounted = false }
   }, [router])
+
+  const visibleRows = useMemo(() => rows.slice(0, visibleCount), [rows, visibleCount])
+  const hasMore = visibleCount < rows.length
 
   if (loading) {
     return (
@@ -146,7 +148,7 @@ export default function AdminSubmissionsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
               <h1 className="game-title" style={{ fontSize: 32 }}>提出状況一覧</h1>
-              <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>部員数: {profiles.length} 名</p>
+              <p style={{ color: '#3d6e00', marginTop: 4, fontSize: 14 }}>提出件数: {rows.length} 件</p>
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {(userRole === 'admin' || effectivePerms.course_management) && (
@@ -195,274 +197,219 @@ export default function AdminSubmissionsPage() {
           </div>
         </div>
 
-        {/* 部員カード一覧 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {profiles.length === 0 && (
+        {/* 提出一覧（アコーディオン） */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {rows.length === 0 && (
             <div className="game-card" style={{ padding: 40, textAlign: 'center' }}>
-              <p style={{ color: '#6aac14', fontSize: 16 }}>部員が見つかりません</p>
+              <p style={{ color: '#6aac14', fontSize: 16 }}>提出はまだありません</p>
             </div>
           )}
 
-          {profiles.map(profile => {
-            const memberAssignments = assignments[profile.id] ?? []
-            const isOpen = expandedMember === profile.id
-            const submittedCount  = memberAssignments.filter(a => a.status === 'submitted').length
-            const inProgressCount = memberAssignments.filter(a => a.status === 'in_progress').length
-            const assignedCount   = memberAssignments.filter(a => a.status === 'assigned').length
+          {visibleRows.map(row => {
+            const isOpen = expanded[row.id] ?? false
 
             return (
-              <div key={profile.id} className="game-card" style={{ padding: '20px 28px' }}>
-                {/* 部員ヘッダー行 */}
+              <div key={row.id} className="game-card" style={{ padding: 0, overflow: 'hidden' }}>
+                {/* 行ヘッダー：日時 / 課題名 / 提出者 */}
                 <button
-                  onClick={() => setExpandedMember(isOpen ? null : profile.id)}
+                  onClick={() => setExpanded(prev => ({ ...prev, [row.id]: !isOpen }))}
                   style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                    padding: 0, textAlign: 'left',
+                    padding: '16px 24px', textAlign: 'left', gap: 16,
                   }}
                 >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 18 }}>
-                        {profile.username ?? '名前なし'}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ color: '#6aac14', fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                        {row.submitted_at ? new Date(row.submitted_at).toLocaleString('ja-JP') : '—'}
                       </span>
-                      {profile.course && (
-                        <span style={{ background: '#6aac14', color: 'white', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold' }}>
-                          {COURSE_LABELS[profile.course] ?? profile.course}
-                        </span>
-                      )}
-                      {profile.stage && (
-                        <span style={{ background: '#3d6e00', color: 'white', borderRadius: 12, padding: '2px 10px', fontSize: 12, fontWeight: 'bold' }}>
-                          {STAGE_LABELS[profile.stage] ?? profile.stage}
-                        </span>
-                      )}
+                      <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 16 }}>
+                        {row.task.title}
+                      </span>
                     </div>
-
-                    {/* ステータスサマリー */}
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {memberAssignments.length === 0 ? (
-                        <span style={{ color: '#aaa', fontSize: 13 }}>課題なし</span>
-                      ) : (
-                        <>
-                          {submittedCount > 0 && (
-                            <span style={{ background: '#3d6e00', color: '#fff', borderRadius: 10, padding: '2px 10px', fontSize: 12, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <CheckCircle2 size={11}/>提出済 {submittedCount}
-                            </span>
-                          )}
-                          {inProgressCount > 0 && (
-                            <span style={{ background: '#d4f0a0', color: '#3d6e00', borderRadius: 10, padding: '2px 10px', fontSize: 12, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <Flame size={11}/>取り組み中 {inProgressCount}
-                            </span>
-                          )}
-                          {assignedCount > 0 && (
-                            <span style={{ background: '#e8e8e8', color: '#555', borderRadius: 10, padding: '2px 10px', fontSize: 12, fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                              <Pin size={11}/>未着手 {assignedCount}
-                            </span>
-                          )}
-                        </>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#3d6e00', fontSize: 13 }}>
+                        <User size={13}/>{row.profile.username ?? '名前なし'}
+                      </span>
+                      {row.profile.course && (
+                        <span style={{ background: '#6aac14', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>
+                          {COURSE_LABELS[row.profile.course] ?? row.profile.course}
+                        </span>
+                      )}
+                      {row.profile.stage && (
+                        <span style={{ background: '#3d6e00', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>
+                          {STAGE_LABELS[row.profile.stage] ?? row.profile.stage}
+                        </span>
+                      )}
+                      {row.is_anonymous && (
+                        <span style={{ background: '#555', color: 'white', borderRadius: 10, padding: '1px 8px', fontSize: 11, fontWeight: 'bold' }}>
+                          匿名投稿
+                        </span>
                       )}
                     </div>
                   </div>
-                  <span style={{ color: '#6aac14', fontSize: 20, marginLeft: 12 }}>
+                  <span style={{ color: '#6aac14', fontSize: 18, flexShrink: 0 }}>
                     {isOpen ? '▲' : '▼'}
                   </span>
                 </button>
 
-                {/* 展開：課題詳細一覧 */}
+                {/* 展開：提出内容詳細 */}
                 {isOpen && (
-                  <div style={{ marginTop: 20 }}>
-                    <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', marginBottom: 16 }} />
+                  <div style={{ padding: '0 24px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '0 0 4px' }} />
 
-                    {memberAssignments.length === 0 ? (
-                      <p style={{ color: '#aaa', fontSize: 14, textAlign: 'center', padding: '12px 0' }}>
-                        課題がアサインされていません
-                      </p>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {memberAssignments.map(a => {
-                          const si = STATUS_INFO[a.status]
-                          const taskKey = `${profile.id}_${a.id}`
-                          const isTaskOpen = expandedTask[taskKey] ?? false
-
-                          return (
-                            <div
-                              key={a.id}
-                              style={{
-                                border: `2px solid ${a.status === 'submitted' ? '#6aac14' : '#c8e89a'}`,
-                                borderRadius: 10,
-                                background: a.status === 'submitted' ? '#f8fff0' : '#fff',
-                                overflow: 'hidden',
-                              }}
-                            >
-                              {/* 課題タイトル行 */}
-                              <button
-                                onClick={() => setExpandedTask(prev => ({ ...prev, [taskKey]: !isTaskOpen }))}
-                                style={{
-                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                  width: '100%', padding: '12px 16px',
-                                  background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-                                }}
-                              >
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                                    <span style={{ fontWeight: 'bold', color: '#2d5500', fontSize: 15 }}>
-                                      {a.task.title}
-                                    </span>
-                                    <span style={{
-                                      background: si.bg, color: si.color,
-                                      borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 'bold',
-                                    }}>
-                                      {si.label}
-                                    </span>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 6 }}>
-                                    {a.task.target_course && (
-                                      <span style={{ background: '#e8f5d0', color: '#3d6e00', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>
-                                        {a.task.target_course}
-                                      </span>
-                                    )}
-                                    {a.task.target_stage && (
-                                      <span style={{ background: '#e8f5d0', color: '#3d6e00', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>
-                                        {a.task.target_stage}
-                                      </span>
-                                    )}
-                                    {a.submitted_at && (
-                                      <span style={{ color: '#6aac14', fontSize: 11 }}>
-                                        提出: {new Date(a.submitted_at).toLocaleDateString('ja-JP')}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <span style={{ color: '#6aac14', fontSize: 16, marginLeft: 8 }}>
-                                  {isTaskOpen ? '▲' : '▼'}
-                                </span>
-                              </button>
-
-                              {/* 展開：提出内容詳細 */}
-                              {isTaskOpen && (
-                                <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                  <hr style={{ border: 'none', borderTop: '1px dashed #c8e89a', margin: '0 0 4px' }} />
-
-                                  {/* サムネイルと投稿設定 */}
-                                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                                    {a.thumbnail_url ? (
-                                      <img src={a.thumbnail_url} alt={a.task.title}
-                                        style={{ width: 100, height: 70, objectFit: 'cover', borderRadius: 6, border: '2px solid #c8e89a', flexShrink: 0 }} />
-                                    ) : (
-                                      <div style={{
-                                        width: 100, height: 70, borderRadius: 6, border: '2px dashed #c8e89a',
-                                        background: '#f0fae0', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        flexShrink: 0,
-                                      }}>
-                                        <Gamepad2 size={22} style={{ color: '#c8e89a' }}/>
-                                      </div>
-                                    )}
-                                    <div>
-                                      <span style={{
-                                        display: 'inline-block',
-                                        background: a.is_anonymous ? '#555' : '#6aac14',
-                                        color: 'white', borderRadius: 10, padding: '2px 10px',
-                                        fontSize: 12, fontWeight: 'bold',
-                                      }}>
-                                        {a.is_anonymous
-                                          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><User size={11} style={{ opacity: 0.5 }}/>匿名投稿</span>
-                                          : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><User size={11}/>実名投稿</span>
-                                        }
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {a.plan_text ? (
-                                    <DetailBlock icon="FileText" label="制作計画" text={a.plan_text} />
-                                  ) : (
-                                    <EmptyBlock label="制作計画" />
-                                  )}
-
-                                  {(a.midterm_progress || a.midterm_correction) && (
-                                    <div>
-                                      <p className="game-label" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}><Search size={13}/>中間報告</p>
-                                      {a.midterm_progress && (
-                                        <div style={{ marginBottom: 6 }}>
-                                          <p style={{ color: '#888', fontSize: 12, marginBottom: 2 }}>進捗状況</p>
-                                          <p style={textBlockStyle}>{a.midterm_progress}</p>
-                                        </div>
-                                      )}
-                                      {a.midterm_correction && (
-                                        <div>
-                                          <p style={{ color: '#888', fontSize: 12, marginBottom: 2 }}>修正計画</p>
-                                          <p style={textBlockStyle}>{a.midterm_correction}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  {!a.midterm_progress && !a.midterm_correction && (
-                                    <EmptyBlock label="中間報告" />
-                                  )}
-
-                                  {a.image_urls && a.image_urls.length > 0 ? (
-                                    <div>
-                                      <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Image size={13}/>提出画像 ({a.image_urls.length}枚)</p>
-                                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                        {a.image_urls.map((url, i) => (
-                                          <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                            <img src={url} alt={`image-${i + 1}`}
-                                              style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '2px solid #c8e89a' }} />
-                                          </a>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ) : a.media_url ? (
-                                    <div>
-                                      <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Film size={13}/>提出URL（旧形式）</p>
-                                      <a
-                                        href={a.media_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{ color: '#3d6e00', fontSize: 13, wordBreak: 'break-all' }}
-                                      >
-                                        {a.media_url}
-                                      </a>
-                                    </div>
-                                  ) : (
-                                    <EmptyBlock label="提出画像" />
-                                  )}
-
-                                  {a.submission_comment ? (
-                                    <DetailBlock icon="ClipboardList" label="提出物の説明" text={a.submission_comment} />
-                                  ) : (
-                                    <EmptyBlock label="提出物の説明" />
-                                  )}
-
-                                  {a.self_evaluation ? (
-                                    <DetailBlock icon="Star" label="自己評価" text={a.self_evaluation} />
-                                  ) : (
-                                    <EmptyBlock label="自己評価" />
-                                  )}
-
-                                  {a.retrospective ? (
-                                    <DetailBlock icon="RefreshCw" label="計画の振り返り" text={a.retrospective} />
-                                  ) : (
-                                    <EmptyBlock label="計画の振り返り" />
-                                  )}
-
-                                  {a.course_request && (
-                                    <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 12, marginTop: 4 }}>
-                                      <DetailBlock icon="MessageCircle" label="コースへの要望" text={a.course_request} />
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
+                    {/* サムネイル */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      {row.thumbnail_url ? (
+                        <img src={row.thumbnail_url} alt={row.task.title}
+                          style={{ width: 100, height: 70, objectFit: 'cover', borderRadius: 6, border: '2px solid #c8e89a', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{
+                          width: 100, height: 70, borderRadius: 6, border: '2px dashed #c8e89a',
+                          background: '#f0fae0', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          <Gamepad2 size={22} style={{ color: '#c8e89a' }}/>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {(row.task.target_course || row.task.target_stage) && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {row.task.target_course && (
+                              <span style={{ background: '#e8f5d0', color: '#3d6e00', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>
+                                {row.task.target_course}
+                              </span>
+                            )}
+                            {row.task.target_stage && (
+                              <span style={{ background: '#e8f5d0', color: '#3d6e00', borderRadius: 8, padding: '1px 7px', fontSize: 11 }}>
+                                {row.task.target_stage}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
+                    </div>
+
+                    {row.plan_text ? (
+                      <DetailBlock icon="FileText" label="制作計画" text={row.plan_text} />
+                    ) : (
+                      <EmptyBlock label="制作計画" />
                     )}
+
+                    {(row.midterm_progress || row.midterm_correction) ? (
+                      <div>
+                        <p className="game-label" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}><Search size={13}/>中間報告</p>
+                        {row.midterm_progress && (
+                          <div style={{ marginBottom: 6 }}>
+                            <p style={{ color: '#888', fontSize: 12, marginBottom: 2 }}>進捗状況</p>
+                            <p style={textBlockStyle}>{row.midterm_progress}</p>
+                          </div>
+                        )}
+                        {row.midterm_correction && (
+                          <div>
+                            <p style={{ color: '#888', fontSize: 12, marginBottom: 2 }}>修正計画</p>
+                            <p style={textBlockStyle}>{row.midterm_correction}</p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <EmptyBlock label="中間報告" />
+                    )}
+
+                    {row.image_urls && row.image_urls.length > 0 ? (
+                      <div>
+                        <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Image size={13}/>提出画像 ({row.image_urls.length}枚)</p>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {row.image_urls.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                              <img src={url} alt={`image-${i + 1}`}
+                                style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '2px solid #c8e89a' }} />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ) : row.media_url ? (
+                      <div>
+                        <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Film size={13}/>提出URL（旧形式）</p>
+                        <a
+                          href={row.media_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#3d6e00', fontSize: 13, wordBreak: 'break-all' }}
+                        >
+                          {row.media_url}
+                        </a>
+                      </div>
+                    ) : (
+                      <EmptyBlock label="提出画像" />
+                    )}
+
+                    {row.submission_comment ? (
+                      <DetailBlock icon="ClipboardList" label="提出物の説明" text={row.submission_comment} />
+                    ) : (
+                      <EmptyBlock label="提出物の説明" />
+                    )}
+
+                    {row.self_evaluation ? (
+                      <DetailBlock icon="Star" label="自己評価" text={row.self_evaluation} />
+                    ) : (
+                      <EmptyBlock label="自己評価" />
+                    )}
+
+                    {row.retrospective ? (
+                      <DetailBlock icon="RefreshCw" label="計画の振り返り" text={row.retrospective} />
+                    ) : (
+                      <EmptyBlock label="計画の振り返り" />
+                    )}
+
+                    {row.course_request && (
+                      <DetailBlock icon="MessageCircle" label="コースへの要望" text={row.course_request} />
+                    )}
+
+                    {/* 公式X紹介同意 */}
+                    <div style={{ borderTop: '2px dashed #c8e89a', paddingTop: 12, marginTop: 4 }}>
+                      <p className="game-label" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}><XIcon size={13}/>公式Xでの紹介</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          background: row.x_consent ? '#6aac14' : '#aaa',
+                          color: 'white', borderRadius: 10, padding: '2px 10px',
+                          fontSize: 12, fontWeight: 'bold',
+                        }}>
+                          {row.x_consent ? '同意あり' : '同意なし'}
+                        </span>
+                        {row.x_username && (
+                          <span style={{ color: '#3d6e00', fontSize: 13 }}>@{row.x_username}</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
             )
           })}
         </div>
+
+        {/* もっと見る */}
+        {hasMore && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 20 }}>
+            <button
+              className="game-button"
+              style={{ width: 'auto', padding: '8px 24px', fontSize: 14 }}
+              onClick={() => setVisibleCount(c => Math.min(c + PAGE_SIZE, rows.length))}
+            >
+              さらに表示
+            </button>
+            <button
+              className="game-button"
+              style={{ width: 'auto', padding: '8px 24px', fontSize: 14, background: '#888', borderColor: '#555' }}
+              onClick={() => setVisibleCount(rows.length)}
+            >
+              すべて表示
+            </button>
+          </div>
+        )}
 
       </div>
 
