@@ -960,6 +960,8 @@ export default function DashboardPage() {
       retrospective:      retros[assignmentId]      ?? '',
       course_request:     courseRequests[assignmentId] ?? '',
       is_anonymous:        isAnonymous[assignmentId] ?? false,
+      x_consent:           xConsent[assignmentId] !== false,
+      x_username:          xConsent[assignmentId] !== false ? (xUsernames[assignmentId] ?? '') : '',
       thumbnail_url:       thumbUrl,
       status:              'submitted',
       submitted_at:        now,
