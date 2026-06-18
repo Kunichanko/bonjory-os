@@ -1321,7 +1321,7 @@ export default function DashboardPage() {
           </a>
         </div>
         <div style={{ padding: '0 20px 16px' }}>
-          <button onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
+          <button onClick={async () => { await supabase.auth.signOut(); sessionStorage.setItem('dev_auto_login_disabled', '1'); router.push('/login') }}
             style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#a8d870', fontSize: 14, padding: '8px 0' }}>
             <LogOut size={16}/> ログアウト
           </button>
@@ -1683,31 +1683,56 @@ export default function DashboardPage() {
                     const isPast   = MILESTONES.findIndex(x => x.phase === todayPhase) > idx
                     return (
                       <Fragment key={m.key}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1 }}>
-                          <div style={{
-                            width: 44, height: 44, borderRadius: '50%',
-                            background: isActive ? '#6aac14' : isPast ? 'rgba(106,172,20,0.35)' : 'rgba(255,255,255,0.08)',
-                            border: `2px solid ${isActive ? '#a8d870' : isPast ? '#6aac14' : 'rgba(255,255,255,0.2)'}`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: isActive ? '0 0 18px rgba(106,172,20,0.55)' : 'none',
-                          }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 1, position: 'relative' }}>
+                          <motion.div
+                            initial={{ scale: 0.6, opacity: 0 }}
+                            animate={isActive
+                              ? { scale: [1, 1.07, 1], opacity: 1, boxShadow: ['0 0 12px rgba(106,172,20,0.45)', '0 0 22px rgba(106,172,20,0.85)', '0 0 12px rgba(106,172,20,0.45)'] }
+                              : { scale: 1, opacity: 1 }}
+                            transition={isActive
+                              ? { default: { duration: 2.2, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }, opacity: { duration: 0.4, delay: idx * 0.12, ease: 'easeOut' } }
+                              : { duration: 0.4, delay: idx * 0.12, ease: 'easeOut' }}
+                            style={{
+                              width: 44, height: 44, borderRadius: '50%',
+                              background: isActive ? '#6aac14' : isPast ? 'rgba(106,172,20,0.35)' : 'rgba(255,255,255,0.08)',
+                              border: `2px solid ${isActive ? '#a8d870' : isPast ? '#6aac14' : 'rgba(255,255,255,0.2)'}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
                             <span style={{ fontSize: 15, fontWeight: 'bold', color: isActive ? '#fff' : isPast ? '#a8d870' : 'rgba(255,255,255,0.35)' }}>{m.day}</span>
-                          </div>
+                          </motion.div>
                           <p style={{ marginTop: 8, fontSize: 11, fontWeight: 'bold', color: isActive ? '#a8d870' : isPast ? '#6aac14' : 'rgba(255,255,255,0.3)', textAlign: 'center', whiteSpace: 'nowrap' }}>
                             {m.label}
                           </p>
                         </div>
                         {idx < MILESTONES.length - 1 && (
-                          <div style={{ flex: 1, height: 2, margin: '0 6px', marginBottom: 22, background: isPast ? '#6aac14' : 'rgba(255,255,255,0.12)' }} />
+                          <div style={{ flex: 1, height: 3, margin: '0 6px', marginBottom: 22, background: 'rgba(255,255,255,0.12)', overflow: 'hidden', borderRadius: 2, position: 'relative' }}>
+                            <motion.div
+                              initial={{ scaleX: 0 }}
+                              animate={isPast
+                                ? { scaleX: 1, opacity: [1, 0.55, 1] }
+                                : { scaleX: 0 }}
+                              transition={isPast
+                                ? { scaleX: { duration: 0.7, delay: 0.2 + idx * 0.15, ease: 'easeOut' }, opacity: { duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: 1 + idx * 0.3 } }
+                                : { duration: 0.7, delay: 0.2 + idx * 0.15, ease: 'easeOut' }}
+                              style={{ width: '100%', height: '100%', background: '#6aac14', transformOrigin: 'left', willChange: 'transform' }}
+                            />
+                          </div>
                         )}
                       </Fragment>
                     )
                   })}
                 </div>
-                <div style={{ background: 'rgba(106,172,20,0.15)', border: '1px solid rgba(106,172,20,0.35)', borderRadius: 8, padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#6aac14', flexShrink: 0 }} />
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.6 }}
+                  style={{ background: 'rgba(106,172,20,0.15)', border: '1px solid rgba(106,172,20,0.35)', borderRadius: 8, padding: '11px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <motion.div
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                    style={{ width: 6, height: 6, borderRadius: '50%', background: '#6aac14', flexShrink: 0 }} />
                   <p style={{ color: '#c8f0a0', fontSize: 13, fontWeight: 'bold', margin: 0 }}>{currentMilestone.desc}</p>
-                </div>
+                </motion.div>
               </div>
 
               {tasksLoading ? (

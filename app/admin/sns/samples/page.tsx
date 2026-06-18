@@ -18,6 +18,12 @@ interface Profile {
   email: string | null
 }
 
+interface TextPreset {
+  id: string
+  content: string
+  created_at: string
+}
+
 export default function SnsSamplesPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -33,6 +39,11 @@ export default function SnsSamplesPage() {
   const [addingRecipient, setAddingRecipient] = useState(false)
   const [removingRecipientId, setRemovingRecipientId] = useState<string | null>(null)
 
+  const [presets, setPresets] = useState<TextPreset[]>([])
+  const [newPresetContent, setNewPresetContent] = useState('')
+  const [addingPreset, setAddingPreset] = useState(false)
+  const [deletingPresetId, setDeletingPresetId] = useState<string | null>(null)
+
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -45,15 +56,17 @@ export default function SnsSamplesPage() {
         if (!perms.sns_management) { router.push('/dashboard'); return }
       }
 
-      const [samplesRes, profilesRes, recipientsRes] = await Promise.all([
+      const [samplesRes, profilesRes, recipientsRes, presetsRes] = await Promise.all([
         supabase.from('sns_sample_tweets').select('id, content, use_for_ai, created_at').order('created_at'),
         supabase.from('profiles').select('id, username, email').order('username'),
         supabase.from('sns_notification_recipients').select('user_id'),
+        supabase.from('sns_text_presets').select('id, content, created_at').order('created_at'),
       ])
 
       setSamples((samplesRes.data ?? []) as SampleTweet[])
       setAllProfiles((profilesRes.data ?? []) as Profile[])
       setRecipientIds((recipientsRes.data ?? []).map((r: { user_id: string }) => r.user_id))
+      setPresets((presetsRes.data ?? []) as TextPreset[])
       setLoading(false)
     }
     init()
@@ -91,6 +104,29 @@ export default function SnsSamplesPage() {
     if (error) { alert('削除に失敗しました: ' + error.message); setDeletingId(null); return }
     setSamples(prev => prev.filter(s => s.id !== id))
     setDeletingId(null)
+  }
+
+  async function handleAddPreset() {
+    if (!newPresetContent.trim()) return
+    setAddingPreset(true)
+    const { data, error } = await supabase
+      .from('sns_text_presets')
+      .insert({ content: newPresetContent.trim() })
+      .select('*')
+      .single()
+    if (error || !data) { alert('追加に失敗しました: ' + error?.message); setAddingPreset(false); return }
+    setPresets(prev => [...prev, data as TextPreset])
+    setNewPresetContent('')
+    setAddingPreset(false)
+  }
+
+  async function handleDeletePreset(id: string) {
+    if (!confirm('このプリセットを削除しますか？')) return
+    setDeletingPresetId(id)
+    const { error } = await supabase.from('sns_text_presets').delete().eq('id', id)
+    if (error) { alert('削除に失敗しました: ' + error.message); setDeletingPresetId(null); return }
+    setPresets(prev => prev.filter(p => p.id !== id))
+    setDeletingPresetId(null)
   }
 
   async function handleAddRecipient() {
@@ -255,6 +291,84 @@ export default function SnsSamplesPage() {
                       <Trash2 size={16} />
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 文章プリセット */}
+        <div style={{
+          background: 'white', border: '3px solid #3d6e00', borderRadius: 16,
+          padding: 24, marginBottom: 24,
+          boxShadow: '0 4px 0 #1a3a00',
+        }}>
+          <h2 style={{ fontSize: 17, fontWeight: 'bold', color: '#1a3a00', marginBottom: 4 }}>
+            文章プリセット
+          </h2>
+          <p style={{ fontSize: 12, color: '#888', marginBottom: 16 }}>
+            SNS管理画面の「作成された投稿」欄に、ワンタップで挿入できるボタンとして表示されます
+          </p>
+
+          <textarea
+            value={newPresetContent}
+            onChange={e => setNewPresetContent(e.target.value)}
+            placeholder="プリセット文章を入力..."
+            rows={3}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              border: '2px solid #3d6e00', borderRadius: 10,
+              padding: '12px 14px', fontSize: 15, lineHeight: 1.6,
+              resize: 'vertical', outline: 'none',
+              fontFamily: 'inherit', marginBottom: 12,
+            }}
+          />
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <button
+              onClick={handleAddPreset}
+              disabled={addingPreset || !newPresetContent.trim()}
+              style={{
+                background: addingPreset || !newPresetContent.trim() ? '#aaa' : '#3d6e00',
+                border: 'none', borderRadius: 12, color: 'white',
+                fontSize: 15, fontWeight: 'bold', padding: '12px 40px',
+                cursor: addingPreset || !newPresetContent.trim() ? 'not-allowed' : 'pointer',
+                boxShadow: addingPreset || !newPresetContent.trim() ? 'none' : '0 4px 0 #1a3a00',
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+              }}
+            >
+              <Plus size={16} />
+              {addingPreset ? '追加中...' : '追加'}
+            </button>
+          </div>
+
+          {presets.length === 0 ? (
+            <p style={{ color: '#999', fontSize: 14, textAlign: 'center', padding: '12px 0' }}>
+              プリセットはありません
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {presets.map(preset => (
+                <div key={preset.id} style={{
+                  border: '2px solid #e0e0e0', borderRadius: 10, padding: '12px 14px',
+                  background: '#fafafa',
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                }}>
+                  <div style={{ flex: 1, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#1a1a1a' }}>
+                    {preset.content}
+                  </div>
+                  <button
+                    onClick={() => handleDeletePreset(preset.id)}
+                    disabled={deletingPresetId === preset.id}
+                    title="削除"
+                    style={{
+                      flexShrink: 0, background: 'none', border: 'none',
+                      cursor: deletingPresetId === preset.id ? 'not-allowed' : 'pointer',
+                      color: '#ccc', padding: 4,
+                      display: 'flex', alignItems: 'center',
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               ))}
             </div>

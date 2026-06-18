@@ -12,6 +12,7 @@
     "@supabase/supabase-js": "^2.97.0",
     "@types/marked": "^5.0.2",
     "framer-motion": "^12.37.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.17.0",
     "marked": "^17.0.4",
     "next": "16.1.6",

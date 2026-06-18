@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 import SlimeIcon from '../components/SlimeIcon'
@@ -31,6 +31,37 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    // 開発専用の自動ログイン。NODE_ENVはビルド時に確定するため本番ビルドには含まれない。
+    if (process.env.NODE_ENV !== 'development') return
+
+    const devEmail = process.env.NEXT_PUBLIC_DEV_AUTO_LOGIN_EMAIL
+    const devPassword = process.env.NEXT_PUBLIC_DEV_AUTO_LOGIN_PASSWORD
+    if (!devEmail || !devPassword) return
+
+    if (sessionStorage.getItem('dev_auto_login_disabled') === '1') return
+
+    let cancelled = false
+    ;(async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session || cancelled) return
+
+      setLoading(true)
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email: devEmail, password: devPassword })
+        if (error || !data.user || cancelled) return
+        const { data: profile } = await supabase
+          .from('profiles').select('course').eq('id', data.user.id).single()
+        router.push(profile?.course ? '/dashboard' : '/onboarding')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
