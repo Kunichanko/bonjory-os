@@ -521,3 +521,78 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .hud-cloud, .xp-shine, .timeline-more-btn .chev { animation: none; }
 }
+
+/* ─── チケットカード ─────────────────────────────────── */
+.ticket-card {
+  box-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.55),
+    0 10px 0 rgba(0, 0, 0, 0.3),
+    0 20px 36px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ticket-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 4px 0 rgba(0, 0, 0, 0.55),
+    0 12px 0 rgba(0, 0, 0, 0.3),
+    0 24px 42px rgba(0, 0, 0, 0.4);
+}
+
+.ticket-card__perforation {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  height: 0;
+  border-top: 2px dashed rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+}
+.ticket-card__perforation--top { top: 8px; }
+.ticket-card__perforation--bottom { bottom: 8px; }
+
+.ticket-card--burst {
+  animation: ticketStampPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes ticketStampPop {
+  0%   { transform: scale(0.9) rotate(-2deg); }
+  45%  { transform: scale(1.045) rotate(1deg); }
+  75%  { transform: scale(0.985) rotate(-0.4deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.ticket-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  border-radius: 20px;
+  pointer-events: none;
+  animation: ticketFlash 0.35s ease-out both;
+}
+
+@keyframes ticketFlash {
+  0%   { opacity: 0.3; }
+  100% { opacity: 0; }
+}
+
+.ticket-shine-burst {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  pointer-events: none;
+  animation: ticketShineSweep 0.5s ease-out both;
+}
+
+@keyframes ticketShineSweep {
+  0%   { transform: translateX(-120%) skewX(-12deg); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: translateX(280%) skewX(-12deg); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ticket-card--burst, .ticket-flash, .ticket-shine-burst { animation: none; }
+}

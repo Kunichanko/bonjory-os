@@ -6,6 +6,9 @@ import supabase from '../../../lib/supabase'
 import { getEffectivePermissions, PermissionKey } from '../../../lib/permissions'
 import { Film, RefreshCw, Tag, Gamepad2, User, Star, Link2, MailOpen } from 'lucide-react'
 
+// 誤タップ防止のため、個別投稿のメディア削除ボタンは非表示にしている
+const SHOW_MEDIA_DELETE_BUTTONS: boolean = false
+
 // ─── 型 ───────────────────────────────────────────────────
 
 interface TimelinePost {
@@ -584,8 +587,8 @@ export default function AdminTimelinePage() {
                         </div>
                       )}
 
-                      {/* 削除ボタン (管理者のみ) */}
-                      {canManage && (
+                      {/* 削除ボタン (管理者のみ・誤タップ防止のため非表示) */}
+                      {SHOW_MEDIA_DELETE_BUTTONS && canManage && (
                         <div style={{ display: 'flex', gap: 8, padding: '4px 0 12px', flexWrap: 'wrap', alignItems: 'center' }}>
                           <span style={{ color: '#c0392b', fontWeight: 'bold', fontSize: 12 }}>ストレージ削除:</span>
                           {deleteConfirm?.postId === post.id ? (

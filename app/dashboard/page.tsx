@@ -1,8 +1,9 @@
 "use client"
 
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { CSSProperties, Fragment, ReactNode, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
+import { compressImage } from '../../lib/imageCompress'
 import { marked } from 'marked'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
 import SlimeIcon from '../components/SlimeIcon'
@@ -22,7 +23,7 @@ import {
   Bug, Tag, Settings, LogOut, Menu, Bell, MailOpen, Film, Search,
   EyeOff, User, Rocket, FileText, Image, Link2, Star, RefreshCw, Check,
   LayoutGrid, List, X, AlertTriangle, Flower2, PartyPopper, Pin, Flame, CheckCircle2,
-  Cloud, ChevronDown,
+  Cloud, ChevronDown, Save,
 } from 'lucide-react'
 
 // ─── 定数・型 ─────────────────────────────────────────────
@@ -49,6 +50,55 @@ function getWeekPhase(day: number): 'task' | 'midterm' | 'final' {
   if (day === 0) return 'final'
   if (day >= 1 && day <= 3) return 'task'
   return 'midterm'
+}
+
+function FlipChars({ text, baseDelay = 0, stagger = 0.03, style }: { text: string; baseDelay?: number; stagger?: number; style?: CSSProperties }) {
+  return (
+    <span style={{ display: 'inline-flex', perspective: 240, ...style }}>
+      {text.split('').map((ch, i) => (
+        <motion.span
+          key={`${ch}-${i}`}
+          initial={{ rotateX: 90, opacity: 0 }}
+          animate={{ rotateX: 0, opacity: 1 }}
+          transition={{ duration: 0.25, delay: baseDelay + i * stagger, ease: 'easeOut' }}
+          style={{ display: 'inline-block', transformOrigin: 'top center', whiteSpace: 'pre' }}
+        >
+          {ch}
+        </motion.span>
+      ))}
+    </span>
+  )
+}
+
+function ViewHeader({ badge, icon, title, subtitle }: { badge: string; icon: ReactNode; title: string; subtitle: ReactNode }) {
+  return (
+    <div style={{ background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)', borderRadius: 10, padding: '20px 28px', position: 'relative', overflow: 'hidden' }}>
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: [1, 1.1, 1], opacity: [0.6, 1, 0.6] }}
+        transition={{ default: { duration: 3.4, repeat: Infinity, ease: 'easeInOut' }, opacity: { duration: 3.4, repeat: Infinity, ease: 'easeInOut' } }}
+        style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }}
+      />
+      <motion.p
+        initial={{ opacity: 0, x: -8 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.3 }}
+        style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.12em', marginBottom: 4 }}>{badge}</motion.p>
+      <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', margin: '0 0 4px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        <motion.span
+          initial={{ scale: 0.4, rotate: -20, opacity: 0 }}
+          animate={{ scale: 1, rotate: 0, opacity: 1 }}
+          transition={{ duration: 0.4, delay: 0.1, ease: 'backOut' }}
+          style={{ display: 'inline-flex' }}>{icon}</motion.span>
+        <FlipChars text={title} baseDelay={0.12} />
+      </h2>
+      <motion.p
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.4 }}
+        style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, fontWeight: 'bold', margin: 0 }}>{subtitle}</motion.p>
+    </div>
+  )
 }
 
 const MILESTONES = [
@@ -295,6 +345,7 @@ export default function DashboardPage() {
   const [issuingTicket, setIssuingTicket]   = useState(false)
   const [revokingTicket, setRevokingTicket] = useState(false)
   const [ticketError, setTicketError]       = useState<string | null>(null)
+  const [ticketBurstKey, setTicketBurstKey] = useState(0)
 
   // スピーチ
   const [speechBlocks, setSpeechBlocks] = useState<{ id: string; is_active: boolean; sort_order: number }[]>([])
@@ -349,6 +400,8 @@ export default function DashboardPage() {
   const [submitSuccess, setSubmitSuccess]     = useState<Record<string, boolean>>({})
   const [submitError, setSubmitError]         = useState<Record<string, string>>({})
   // 画像アップロード（複数枚、最大5枚）
+  // existingImageUrls = 保存済み（アップロード済み）の画像URL。imageFiles/imagePreviews = まだアップロードしていない新規ファイル
+  const [existingImageUrls, setExistingImageUrls] = useState<Record<string, string[]>>({})
   const [imageFiles, setImageFiles]           = useState<Record<string, File[]>>({})
   const [imagePreviews, setImagePreviews]     = useState<Record<string, string[]>>({})
   const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({})
@@ -357,6 +410,9 @@ export default function DashboardPage() {
   const [xUsernames, setXUsernames]           = useState<Record<string, string>>({})
   // フィールドバリデーションエラー
   const [submitFieldErrors, setSubmitFieldErrors] = useState<Record<string, { comment?: boolean; selfEval?: boolean; retro?: boolean }>>({})
+  // 最終提出の一時保存
+  const [savingDraft, setSavingDraft]         = useState<Record<string, boolean>>({})
+  const [draftSuccess, setDraftSuccess]       = useState<Record<string, boolean>>({})
 
 
   // タイムライン（timeline = 現在のフィルター×ソートでの累積取得リスト）
@@ -505,8 +561,9 @@ export default function DashboardPage() {
           const assignmentRes = await supabase.from('task_assignments')
             .select(`
               id, status, plan_text, midterm_progress, midterm_correction,
-              media_url, image_urls, self_evaluation, retrospective, submitted_at,
+              media_url, image_urls, submission_comment, self_evaluation, retrospective, submitted_at,
               is_anonymous, thumbnail_url, created_at, deadline_at, course_request,
+              x_consent, x_username,
               resubmit_requested, previous_submission,
               task:tasks(id, title, description, description_is_markdown, target_course, target_stage, allow_image_attachment)
             `)
@@ -538,6 +595,10 @@ export default function DashboardPage() {
             const retro: Record<string, string>   = {}
             const courseReqs: Record<string, string> = {}
             const anon: Record<string, boolean>   = {}
+            const existingImgs: Record<string, string[]> = {}
+            const xCons: Record<string, boolean>  = {}
+            const xUsers: Record<string, string>  = {}
+            const thumbs: Record<string, string>  = {}
             assignmentData.forEach(a => {
               plans[a.id]       = a.plan_text           ?? ''
               midProg[a.id]     = a.midterm_progress    ?? ''
@@ -547,6 +608,10 @@ export default function DashboardPage() {
               retro[a.id]       = a.retrospective       ?? ''
               courseReqs[a.id]  = (a as any).course_request      ?? ''
               anon[a.id]        = a.is_anonymous        ?? false
+              existingImgs[a.id] = a.image_urls          ?? []
+              xCons[a.id]       = (a as any).x_consent !== false
+              xUsers[a.id]      = (a as any).x_username ?? ''
+              thumbs[a.id]      = a.thumbnail_url        ?? ''
             })
             setPlanTexts(plans)
             setMidtermProgress(midProg)
@@ -556,6 +621,10 @@ export default function DashboardPage() {
             setRetros(retro)
             setCourseRequests(courseReqs)
             setIsAnonymous(anon)
+            setExistingImageUrls(existingImgs)
+            setThumbPreviews(thumbs)
+            setXConsent(xCons)
+            setXUsernames(xUsers)
           }
         } finally {
           if (mounted) setTasksLoading(false)
@@ -836,6 +905,7 @@ export default function DashboardPage() {
     setIssuingTicket(false)
     if (error) { setTicketError(error.message); return }
     setActiveTicket(data as unknown as ActiveTicket)
+    setTicketBurstKey(k => k + 1)
   }
 
   async function revokeTicket() {
@@ -894,6 +964,96 @@ export default function DashboardPage() {
     }
   }
 
+  async function uploadFinalMedia(assignmentId: string) {
+    // サムネイルアップロード
+    let thumbUrl: string | null = null
+    const thumbFile = thumbnailFiles[assignmentId]
+    if (thumbFile && userId) {
+      setUploadingThumb(prev => ({ ...prev, [assignmentId]: true }))
+      const compressedThumb = await compressImage(thumbFile, { maxDimension: 600, quality: 0.8 })
+      const ext = compressedThumb.name.split('.').pop() ?? 'jpg'
+      const path = `${userId}/${assignmentId}.${ext}`
+      const { data: upData, error: upErr } = await supabase.storage
+        .from('thumbnails')
+        .upload(path, compressedThumb, { upsert: true })
+      setUploadingThumb(prev => ({ ...prev, [assignmentId]: false }))
+      if (!upErr && upData) {
+        const { data: urlData } = supabase.storage.from('thumbnails').getPublicUrl(upData.path)
+        thumbUrl = urlData.publicUrl
+      }
+    }
+
+    // 画像ファイルアップロード（複数枚、最大5枚）
+    const uploadedImageUrls: string[] = []
+    const imgFiles = imageFiles[assignmentId] ?? []
+    if (imgFiles.length > 0 && userId) {
+      setUploadingImages(prev => ({ ...prev, [assignmentId]: true }))
+      for (let i = 0; i < imgFiles.length; i++) {
+        const compressedImg = await compressImage(imgFiles[i], { maxDimension: 1600, quality: 0.8 })
+        const ext = compressedImg.name.split('.').pop() ?? 'jpg'
+        const iPath = `images/${userId}/${assignmentId}/${i}.${ext}`
+        const { data: iData, error: iErr } = await supabase.storage
+          .from('media')
+          .upload(iPath, compressedImg, { upsert: true })
+        if (!iErr && iData) {
+          const { data: iUrlData } = supabase.storage.from('media').getPublicUrl(iData.path)
+          uploadedImageUrls.push(iUrlData.publicUrl)
+        }
+      }
+      setUploadingImages(prev => ({ ...prev, [assignmentId]: false }))
+    }
+
+    const mergedImageUrls = [...(existingImageUrls[assignmentId] ?? []), ...uploadedImageUrls]
+    return {
+      // 新規ファイルがなければ、現在表示中のサムネイル（既存 or 削除済みなら空）を維持する
+      thumbUrl: thumbUrl ?? (thumbPreviews[assignmentId] || null),
+      imageUrls: mergedImageUrls.length > 0 ? mergedImageUrls : null,
+    }
+  }
+
+  // アップロード済みの新規ファイルを「既存」に移し、再アップロードされないようにする
+  function commitUploadedMedia(assignmentId: string, thumbUrl: string | null, imageUrls: string[] | null) {
+    setExistingImageUrls(prev => ({ ...prev, [assignmentId]: imageUrls ?? [] }))
+    setImageFiles(prev => ({ ...prev, [assignmentId]: [] }))
+    setImagePreviews(prev => ({ ...prev, [assignmentId]: [] }))
+    setThumbnailFiles(prev => ({ ...prev, [assignmentId]: null }))
+    setThumbPreviews(prev => ({ ...prev, [assignmentId]: thumbUrl ?? '' }))
+  }
+
+  async function saveDraftFinal(assignmentId: string) {
+    setSavingDraft(prev => ({ ...prev, [assignmentId]: true }))
+    setDraftSuccess(prev => ({ ...prev, [assignmentId]: false }))
+    setSubmitError(prev => ({ ...prev, [assignmentId]: '' }))
+
+    const { thumbUrl, imageUrls } = await uploadFinalMedia(assignmentId)
+    const now = new Date().toISOString()
+
+    const { error } = await supabase.from('task_assignments').update({
+      image_urls:          imageUrls,
+      submission_comment:  submissionComments[assignmentId] ?? '',
+      self_evaluation:     selfEvals[assignmentId]   ?? '',
+      retrospective:       retros[assignmentId]      ?? '',
+      course_request:      courseRequests[assignmentId] ?? '',
+      is_anonymous:         isAnonymous[assignmentId] ?? false,
+      x_consent:            xConsent[assignmentId] !== false,
+      x_username:           xConsent[assignmentId] !== false ? (xUsernames[assignmentId] ?? '') : '',
+      thumbnail_url:        thumbUrl,
+      updated_at:           now,
+    }).eq('id', assignmentId)
+
+    setSavingDraft(prev => ({ ...prev, [assignmentId]: false }))
+    if (error) {
+      const msg = (error as any)?.message ?? JSON.stringify(error)
+      setSubmitError(prev => ({ ...prev, [assignmentId]: `一時保存に失敗しました: ${msg}` }))
+      return
+    }
+    setDraftSuccess(prev => ({ ...prev, [assignmentId]: true }))
+    commitUploadedMedia(assignmentId, thumbUrl, imageUrls)
+    setAssignments(prev => prev.map(a =>
+      a.id === assignmentId ? { ...a, thumbnail_url: thumbUrl, image_urls: imageUrls } : a
+    ))
+  }
+
   async function submitWork(assignmentId: string) {
     // バリデーション
     const fieldErrors = {
@@ -916,45 +1076,10 @@ export default function DashboardPage() {
 
     const now = new Date().toISOString()
 
-    // サムネイルアップロード
-    let thumbUrl: string | null = null
-    const thumbFile = thumbnailFiles[assignmentId]
-    if (thumbFile && userId) {
-      setUploadingThumb(prev => ({ ...prev, [assignmentId]: true }))
-      const ext = thumbFile.name.split('.').pop() ?? 'jpg'
-      const path = `${userId}/${assignmentId}.${ext}`
-      const { data: upData, error: upErr } = await supabase.storage
-        .from('thumbnails')
-        .upload(path, thumbFile, { upsert: true })
-      setUploadingThumb(prev => ({ ...prev, [assignmentId]: false }))
-      if (!upErr && upData) {
-        const { data: urlData } = supabase.storage.from('thumbnails').getPublicUrl(upData.path)
-        thumbUrl = urlData.publicUrl
-      }
-    }
-
-    // 画像ファイルアップロード（複数枚、最大5枚）
-    const uploadedImageUrls: string[] = []
-    const imgFiles = imageFiles[assignmentId] ?? []
-    if (imgFiles.length > 0 && userId) {
-      setUploadingImages(prev => ({ ...prev, [assignmentId]: true }))
-      for (let i = 0; i < imgFiles.length; i++) {
-        const f = imgFiles[i]
-        const ext = f.name.split('.').pop() ?? 'jpg'
-        const iPath = `images/${userId}/${assignmentId}/${i}.${ext}`
-        const { data: iData, error: iErr } = await supabase.storage
-          .from('media')
-          .upload(iPath, f, { upsert: true })
-        if (!iErr && iData) {
-          const { data: iUrlData } = supabase.storage.from('media').getPublicUrl(iData.path)
-          uploadedImageUrls.push(iUrlData.publicUrl)
-        }
-      }
-      setUploadingImages(prev => ({ ...prev, [assignmentId]: false }))
-    }
+    const { thumbUrl, imageUrls: uploadedImageUrls } = await uploadFinalMedia(assignmentId)
 
     const { error } = await supabase.from('task_assignments').update({
-      image_urls:         uploadedImageUrls.length > 0 ? uploadedImageUrls : null,
+      image_urls:         uploadedImageUrls,
       submission_comment: submissionComments[assignmentId] ?? '',
       self_evaluation:    selfEvals[assignmentId]   ?? '',
       retrospective:      retros[assignmentId]      ?? '',
@@ -981,12 +1106,13 @@ export default function DashboardPage() {
     }
     if (!error) {
       setSubmitSuccess(prev => ({ ...prev, [assignmentId]: true }))
+      commitUploadedMedia(assignmentId, thumbUrl, uploadedImageUrls)
       setAssignments(prev => prev.map(a =>
         a.id === assignmentId
           ? { ...a, status: 'submitted', submitted_at: now,
               is_anonymous: isAnonymous[assignmentId] ?? false,
               thumbnail_url: thumbUrl,
-              image_urls: uploadedImageUrls.length > 0 ? uploadedImageUrls : a.image_urls }
+              image_urls: uploadedImageUrls }
           : a
       ))
       // タイムラインはビューを開くたびに再取得されるため明示的なリセットは不要
@@ -1698,10 +1824,11 @@ export default function DashboardPage() {
                               border: `2px solid ${isActive ? '#a8d870' : isPast ? '#6aac14' : 'rgba(255,255,255,0.2)'}`,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
-                            <span style={{ fontSize: 15, fontWeight: 'bold', color: isActive ? '#fff' : isPast ? '#a8d870' : 'rgba(255,255,255,0.35)' }}>{m.day}</span>
+                            <FlipChars text={m.day} baseDelay={idx * 0.12 + 0.1}
+                              style={{ fontSize: 15, fontWeight: 'bold', color: isActive ? '#fff' : isPast ? '#a8d870' : 'rgba(255,255,255,0.35)' }} />
                           </motion.div>
                           <p style={{ marginTop: 8, fontSize: 11, fontWeight: 'bold', color: isActive ? '#a8d870' : isPast ? '#6aac14' : 'rgba(255,255,255,0.3)', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                            {m.label}
+                            <FlipChars text={m.label} baseDelay={idx * 0.1 + 0.15} />
                           </p>
                         </div>
                         {idx < MILESTONES.length - 1 && (
@@ -1948,8 +2075,21 @@ export default function DashboardPage() {
                                 <div>
                                   <label className="game-label">画像（最大5枚）</label>
                                   <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>制作物のスクリーンショットや完成画像を添付してください</p>
+                                  {(existingImageUrls[assignment.id] ?? []).map((src, i) => (
+                                    <div key={`existing-${i}`} style={{ position: 'relative', marginBottom: 8, borderRadius: 12, overflow: 'hidden', border: '2px solid #c8e89a' }}>
+                                      <img src={src} alt={`保存済み画像${i + 1}`} style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newExisting = (existingImageUrls[assignment.id] ?? []).filter((_, j) => j !== i)
+                                          setExistingImageUrls(prev => ({ ...prev, [assignment.id]: newExisting }))
+                                        }}
+                                        style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(220,0,0,0.9)', color: 'white', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, lineHeight: '1' }}
+                                      >🗑</button>
+                                    </div>
+                                  ))}
                                   {(imagePreviews[assignment.id] ?? []).map((src, i) => (
-                                    <div key={i} style={{ position: 'relative', marginBottom: 8, borderRadius: 12, overflow: 'hidden', border: '2px solid #c8e89a' }}>
+                                    <div key={`new-${i}`} style={{ position: 'relative', marginBottom: 8, borderRadius: 12, overflow: 'hidden', border: '2px solid #c8e89a' }}>
                                       <img src={src} alt={`preview-${i}`} style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
                                       <button
                                         type="button"
@@ -1963,7 +2103,7 @@ export default function DashboardPage() {
                                       >🗑</button>
                                     </div>
                                   ))}
-                                  {(imagePreviews[assignment.id] ?? []).length < 5 && (
+                                  {(existingImageUrls[assignment.id] ?? []).length + (imagePreviews[assignment.id] ?? []).length < 5 && (
                                     <>
                                       <input
                                         type="file"
@@ -2115,9 +2255,21 @@ export default function DashboardPage() {
                                   onChange={e => setCourseRequests(prev => ({ ...prev, [assignment.id]: e.target.value }))}
                                   style={{ resize: 'vertical' }} />
                               </div>
-                              <button className="game-button" disabled={submitting[assignment.id]} onClick={() => submitWork(assignment.id)}>
-                                {submitting[assignment.id] ? '提出中…' : <><Rocket size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}/>提出する</>}
-                              </button>
+                              <div style={{ display: 'flex', gap: 10 }}>
+                                <button
+                                  type="button"
+                                  className="game-button"
+                                  disabled={savingDraft[assignment.id]}
+                                  onClick={() => saveDraftFinal(assignment.id)}
+                                  style={{ flex: 1, background: '#f0fae0', color: '#3d6e00', border: '2px solid #c8e89a', boxShadow: 'none' }}
+                                >
+                                  {savingDraft[assignment.id] ? '保存中…' : <><Save size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}/>一時保存</>}
+                                </button>
+                                <button className="game-button" disabled={submitting[assignment.id]} onClick={() => submitWork(assignment.id)} style={{ flex: 1 }}>
+                                  {submitting[assignment.id] ? '提出中…' : <><Rocket size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }}/>提出する</>}
+                                </button>
+                              </div>
+                              {draftSuccess[assignment.id] && <div className="game-success">一時保存しました</div>}
                               {submitSuccess[assignment.id] && <div className="game-success">提出完了！お疲れさまでした</div>}
                               {submitError[assignment.id] && <div className="game-error">{submitError[assignment.id]}</div>}
                             </div>
@@ -2146,7 +2298,11 @@ export default function DashboardPage() {
                   ?? ticketTypes.find(t => t.id === selectedTypeId)
                   ?? ticketTypes[0]
                 return (
-                  <div style={{ marginTop: 8, borderRadius: 20, overflow: 'hidden', position: 'relative', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+                  <div
+                    key={ticketBurstKey}
+                    className={`ticket-card${ticketBurstKey > 0 ? ' ticket-card--burst' : ''}`}
+                    style={{ marginTop: 8, borderRadius: 20, overflow: 'hidden', position: 'relative' }}
+                  >
                     {/* ベース: 黒 */}
                     <div style={{ position: 'absolute', inset: 0, background: '#111', borderRadius: 20 }} />
                     {/* グラデーション: 発行時にフェードイン */}
@@ -2165,6 +2321,16 @@ export default function DashboardPage() {
                       opacity: activeTicket ? 1 : 0.3,
                       transition: 'opacity 0.9s ease',
                     }} />
+                    {/* チケット切り取り風の点線（上下） */}
+                    <div className="ticket-card__perforation ticket-card__perforation--top" />
+                    <div className="ticket-card__perforation ticket-card__perforation--bottom" />
+                    {/* 発行時の演出 */}
+                    {ticketBurstKey > 0 && (
+                      <>
+                        <div className="ticket-flash" />
+                        <div className="ticket-shine-burst" />
+                      </>
+                    )}
                     {/* コンテンツ */}
                     <div style={{ position: 'relative', padding: '24px 28px', color: 'white' }}>
                       <p style={{ fontSize: 11, fontWeight: 'bold', opacity: 0.7, margin: '0 0 10px', letterSpacing: 1 }}>
@@ -2230,12 +2396,8 @@ export default function DashboardPage() {
           {/* ══ VIEW: 過去の課題 ════════════════════════════ */}
           {currentView === 'history' && (
             <>
-              <div style={{ background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)', borderRadius: 10, padding: '20px 28px', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
-                <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.12em', marginBottom: 4 }}>HISTORY</p>
-                <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 8 }}><BookOpen size={18}/>過去の課題</h2>
-                <p style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, fontWeight: 'bold', margin: 0 }}>提出済みの課題履歴 — {submittedAssignments.length} 件</p>
-              </div>
+              <ViewHeader badge="HISTORY" icon={<BookOpen size={18}/>} title="過去の課題"
+                subtitle={<>提出済みの課題履歴 — {submittedAssignments.length} 件</>} />
 
               {submittedAssignments.length === 0 ? (
                 <div className="game-card" style={{ padding: '28px 32px', textAlign: 'center' }}>
@@ -2418,16 +2580,8 @@ export default function DashboardPage() {
           {/* ══ VIEW: タイムライン ════════════════════════════ */}
           {currentView === 'timeline' && (
               <>
-                <div style={{ background: 'linear-gradient(135deg, #1a3a00 0%, #2d5500 55%, #3d6e00 100%)', borderRadius: 10, padding: '20px 28px', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: -30, right: -30, width: 140, height: 140, borderRadius: '50%', background: 'radial-gradient(circle, rgba(106,172,20,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
-                  <p style={{ color: '#6aac14', fontSize: 10, fontWeight: 'bold', letterSpacing: '0.12em', marginBottom: 4 }}>TIMELINE</p>
-                  <h2 style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', margin: '0 0 4px', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <Globe size={18}/>タイムライン
-                  </h2>
-                  <p style={{ color: 'rgba(168,216,112,0.8)', fontSize: 13, fontWeight: 'bold', margin: 0 }}>
-                    部員の提出作品 — {timelineTotalCount} 件
-                  </p>
-                </div>
+                <ViewHeader badge="TIMELINE" icon={<Globe size={18}/>} title="タイムライン"
+                  subtitle={<>部員の提出作品 — {timelineTotalCount} 件</>} />
 
                 {/* フィルター・ソート */}
                 <div style={{ background: '#fff', border: '2px solid #3d6e00', borderRadius: 10, padding: '12px 16px' }}>
