@@ -39,3 +39,8 @@ self.addEventListener('notificationclick', (event) => {
 
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
+
+// Android ChromeのPWA自動インストールプロンプトはfetchハンドラの存在を要求するため必要
+self.addEventListener('fetch', (event) => {
+  event.respondWith(fetch(event.request))
+})
