@@ -24,6 +24,7 @@ interface AssignmentDetail {
   midterm_progress: string | null
   midterm_correction: string | null
   media_url: string | null
+  video_url: string | null
   image_urls: string[] | null
   submission_comment: string | null
   self_evaluation: string | null
@@ -99,7 +100,7 @@ export default function AdminSubmissionsPage() {
           supabase.from('task_assignments')
             .select(`
               id, user_id, status, plan_text, midterm_progress, midterm_correction,
-              media_url, image_urls, submission_comment, self_evaluation, retrospective, course_request, submitted_at,
+              media_url, video_url, image_urls, submission_comment, self_evaluation, retrospective, course_request, submitted_at,
               is_anonymous, thumbnail_url, x_consent, x_username,
               task:tasks(id, title, target_course, target_stage)
             `)
@@ -317,6 +318,14 @@ export default function AdminSubmissionsPage() {
                       <EmptyBlock label="中間報告" />
                     )}
 
+                    {row.video_url && (
+                      <div>
+                        <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Film size={13}/>提出動画</p>
+                        <video src={row.video_url} controls playsInline preload="metadata"
+                          style={{ width: '100%', maxHeight: 240, borderRadius: 8, background: '#000', display: 'block', border: '2px solid #c8e89a' }} />
+                      </div>
+                    )}
+
                     {row.image_urls && row.image_urls.length > 0 ? (
                       <div>
                         <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Image size={13}/>提出画像 ({row.image_urls.length}枚)</p>
@@ -329,7 +338,7 @@ export default function AdminSubmissionsPage() {
                           ))}
                         </div>
                       </div>
-                    ) : row.media_url ? (
+                    ) : row.media_url && !row.video_url ? (
                       <div>
                         <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Film size={13}/>提出URL（旧形式）</p>
                         <a

@@ -18,6 +18,7 @@ interface TimelinePost {
   thumbnail_url: string | null
   image_urls: string[] | null
   media_url: string | null
+  video_url: string | null
   self_evaluation: string | null
   retrospective: string | null
   submitted_at: string | null
@@ -128,7 +129,7 @@ export default function AdminTimelinePage() {
         const { data: postsData } = await supabase
           .from('task_assignments')
           .select(`
-            id, user_id, is_anonymous, thumbnail_url, image_urls, media_url,
+            id, user_id, is_anonymous, thumbnail_url, image_urls, media_url, video_url,
             self_evaluation, retrospective, submitted_at,
             hidden_in_timeline, force_past_timeline, force_current_timeline,
             task:tasks(id, title, target_course, target_stage, created_at)
@@ -224,11 +225,14 @@ export default function AdminTimelinePage() {
         if (path) await supabase.storage.from('thumbnails').remove([path])
         await supabase.from('task_assignments').update({ thumbnail_url: null }).eq('id', postId)
         setPosts(prev => prev.map(p => p.id === postId ? { ...p, thumbnail_url: null } : p))
-      } else if (type === 'video' && post.media_url) {
-        const path = extractStoragePath(post.media_url, 'media')
-        if (path) await supabase.storage.from('media').remove([path])
-        await supabase.from('task_assignments').update({ media_url: null }).eq('id', postId)
-        setPosts(prev => prev.map(p => p.id === postId ? { ...p, media_url: null } : p))
+      } else if (type === 'video' && (post.video_url || post.media_url)) {
+        for (const url of [post.video_url, post.media_url]) {
+          if (!url) continue
+          const path = extractStoragePath(url, 'media')
+          if (path) await supabase.storage.from('media').remove([path])
+        }
+        await supabase.from('task_assignments').update({ video_url: null, media_url: null }).eq('id', postId)
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, video_url: null, media_url: null } : p))
       }
     } finally {
       setDeleting(prev => { const n = { ...prev }; delete n[postId]; return n })
@@ -244,10 +248,13 @@ export default function AdminTimelinePage() {
           if (path) await supabase.storage.from('thumbnails').remove([path])
           await supabase.from('task_assignments').update({ thumbnail_url: null }).eq('id', post.id)
         }
-        if ((type === 'video' || type === 'both') && post.media_url) {
-          const path = extractStoragePath(post.media_url, 'media')
-          if (path) await supabase.storage.from('media').remove([path])
-          await supabase.from('task_assignments').update({ media_url: null }).eq('id', post.id)
+        if ((type === 'video' || type === 'both') && (post.video_url || post.media_url)) {
+          for (const url of [post.video_url, post.media_url]) {
+            if (!url) continue
+            const path = extractStoragePath(url, 'media')
+            if (path) await supabase.storage.from('media').remove([path])
+          }
+          await supabase.from('task_assignments').update({ video_url: null, media_url: null }).eq('id', post.id)
         }
       }
       // 状態を一括更新
@@ -255,7 +262,7 @@ export default function AdminTimelinePage() {
         if (!filteredPosts.some(f => f.id === p.id)) return p
         const updated = { ...p }
         if (type === 'thumb' || type === 'both') updated.thumbnail_url = null
-        if (type === 'video' || type === 'both') updated.media_url = null
+        if (type === 'video' || type === 'both') { updated.video_url = null; updated.media_url = null }
         return updated
       }))
     } finally {
@@ -272,7 +279,7 @@ export default function AdminTimelinePage() {
     const { data: postsData } = await supabase
       .from('task_assignments')
       .select(`
-        id, user_id, is_anonymous, thumbnail_url, media_url,
+        id, user_id, is_anonymous, thumbnail_url, image_urls, media_url, video_url,
         self_evaluation, retrospective, submitted_at,
         hidden_in_timeline, force_past_timeline,
         task:tasks(id, title, target_course, target_stage, created_at)
@@ -620,16 +627,22 @@ export default function AdminTimelinePage() {
                                 }}>
                                 {post.thumbnail_url ? 'サムネイル削除' : 'サムネなし'}
                               </button>
-                              <button
-                                onClick={() => setDeleteConfirm({ postId: post.id, type: 'video' })}
-                                disabled={!post.media_url || !!deleting[post.id] || post.media_url.includes('youtube') || post.media_url.includes('youtu.be')}
-                                style={{
-                                  padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
-                                  border: '2px solid #c0392b', background: 'none', color: '#c0392b',
-                                  opacity: !post.media_url || post.media_url.includes('youtube') || post.media_url.includes('youtu.be') ? 0.4 : 1,
-                                }}>
-                                {post.media_url && !post.media_url.includes('youtube') && !post.media_url.includes('youtu.be') ? '動画削除' : post.media_url ? 'URL投稿(削除不可)' : 'メディアなし'}
-                              </button>
+                              {(() => {
+                                const deletableVideo = !!post.video_url ||
+                                  (!!post.media_url && !post.media_url.includes('youtube') && !post.media_url.includes('youtu.be'))
+                                return (
+                                  <button
+                                    onClick={() => setDeleteConfirm({ postId: post.id, type: 'video' })}
+                                    disabled={!deletableVideo || !!deleting[post.id]}
+                                    style={{
+                                      padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 'bold', cursor: 'pointer',
+                                      border: '2px solid #c0392b', background: 'none', color: '#c0392b',
+                                      opacity: !deletableVideo ? 0.4 : 1,
+                                    }}>
+                                    {deletableVideo ? '動画削除' : post.media_url ? 'URL投稿(削除不可)' : 'メディアなし'}
+                                  </button>
+                                )
+                              })()}
                             </>
                           )}
                         </div>
@@ -639,6 +652,13 @@ export default function AdminTimelinePage() {
                         {(post.thumbnail_url ?? post.image_urls?.[0]) && (
                           <img src={(post.thumbnail_url ?? post.image_urls![0])!} alt={post.task.title}
                             style={{ width: '100%', maxHeight: 200, objectFit: 'cover', borderRadius: 8 }} />
+                        )}
+                        {post.video_url && (
+                          <div>
+                            <p style={{ color: '#3d6e00', fontWeight: 'bold', fontSize: 13, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Film size={13}/>提出動画</p>
+                            <video src={post.video_url} controls playsInline preload="metadata"
+                              style={{ width: '100%', maxHeight: 240, borderRadius: 8, background: '#000', display: 'block' }} />
+                          </div>
                         )}
                         {post.media_url && (
                           <div>

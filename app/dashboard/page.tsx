@@ -4,6 +4,7 @@ import { CSSProperties, Fragment, ReactNode, useEffect, useMemo, useState } from
 import { useRouter } from 'next/navigation'
 import supabase from '../../lib/supabase'
 import { compressImage } from '../../lib/imageCompress'
+import { compressVideo, MAX_VIDEO_BYTES } from '../../lib/videoCompress'
 import { marked } from 'marked'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
 import SlimeIcon from '../components/SlimeIcon'
@@ -143,6 +144,7 @@ interface AssignmentTask {
 
 interface PreviousSubmission {
   image_urls: string[] | null
+  video_url?: string | null
   submission_comment: string | null
   self_evaluation: string | null
   retrospective: string | null
@@ -157,6 +159,7 @@ interface AssignmentRecord {
   midterm_progress: string | null
   midterm_correction: string | null
   media_url: string | null
+  video_url: string | null
   image_urls: string[] | null
   submission_comment: string | null
   self_evaluation: string | null
@@ -181,6 +184,7 @@ interface TimelineItem {
   retrospective: string | null
   submission_comment: string | null
   media_url: string | null
+  video_url: string | null
   image_urls: string[] | null
   submitted_at: string | null
   hidden_in_timeline: boolean
@@ -405,6 +409,14 @@ export default function DashboardPage() {
   const [imageFiles, setImageFiles]           = useState<Record<string, File[]>>({})
   const [imagePreviews, setImagePreviews]     = useState<Record<string, string[]>>({})
   const [uploadingImages, setUploadingImages] = useState<Record<string, boolean>>({})
+  // 動画アップロード（1本、30MBまで）
+  // existingVideoUrls = 保存済み（アップロード済み）の動画URL。videoFiles/videoPreviews = まだアップロードしていない新規ファイル
+  const [existingVideoUrls, setExistingVideoUrls] = useState<Record<string, string>>({})
+  const [videoFiles, setVideoFiles]           = useState<Record<string, File | null>>({})
+  const [videoPreviews, setVideoPreviews]     = useState<Record<string, string>>({})
+  const [uploadingVideo, setUploadingVideo]   = useState<Record<string, boolean>>({})
+  const [videoCompressProgress, setVideoCompressProgress] = useState<Record<string, number | null>>({})
+  const [videoErrors, setVideoErrors]         = useState<Record<string, string>>({})
   // 公式X紹介同意（デフォルトtrue）
   const [xConsent, setXConsent]               = useState<Record<string, boolean>>({})
   const [xUsernames, setXUsernames]           = useState<Record<string, string>>({})
@@ -561,7 +573,7 @@ export default function DashboardPage() {
           const assignmentRes = await supabase.from('task_assignments')
             .select(`
               id, status, plan_text, midterm_progress, midterm_correction,
-              media_url, image_urls, submission_comment, self_evaluation, retrospective, submitted_at,
+              media_url, video_url, image_urls, submission_comment, self_evaluation, retrospective, submitted_at,
               is_anonymous, thumbnail_url, created_at, deadline_at, course_request,
               x_consent, x_username,
               resubmit_requested, previous_submission,
@@ -596,6 +608,7 @@ export default function DashboardPage() {
             const courseReqs: Record<string, string> = {}
             const anon: Record<string, boolean>   = {}
             const existingImgs: Record<string, string[]> = {}
+            const existingVids: Record<string, string> = {}
             const xCons: Record<string, boolean>  = {}
             const xUsers: Record<string, string>  = {}
             const thumbs: Record<string, string>  = {}
@@ -609,6 +622,7 @@ export default function DashboardPage() {
               courseReqs[a.id]  = (a as any).course_request      ?? ''
               anon[a.id]        = a.is_anonymous        ?? false
               existingImgs[a.id] = a.image_urls          ?? []
+              existingVids[a.id] = (a as unknown as AssignmentRecord).video_url ?? ''
               xCons[a.id]       = (a as any).x_consent !== false
               xUsers[a.id]      = (a as any).x_username ?? ''
               thumbs[a.id]      = a.thumbnail_url        ?? ''
@@ -622,6 +636,7 @@ export default function DashboardPage() {
             setCourseRequests(courseReqs)
             setIsAnonymous(anon)
             setExistingImageUrls(existingImgs)
+            setExistingVideoUrls(existingVids)
             setThumbPreviews(thumbs)
             setXConsent(xCons)
             setXUsernames(xUsers)
@@ -799,7 +814,7 @@ export default function DashboardPage() {
         .from('task_assignments')
         .select(`
           id, user_id, is_anonymous, thumbnail_url,
-          self_evaluation, retrospective, submission_comment, media_url, image_urls, submitted_at,
+          self_evaluation, retrospective, submission_comment, media_url, video_url, image_urls, submitted_at,
           hidden_in_timeline, force_past_timeline, force_current_timeline,
           task:tasks!inner(id, title, target_course, target_stage, created_at)
         `, { count: 'exact' })
@@ -883,7 +898,7 @@ export default function DashboardPage() {
     const { data } = await supabase.from('task_assignments')
       .select(`
         id, status, plan_text, midterm_progress, midterm_correction,
-        media_url, image_urls, self_evaluation, retrospective, submitted_at,
+        media_url, video_url, image_urls, self_evaluation, retrospective, submitted_at,
         is_anonymous, thumbnail_url, created_at, deadline_at, course_request,
         resubmit_requested, previous_submission,
         task:tasks(id, title, description, description_is_markdown, target_course, target_stage, allow_image_attachment)
@@ -1003,19 +1018,44 @@ export default function DashboardPage() {
       setUploadingImages(prev => ({ ...prev, [assignmentId]: false }))
     }
 
+    // 動画アップロード（1本、30MBまで。可能ならブラウザ上で圧縮してから保存）
+    let videoUrl: string | null = existingVideoUrls[assignmentId] || null
+    const vidFile = videoFiles[assignmentId]
+    if (vidFile && userId) {
+      setUploadingVideo(prev => ({ ...prev, [assignmentId]: true }))
+      const compressedVid = await compressVideo(vidFile, ratio =>
+        setVideoCompressProgress(prev => ({ ...prev, [assignmentId]: ratio }))
+      )
+      setVideoCompressProgress(prev => ({ ...prev, [assignmentId]: null }))
+      const vExt = compressedVid.name.split('.').pop()?.toLowerCase() ?? 'mp4'
+      const vPath = `videos/${userId}/${assignmentId}.${vExt}`
+      const { data: vData, error: vErr } = await supabase.storage
+        .from('media')
+        .upload(vPath, compressedVid, { upsert: true })
+      setUploadingVideo(prev => ({ ...prev, [assignmentId]: false }))
+      if (!vErr && vData) {
+        const { data: vUrlData } = supabase.storage.from('media').getPublicUrl(vData.path)
+        videoUrl = vUrlData.publicUrl
+      }
+    }
+
     const mergedImageUrls = [...(existingImageUrls[assignmentId] ?? []), ...uploadedImageUrls]
     return {
       // 新規ファイルがなければ、現在表示中のサムネイル（既存 or 削除済みなら空）を維持する
       thumbUrl: thumbUrl ?? (thumbPreviews[assignmentId] || null),
       imageUrls: mergedImageUrls.length > 0 ? mergedImageUrls : null,
+      videoUrl,
     }
   }
 
   // アップロード済みの新規ファイルを「既存」に移し、再アップロードされないようにする
-  function commitUploadedMedia(assignmentId: string, thumbUrl: string | null, imageUrls: string[] | null) {
+  function commitUploadedMedia(assignmentId: string, thumbUrl: string | null, imageUrls: string[] | null, videoUrl: string | null) {
     setExistingImageUrls(prev => ({ ...prev, [assignmentId]: imageUrls ?? [] }))
     setImageFiles(prev => ({ ...prev, [assignmentId]: [] }))
     setImagePreviews(prev => ({ ...prev, [assignmentId]: [] }))
+    setExistingVideoUrls(prev => ({ ...prev, [assignmentId]: videoUrl ?? '' }))
+    setVideoFiles(prev => ({ ...prev, [assignmentId]: null }))
+    setVideoPreviews(prev => ({ ...prev, [assignmentId]: '' }))
     setThumbnailFiles(prev => ({ ...prev, [assignmentId]: null }))
     setThumbPreviews(prev => ({ ...prev, [assignmentId]: thumbUrl ?? '' }))
   }
@@ -1025,11 +1065,12 @@ export default function DashboardPage() {
     setDraftSuccess(prev => ({ ...prev, [assignmentId]: false }))
     setSubmitError(prev => ({ ...prev, [assignmentId]: '' }))
 
-    const { thumbUrl, imageUrls } = await uploadFinalMedia(assignmentId)
+    const { thumbUrl, imageUrls, videoUrl } = await uploadFinalMedia(assignmentId)
     const now = new Date().toISOString()
 
     const { error } = await supabase.from('task_assignments').update({
       image_urls:          imageUrls,
+      video_url:           videoUrl,
       submission_comment:  submissionComments[assignmentId] ?? '',
       self_evaluation:     selfEvals[assignmentId]   ?? '',
       retrospective:       retros[assignmentId]      ?? '',
@@ -1048,9 +1089,9 @@ export default function DashboardPage() {
       return
     }
     setDraftSuccess(prev => ({ ...prev, [assignmentId]: true }))
-    commitUploadedMedia(assignmentId, thumbUrl, imageUrls)
+    commitUploadedMedia(assignmentId, thumbUrl, imageUrls, videoUrl)
     setAssignments(prev => prev.map(a =>
-      a.id === assignmentId ? { ...a, thumbnail_url: thumbUrl, image_urls: imageUrls } : a
+      a.id === assignmentId ? { ...a, thumbnail_url: thumbUrl, image_urls: imageUrls, video_url: videoUrl } : a
     ))
   }
 
@@ -1076,10 +1117,11 @@ export default function DashboardPage() {
 
     const now = new Date().toISOString()
 
-    const { thumbUrl, imageUrls: uploadedImageUrls } = await uploadFinalMedia(assignmentId)
+    const { thumbUrl, imageUrls: uploadedImageUrls, videoUrl } = await uploadFinalMedia(assignmentId)
 
     const { error } = await supabase.from('task_assignments').update({
       image_urls:         uploadedImageUrls,
+      video_url:          videoUrl,
       submission_comment: submissionComments[assignmentId] ?? '',
       self_evaluation:    selfEvals[assignmentId]   ?? '',
       retrospective:      retros[assignmentId]      ?? '',
@@ -1106,13 +1148,14 @@ export default function DashboardPage() {
     }
     if (!error) {
       setSubmitSuccess(prev => ({ ...prev, [assignmentId]: true }))
-      commitUploadedMedia(assignmentId, thumbUrl, uploadedImageUrls)
+      commitUploadedMedia(assignmentId, thumbUrl, uploadedImageUrls, videoUrl)
       setAssignments(prev => prev.map(a =>
         a.id === assignmentId
           ? { ...a, status: 'submitted', submitted_at: now,
               is_anonymous: isAnonymous[assignmentId] ?? false,
               thumbnail_url: thumbUrl,
-              image_urls: uploadedImageUrls }
+              image_urls: uploadedImageUrls,
+              video_url: videoUrl }
           : a
       ))
       // タイムラインはビューを開くたびに再取得されるため明示的なリセットは不要
@@ -1127,6 +1170,16 @@ export default function DashboardPage() {
         }
       }
     }
+  }
+
+  function handleVideoChange(assignmentId: string, file: File | null) {
+    if (file && file.size > MAX_VIDEO_BYTES) {
+      setVideoErrors(prev => ({ ...prev, [assignmentId]: '動画は30MB以下にしてください' }))
+      return
+    }
+    setVideoErrors(prev => ({ ...prev, [assignmentId]: '' }))
+    setVideoFiles(prev => ({ ...prev, [assignmentId]: file }))
+    setVideoPreviews(prev => ({ ...prev, [assignmentId]: file ? URL.createObjectURL(file) : '' }))
   }
 
   function handleThumbnailChange(assignmentId: string, file: File | null) {
@@ -2043,6 +2096,12 @@ export default function DashboardPage() {
                                       <p style={{ background: '#fff3e0', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#333', whiteSpace: 'pre-wrap' }}>{prev.retrospective}</p>
                                     </div>
                                   )}
+                                  {prev.video_url && (
+                                    <div>
+                                      <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>提出動画</p>
+                                      <video src={prev.video_url} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 160, borderRadius: 6, background: '#000', display: 'block' }} />
+                                    </div>
+                                  )}
                                   {prev.image_urls && prev.image_urls.length > 0 && (
                                     <div>
                                       <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>提出画像</p>
@@ -2072,6 +2131,56 @@ export default function DashboardPage() {
                           {sec.final && (
                             <div style={{ padding: '12px 20px 16px', borderTop: '1px solid #e8ffd4', display: 'flex', flexDirection: 'column', gap: 14 }}>
                               {assignment.task.allow_image_attachment !== false && (
+                                <>
+                                <div>
+                                  <label className="game-label">動画（1本まで・任意）</label>
+                                  <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>制作物のプレイ動画などを1本添付できます</p>
+                                  {existingVideoUrls[assignment.id] ? (
+                                    <div style={{ position: 'relative', marginBottom: 8, borderRadius: 12, overflow: 'hidden', border: '2px solid #c8e89a' }}>
+                                      <video src={existingVideoUrls[assignment.id]} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 220, display: 'block', background: '#000' }} />
+                                      <button
+                                        type="button"
+                                        onClick={() => setExistingVideoUrls(prev => ({ ...prev, [assignment.id]: '' }))}
+                                        style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(220,0,0,0.9)', color: 'white', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, lineHeight: '1' }}
+                                      >🗑</button>
+                                    </div>
+                                  ) : videoPreviews[assignment.id] ? (
+                                    <div style={{ position: 'relative', marginBottom: 8, borderRadius: 12, overflow: 'hidden', border: '2px solid #c8e89a' }}>
+                                      <video src={videoPreviews[assignment.id]} controls playsInline style={{ width: '100%', maxHeight: 220, display: 'block', background: '#000' }} />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleVideoChange(assignment.id, null)}
+                                        style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(220,0,0,0.9)', color: 'white', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, lineHeight: '1' }}
+                                      >🗑</button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <input
+                                        type="file"
+                                        accept="video/*"
+                                        id={`video-add-${assignment.id}`}
+                                        style={{ display: 'none' }}
+                                        onChange={e => {
+                                          handleVideoChange(assignment.id, e.target.files?.[0] ?? null)
+                                          e.target.value = ''
+                                        }}
+                                      />
+                                      <label
+                                        htmlFor={`video-add-${assignment.id}`}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 120, border: '2px dashed #c8e89a', borderRadius: 12, cursor: 'pointer', background: '#f5fff0', fontSize: 32, color: '#6aac14', marginBottom: 8 }}
+                                      >▶</label>
+                                    </>
+                                  )}
+                                  <p style={{ color: '#888', fontSize: 12, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={12}/>1本あたり30MBまで（mp4・webm・movなど）。アップロード時に自動で圧縮されます</p>
+                                  {videoErrors[assignment.id] && <p style={{ color: '#e00', fontSize: 12, marginTop: 2 }}>{videoErrors[assignment.id]}</p>}
+                                  {uploadingVideo[assignment.id] && (
+                                    <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>
+                                      {videoCompressProgress[assignment.id] != null
+                                        ? `動画を圧縮中... ${Math.round((videoCompressProgress[assignment.id] ?? 0) * 100)}%`
+                                        : '動画アップロード中...'}
+                                    </p>
+                                  )}
+                                </div>
                                 <div>
                                   <label className="game-label">画像（最大5枚）</label>
                                   <p style={{ color: '#888', fontSize: 12, marginBottom: 8 }}>制作物のスクリーンショットや完成画像を添付してください</p>
@@ -2127,6 +2236,7 @@ export default function DashboardPage() {
                                   <p style={{ color: '#888', fontSize: 12, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={12}/>1枚あたり10MBまで（jpg・png・gif・webp）</p>
                                   {uploadingImages[assignment.id] && <p style={{ color: '#6aac14', fontSize: 13, marginTop: 4 }}>画像アップロード中...</p>}
                                 </div>
+                                </>
                               )}
                               <div>
                                 <label className="game-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><ClipboardList size={13}/>提出物を記載<span style={{ color: '#e00', marginLeft: 2 }}>*</span></label>
@@ -2472,6 +2582,13 @@ export default function DashboardPage() {
                             )}
                           </div>
                         )}
+                        {a.video_url && (
+                          <div>
+                            <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Film size={13}/>提出動画</p>
+                            <video src={a.video_url} controls playsInline preload="metadata"
+                              style={{ width: '100%', maxHeight: 260, borderRadius: 8, background: '#000', display: 'block', border: '2px solid #c8e89a' }} />
+                          </div>
+                        )}
                         {a.image_urls && a.image_urls.length > 0 && (
                           <div>
                             <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Image size={13}/>提出画像</p>
@@ -2485,7 +2602,7 @@ export default function DashboardPage() {
                             </div>
                           </div>
                         )}
-                        {(!a.image_urls || a.image_urls.length === 0) && a.media_url && (
+                        {(!a.image_urls || a.image_urls.length === 0) && !a.video_url && a.media_url && (
                           <div>
                             <p className="game-label" style={{ marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}><Film size={13}/>提出URL（旧形式）</p>
                             <a href={a.media_url} target="_blank" rel="noopener noreferrer"
@@ -2556,6 +2673,9 @@ export default function DashboardPage() {
                                       <p style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold', marginBottom: 4 }}>計画の振り返り</p>
                                       <p style={{ ...textBlockStyle, background: '#fff3e0' }}>{prev.retrospective}</p>
                                     </div>
+                                  )}
+                                  {prev.video_url && (
+                                    <video src={prev.video_url} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 160, borderRadius: 6, background: '#000', display: 'block', border: '2px solid #ffe0b2' }} />
                                   )}
                                   {prev.image_urls && prev.image_urls.length > 0 && (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -2789,6 +2909,13 @@ export default function DashboardPage() {
 
               <hr style={{ border: 'none', borderTop: '2px dashed #c8e89a', margin: '12px 0' }} />
 
+              {selectedPost.video_url && (
+                <div style={{ marginBottom: 14 }}>
+                  <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Film size={13}/>提出動画</p>
+                  <video src={selectedPost.video_url} controls playsInline preload="metadata"
+                    style={{ width: '100%', maxHeight: 280, borderRadius: 8, background: '#000', display: 'block', border: '2px solid #c8e89a' }} />
+                </div>
+              )}
               {selectedPost.image_urls && selectedPost.image_urls.length > 0 && (
                 <div style={{ marginBottom: 14 }}>
                   <p className="game-label" style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}><Image size={13}/>提出画像</p>
@@ -2802,7 +2929,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
-              {(!selectedPost.image_urls || selectedPost.image_urls.length === 0) && selectedPost.media_url && (() => {
+              {(!selectedPost.image_urls || selectedPost.image_urls.length === 0) && !selectedPost.video_url && selectedPost.media_url && (() => {
                 const mediaType = detectMediaType(selectedPost.media_url!)
                 const embedUrl  = getYoutubeEmbedUrl(selectedPost.media_url!)
                 return (

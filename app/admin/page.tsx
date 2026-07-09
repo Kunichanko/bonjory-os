@@ -331,6 +331,7 @@ export default function AdminPage() {
     setRequestingResubmit(prev => ({ ...prev, [a.id]: true }))
     const snapshot = {
       image_urls: (a as any).image_urls ?? null,
+      video_url: (a as unknown as { video_url?: string | null }).video_url ?? null,
       submission_comment: (a as any).submission_comment ?? null,
       self_evaluation: (a as any).self_evaluation ?? null,
       retrospective: (a as any).retrospective ?? null,
