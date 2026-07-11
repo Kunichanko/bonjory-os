@@ -816,8 +816,8 @@ export default function DashboardPage() {
         return null
       }
 
-      // プロフィールは取得したページの投稿者分のみ
-      const userIds = [...new Set((tlData ?? []).map(a => a.user_id))]
+      // プロフィールは取得したページの投稿者分のみ（匿名投稿者の情報はクライアントに載せない）
+      const userIds = [...new Set((tlData ?? []).filter(a => !a.is_anonymous).map(a => a.user_id))]
       const profileMap: Record<string, { username: string | null; course: string | null; stage: string | null }> = {}
       if (userIds.length > 0) {
         const { data: profilesData } = await supabase
@@ -831,7 +831,7 @@ export default function DashboardPage() {
 
       const items: TimelineItem[] = (tlData ?? []).map(a => ({
         ...(a as unknown as Omit<TimelineItem, 'profile'>),
-        profile: profileMap[a.user_id] ?? null,
+        profile: a.is_anonymous ? null : (profileMap[a.user_id] ?? null),
       }))
       return { items, total: count ?? 0 }
     } catch (err) {
@@ -883,8 +883,9 @@ export default function DashboardPage() {
     const { data } = await supabase.from('task_assignments')
       .select(`
         id, status, plan_text, midterm_progress, midterm_correction,
-        media_url, image_urls, self_evaluation, retrospective, submitted_at,
+        media_url, image_urls, submission_comment, self_evaluation, retrospective, submitted_at,
         is_anonymous, thumbnail_url, created_at, deadline_at, course_request,
+        x_consent, x_username,
         resubmit_requested, previous_submission,
         task:tasks(id, title, description, description_is_markdown, target_course, target_stage, allow_image_attachment)
       `)
@@ -970,16 +971,18 @@ export default function DashboardPage() {
     const thumbFile = thumbnailFiles[assignmentId]
     if (thumbFile && userId) {
       setUploadingThumb(prev => ({ ...prev, [assignmentId]: true }))
-      const compressedThumb = await compressImage(thumbFile, { maxDimension: 600, quality: 0.8 })
-      const ext = compressedThumb.name.split('.').pop() ?? 'jpg'
-      const path = `${userId}/${assignmentId}.${ext}`
-      const { data: upData, error: upErr } = await supabase.storage
-        .from('thumbnails')
-        .upload(path, compressedThumb, { upsert: true })
-      setUploadingThumb(prev => ({ ...prev, [assignmentId]: false }))
-      if (!upErr && upData) {
+      try {
+        const compressedThumb = await compressImage(thumbFile, { maxDimension: 600, quality: 0.8 })
+        const ext = compressedThumb.name.split('.').pop() ?? 'jpg'
+        const path = `${userId}/${assignmentId}.${ext}`
+        const { data: upData, error: upErr } = await supabase.storage
+          .from('thumbnails')
+          .upload(path, compressedThumb, { upsert: true })
+        if (upErr || !upData) throw new Error(`サムネイルのアップロードに失敗しました（${upErr?.message ?? '不明なエラー'}）`)
         const { data: urlData } = supabase.storage.from('thumbnails').getPublicUrl(upData.path)
         thumbUrl = urlData.publicUrl
+      } finally {
+        setUploadingThumb(prev => ({ ...prev, [assignmentId]: false }))
       }
     }
 
@@ -988,25 +991,34 @@ export default function DashboardPage() {
     const imgFiles = imageFiles[assignmentId] ?? []
     if (imgFiles.length > 0 && userId) {
       setUploadingImages(prev => ({ ...prev, [assignmentId]: true }))
-      for (let i = 0; i < imgFiles.length; i++) {
-        const compressedImg = await compressImage(imgFiles[i], { maxDimension: 1600, quality: 0.8 })
-        const ext = compressedImg.name.split('.').pop() ?? 'jpg'
-        const iPath = `images/${userId}/${assignmentId}/${i}.${ext}`
-        const { data: iData, error: iErr } = await supabase.storage
-          .from('media')
-          .upload(iPath, compressedImg, { upsert: true })
-        if (!iErr && iData) {
+      try {
+        for (let i = 0; i < imgFiles.length; i++) {
+          const compressedImg = await compressImage(imgFiles[i], { maxDimension: 1600, quality: 0.8 })
+          const ext = compressedImg.name.split('.').pop() ?? 'jpg'
+          // 保存済み画像を上書きしないよう、アップロードごとに一意なファイル名を使う
+          const iPath = `images/${userId}/${assignmentId}/${Date.now()}-${i}.${ext}`
+          const { data: iData, error: iErr } = await supabase.storage
+            .from('media')
+            .upload(iPath, compressedImg)
+          if (iErr || !iData) throw new Error(`画像（${i + 1}枚目）のアップロードに失敗しました（${iErr?.message ?? '不明なエラー'}）`)
           const { data: iUrlData } = supabase.storage.from('media').getPublicUrl(iData.path)
           uploadedImageUrls.push(iUrlData.publicUrl)
         }
+      } finally {
+        setUploadingImages(prev => ({ ...prev, [assignmentId]: false }))
       }
-      setUploadingImages(prev => ({ ...prev, [assignmentId]: false }))
     }
+
+    // 新規ファイルがなければ、現在表示中のサムネイル（既存 or 削除済みなら空）を維持する。
+    // blob: URL はこのブラウザ内でしか有効でないため、DBには保存せず既存のサムネイルを維持する
+    const preview = thumbPreviews[assignmentId] || ''
+    const fallbackThumb = preview.startsWith('blob:')
+      ? (assignments.find(a => a.id === assignmentId)?.thumbnail_url ?? null)
+      : (preview || null)
 
     const mergedImageUrls = [...(existingImageUrls[assignmentId] ?? []), ...uploadedImageUrls]
     return {
-      // 新規ファイルがなければ、現在表示中のサムネイル（既存 or 削除済みなら空）を維持する
-      thumbUrl: thumbUrl ?? (thumbPreviews[assignmentId] || null),
+      thumbUrl: thumbUrl ?? fallbackThumb,
       imageUrls: mergedImageUrls.length > 0 ? mergedImageUrls : null,
     }
   }
@@ -1025,33 +1037,39 @@ export default function DashboardPage() {
     setDraftSuccess(prev => ({ ...prev, [assignmentId]: false }))
     setSubmitError(prev => ({ ...prev, [assignmentId]: '' }))
 
-    const { thumbUrl, imageUrls } = await uploadFinalMedia(assignmentId)
-    const now = new Date().toISOString()
+    try {
+      const { thumbUrl, imageUrls } = await uploadFinalMedia(assignmentId)
+      const now = new Date().toISOString()
 
-    const { error } = await supabase.from('task_assignments').update({
-      image_urls:          imageUrls,
-      submission_comment:  submissionComments[assignmentId] ?? '',
-      self_evaluation:     selfEvals[assignmentId]   ?? '',
-      retrospective:       retros[assignmentId]      ?? '',
-      course_request:      courseRequests[assignmentId] ?? '',
-      is_anonymous:         isAnonymous[assignmentId] ?? false,
-      x_consent:            xConsent[assignmentId] !== false,
-      x_username:           xConsent[assignmentId] !== false ? (xUsernames[assignmentId] ?? '') : '',
-      thumbnail_url:        thumbUrl,
-      updated_at:           now,
-    }).eq('id', assignmentId)
+      const { error } = await supabase.from('task_assignments').update({
+        image_urls:          imageUrls,
+        submission_comment:  submissionComments[assignmentId] ?? '',
+        self_evaluation:     selfEvals[assignmentId]   ?? '',
+        retrospective:       retros[assignmentId]      ?? '',
+        course_request:      courseRequests[assignmentId] ?? '',
+        is_anonymous:         isAnonymous[assignmentId] ?? false,
+        x_consent:            xConsent[assignmentId] !== false,
+        x_username:           xConsent[assignmentId] !== false ? (xUsernames[assignmentId] ?? '') : '',
+        thumbnail_url:        thumbUrl,
+        updated_at:           now,
+      }).eq('id', assignmentId)
 
-    setSavingDraft(prev => ({ ...prev, [assignmentId]: false }))
-    if (error) {
-      const msg = (error as any)?.message ?? JSON.stringify(error)
+      if (error) {
+        const msg = (error as any)?.message ?? JSON.stringify(error)
+        setSubmitError(prev => ({ ...prev, [assignmentId]: `一時保存に失敗しました: ${msg}` }))
+        return
+      }
+      setDraftSuccess(prev => ({ ...prev, [assignmentId]: true }))
+      commitUploadedMedia(assignmentId, thumbUrl, imageUrls)
+      setAssignments(prev => prev.map(a =>
+        a.id === assignmentId ? { ...a, thumbnail_url: thumbUrl, image_urls: imageUrls } : a
+      ))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
       setSubmitError(prev => ({ ...prev, [assignmentId]: `一時保存に失敗しました: ${msg}` }))
-      return
+    } finally {
+      setSavingDraft(prev => ({ ...prev, [assignmentId]: false }))
     }
-    setDraftSuccess(prev => ({ ...prev, [assignmentId]: true }))
-    commitUploadedMedia(assignmentId, thumbUrl, imageUrls)
-    setAssignments(prev => prev.map(a =>
-      a.id === assignmentId ? { ...a, thumbnail_url: thumbUrl, image_urls: imageUrls } : a
-    ))
   }
 
   async function submitWork(assignmentId: string) {
@@ -1074,37 +1092,36 @@ export default function DashboardPage() {
     setSubmitSuccess(prev => ({ ...prev, [assignmentId]: false }))
     setSubmitError(prev => ({ ...prev, [assignmentId]: '' }))
 
-    const now = new Date().toISOString()
+    try {
+      const now = new Date().toISOString()
 
-    const { thumbUrl, imageUrls: uploadedImageUrls } = await uploadFinalMedia(assignmentId)
+      const { thumbUrl, imageUrls: uploadedImageUrls } = await uploadFinalMedia(assignmentId)
 
-    const { error } = await supabase.from('task_assignments').update({
-      image_urls:         uploadedImageUrls,
-      submission_comment: submissionComments[assignmentId] ?? '',
-      self_evaluation:    selfEvals[assignmentId]   ?? '',
-      retrospective:      retros[assignmentId]      ?? '',
-      course_request:     courseRequests[assignmentId] ?? '',
-      is_anonymous:        isAnonymous[assignmentId] ?? false,
-      x_consent:           xConsent[assignmentId] !== false,
-      x_username:          xConsent[assignmentId] !== false ? (xUsernames[assignmentId] ?? '') : '',
-      thumbnail_url:       thumbUrl,
-      status:              'submitted',
-      submitted_at:        now,
-      updated_at:          now,
-      resubmit_requested:  false,
-    }).eq('id', assignmentId)
+      const { error } = await supabase.from('task_assignments').update({
+        image_urls:         uploadedImageUrls,
+        submission_comment: submissionComments[assignmentId] ?? '',
+        self_evaluation:    selfEvals[assignmentId]   ?? '',
+        retrospective:      retros[assignmentId]      ?? '',
+        course_request:     courseRequests[assignmentId] ?? '',
+        is_anonymous:        isAnonymous[assignmentId] ?? false,
+        x_consent:           xConsent[assignmentId] !== false,
+        x_username:          xConsent[assignmentId] !== false ? (xUsernames[assignmentId] ?? '') : '',
+        thumbnail_url:       thumbUrl,
+        status:              'submitted',
+        submitted_at:        now,
+        updated_at:          now,
+        resubmit_requested:  false,
+      }).eq('id', assignmentId)
 
-    setSubmitting(prev => ({ ...prev, [assignmentId]: false }))
-    if (error) {
-      const msg = (error as any)?.message ?? JSON.stringify(error)
-      if (msg.includes('JWT') || msg.includes('token') || msg.includes('session')) {
-        setSubmitError(prev => ({ ...prev, [assignmentId]: 'セッションが切れています。ページを再読み込みしてください。' }))
-      } else {
-        setSubmitError(prev => ({ ...prev, [assignmentId]: `提出に失敗しました: ${msg}` }))
+      if (error) {
+        const msg = (error as any)?.message ?? JSON.stringify(error)
+        if (msg.includes('JWT') || msg.includes('token') || msg.includes('session')) {
+          setSubmitError(prev => ({ ...prev, [assignmentId]: 'セッションが切れています。ページを再読み込みしてください。' }))
+        } else {
+          setSubmitError(prev => ({ ...prev, [assignmentId]: `提出に失敗しました: ${msg}` }))
+        }
+        return
       }
-      return
-    }
-    if (!error) {
       setSubmitSuccess(prev => ({ ...prev, [assignmentId]: true }))
       commitUploadedMedia(assignmentId, thumbUrl, uploadedImageUrls)
       setAssignments(prev => prev.map(a =>
@@ -1126,6 +1143,11 @@ export default function DashboardPage() {
           setCoolPoints(p => p + pts)
         }
       }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setSubmitError(prev => ({ ...prev, [assignmentId]: `提出に失敗しました: ${msg}` }))
+    } finally {
+      setSubmitting(prev => ({ ...prev, [assignmentId]: false }))
     }
   }
 

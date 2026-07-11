@@ -13,7 +13,7 @@ export function compressImage(
   file: File,
   { maxDimension, quality = 0.8 }: { maxDimension: number; quality?: number },
 ): Promise<File> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const img = new window.Image()
     const objectUrl = URL.createObjectURL(file)
 
@@ -57,7 +57,8 @@ export function compressImage(
 
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl)
-      reject(new Error('image load failed'))
+      // デコードできない画像（破損・HEIC等）は圧縮せず元ファイルのままアップロードする
+      resolve(file)
     }
 
     img.src = objectUrl
