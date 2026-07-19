@@ -79,7 +79,7 @@ export default function AdminPositionsPage() {
       course_management: false, task_management: false,
       point_settings: false, submission_review: false, finance: false,
       timeline_management: false, dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
-      dev_management: false, news_management: false, debug: false, ticket_admin: false, sns_management: false,
+      dev_management: false, news_management: false, debug: false, ticket_admin: false, sns_management: false, stats_management: false,
     }
     const { data, error: insErr } = await supabase
       .from('positions')

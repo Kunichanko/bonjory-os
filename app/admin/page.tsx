@@ -116,7 +116,7 @@ export default function AdminPage() {
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, gimmick_management: false,
     dev_management: false,
-    news_management: false, ticket_admin: false, debug: false, sns_management: false,
+    news_management: false, ticket_admin: false, debug: false, sns_management: false, stats_management: false,
   })
 
   const sortedProfiles = useMemo(() => {

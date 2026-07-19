@@ -6,6 +6,7 @@ import supabase from '../../lib/supabase'
 import { compressImage } from '../../lib/imageCompress'
 import { marked } from 'marked'
 import { FEATURE_LIST, PermissionKey, getEffectivePermissions } from '../../lib/permissions'
+import { startSession, track, stopSession } from '../../lib/activityTracker'
 import SlimeIcon from '../components/SlimeIcon'
 import { AnimatePresence, motion } from 'framer-motion'
 import dynamic from 'next/dynamic'
@@ -336,6 +337,7 @@ export default function DashboardPage() {
     point_settings: false, submission_review: false, finance: false, timeline_management: false,
     dm_management: false, announcement_management: false, assignment_management: false, gimmick_management: false,
     dev_management: false, news_management: false, debug: false, ticket_admin: false, sns_management: false,
+    stats_management: false,
   })
 
   // チケット
@@ -547,6 +549,7 @@ export default function DashboardPage() {
       setCoolPoints(profile?.cool_points ?? 0)
       setUserRole(profile?.role ?? null)
       setRankSettings(ranksRes.data ?? [])
+      startSession(uid, profile?.username ?? null)
       return uid
     }
 
@@ -864,6 +867,7 @@ export default function DashboardPage() {
     if (timelineLoadingMore) return
     const remaining = timelineTotalCount - timeline.length
     if (remaining <= 0) return
+    track(fetchAll ? 'ボタン すべて表示' : 'ボタン さらに表示')
     setTimelineLoadingMore(true)
     const res = await fetchTimelinePage(timeline.length, fetchAll ? remaining : TIMELINE_PAGE_SIZE)
     if (res) {
@@ -917,6 +921,7 @@ export default function DashboardPage() {
   }
 
   async function savePlan(assignmentId: string) {
+    track('ボタン 計画を保存')
     setSavingPlan(prev => ({ ...prev, [assignmentId]: true }))
     setPlanSuccess(prev => ({ ...prev, [assignmentId]: false }))
 
@@ -937,6 +942,7 @@ export default function DashboardPage() {
   }
 
   async function saveMidterm(assignmentId: string) {
+    track('ボタン 中間報告を保存')
     const wasEmpty = !assignments.find(a => a.id === assignmentId)?.midterm_progress
     const newProgress = midtermProgress[assignmentId] ?? ''
 
@@ -1021,6 +1027,7 @@ export default function DashboardPage() {
   }
 
   async function saveDraftFinal(assignmentId: string) {
+    track('ボタン 最終提出 下書き保存')
     setSavingDraft(prev => ({ ...prev, [assignmentId]: true }))
     setDraftSuccess(prev => ({ ...prev, [assignmentId]: false }))
     setSubmitError(prev => ({ ...prev, [assignmentId]: '' }))
@@ -1055,6 +1062,7 @@ export default function DashboardPage() {
   }
 
   async function submitWork(assignmentId: string) {
+    track('ボタン 課題を提出')
     // バリデーション
     const fieldErrors = {
       comment:  !(submissionComments[assignmentId] ?? '').trim(),
@@ -1167,6 +1175,7 @@ export default function DashboardPage() {
     const content = (commentInputs[assignmentId] ?? '').trim()
     if (!content || !userId) return
 
+    track('ボタン コメントを投稿')
     setPostingComment(prev => ({ ...prev, [assignmentId]: true }))
 
     // コメントポイント付与可否チェック（他人投稿・初コメント・日次上限）
@@ -1208,6 +1217,7 @@ export default function DashboardPage() {
   }
 
   function navigate(viewId: ViewId) {
+    track('ボタン ' + (NAV_ITEMS.find(n => n.id === viewId)?.label ?? viewId))
     setCurrentView(viewId)
     setSidebarOpen(false)
   }
@@ -1447,7 +1457,7 @@ export default function DashboardPage() {
           </a>
         </div>
         <div style={{ padding: '0 20px 16px' }}>
-          <button onClick={async () => { await supabase.auth.signOut(); sessionStorage.setItem('dev_auto_login_disabled', '1'); router.push('/login') }}
+          <button onClick={async () => { track('ボタン ログアウト'); stopSession(); await supabase.auth.signOut(); sessionStorage.setItem('dev_auto_login_disabled', '1'); router.push('/login') }}
             style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none', cursor: 'pointer', color: '#a8d870', fontSize: 14, padding: '8px 0' }}>
             <LogOut size={16}/> ログアウト
           </button>
@@ -1458,7 +1468,7 @@ export default function DashboardPage() {
       <div style={{ padding: '24px 24px 40px' }}>
         {/* ハンバーガーボタン */}
         <div style={{ position: 'fixed', top: 16, left: 16, zIndex: 99, display: 'inline-block' }}>
-          <button onClick={() => setSidebarOpen(true)} className="hud-glass-btn">
+          <button onClick={() => { track('ボタン サイドバーを開く'); setSidebarOpen(true) }} className="hud-glass-btn">
             <Menu size={20}/>
           </button>
           {(dmUnreadCount > 0 || dmManageUnreadCount > 0) && (
@@ -1478,6 +1488,7 @@ export default function DashboardPage() {
               const opening = !notifOpen
               setNotifOpen(opening)
               if (opening) {
+                track('ボタン お知らせベルを開く')
                 if (!notifLoaded) loadNotifLogs()
                 localStorage.setItem('notif_last_opened', new Date().toISOString())
                 setNotifUnread(0)
@@ -1658,7 +1669,7 @@ export default function DashboardPage() {
             </div>
             {/* つまみ */}
             <button
-              onClick={() => setRankOpen(o => !o)}
+              onClick={() => { track(rankOpen ? 'ボタン ランク表示を閉じる' : 'ボタン ランク表示を開く'); setRankOpen(o => !o) }}
               style={{
                 background: '#1a3a00',
                 border: `3px solid ${currentRank.color}`,
@@ -1765,7 +1776,7 @@ export default function DashboardPage() {
           {/* ── ビュー切り替えタブ ───────────────────────── */}
           <div style={{ display: 'flex', gap: 4, background: '#1a3a00', borderRadius: 12, padding: 4 }}>
             {NAV_ITEMS.map(item => (
-              <button key={item.id} onClick={() => setCurrentView(item.id)} style={{
+              <button key={item.id} onClick={() => navigate(item.id)} style={{
                 flex: 1, padding: '9px 0', borderRadius: 9,
                 border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 'bold',
                 background: 'none', position: 'relative',
@@ -1880,18 +1891,24 @@ export default function DashboardPage() {
                 const si = STATUS_INFO[assignment.status]
                 const parentOpen = taskParentOpen[assignment.id] ?? false
                 const sec = taskSectionOpen[assignment.id] ?? { detail: false, plan: false, midterm: false, final: false }
-                const toggleSec = (key: 'detail' | 'plan' | 'midterm' | 'final') =>
+                const toggleSec = (key: 'detail' | 'plan' | 'midterm' | 'final') => {
+                  const secLabels = { detail: '課題詳細', plan: '制作計画', midterm: '中間報告', final: '最終提出' }
+                  track(`課題セクション ${secLabels[key]} ${sec[key] ? '閉じる' : '展開'}`)
                   setTaskSectionOpen(prev => {
                     const cur = prev[assignment.id] ?? { detail: false, plan: false, midterm: false, final: false }
                     return { ...prev, [assignment.id]: { ...cur, [key]: !cur[key] } }
                   })
+                }
 
                 return (
                   <div key={assignment.id} className="game-card" style={{ padding: 0, overflow: 'hidden' }}>
 
                     {/* ── 親ヘッダー */}
                     <div
-                      onClick={() => setTaskParentOpen(prev => ({ ...prev, [assignment.id]: !parentOpen }))}
+                      onClick={() => {
+                        track(`課題内容 アコーディオン${assignment.task.title}${parentOpen ? '閉じる' : '展開'}`)
+                        setTaskParentOpen(prev => ({ ...prev, [assignment.id]: !parentOpen }))
+                      }}
                       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', cursor: 'pointer', userSelect: 'none' }}
                     >
                       <span style={{ fontSize: 13, color: '#6aac14', flexShrink: 0, display: 'inline-block', transform: parentOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>▶</span>
@@ -2409,7 +2426,10 @@ export default function DashboardPage() {
                 return (
                   <div key={a.id} className="game-card" style={{ padding: '20px 28px' }}>
                     <button
-                      onClick={() => setExpandedHistory(prev => ({ ...prev, [a.id]: !isOpen }))}
+                      onClick={() => {
+                        track(`過去の課題 アコーディオン${a.task.title}${isOpen ? '閉じる' : '展開'}`)
+                        setExpandedHistory(prev => ({ ...prev, [a.id]: !isOpen }))
+                      }}
                       style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         width: '100%', background: 'none', border: 'none', cursor: 'pointer',
@@ -2611,7 +2631,7 @@ export default function DashboardPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => setTimelineViewMode(m => m === 'grid' ? 'list' : 'grid')}
+                      onClick={() => { track('ボタン タイムライン表示切替'); setTimelineViewMode(m => m === 'grid' ? 'list' : 'grid') }}
                       style={{
                         marginLeft: 'auto', padding: '4px 10px', borderRadius: 8,
                         border: '2px solid #3d6e00', background: 'none',
@@ -2639,7 +2659,7 @@ export default function DashboardPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                     {timeline.map(item => (
                       <button key={item.id}
-                        onClick={() => { setSelectedPost(item); loadComments(item.id) }}
+                        onClick={() => { track(`タイムライン投稿を開く ${item.task.title}`); setSelectedPost(item); loadComments(item.id) }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
                         <div className="game-card timeline-card" style={{ padding: 0, overflow: 'hidden', height: '100%' }}>
                           {(item.thumbnail_url ?? item.image_urls?.[0]) ? (
@@ -2675,7 +2695,7 @@ export default function DashboardPage() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {timeline.map(item => (
                       <button key={item.id}
-                        onClick={() => { setSelectedPost(item); loadComments(item.id) }}
+                        onClick={() => { track(`タイムライン投稿を開く ${item.task.title}`); setSelectedPost(item); loadComments(item.id) }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}>
                         <div className="game-card timeline-card" style={{ padding: 0, overflow: 'hidden' }}>
                           <div style={{ display: 'flex', alignItems: 'stretch' }}>
