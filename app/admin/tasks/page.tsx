@@ -19,6 +19,7 @@ interface Task {
   created_at: string
   progress_number: number | null
   allow_image_attachment: boolean
+  folder_id: string | null
 }
 
 interface AiTaskTheme {
@@ -34,6 +35,12 @@ interface TaskCourse {
   target_course: string | null
   target_stage:  string | null
   created_at:    string
+}
+
+interface TaskFolder {
+  id: string
+  name: string
+  created_at: string
 }
 
 const COURSE_OPTIONS = [
@@ -137,6 +144,14 @@ export default function AdminTasksPage() {
   const [newCourseTarget, setNewCourseTarget] = useState('')
   const [newCourseStage, setNewCourseStage]   = useState('')
 
+  // フォルダ整理
+  const [folders, setFolders]             = useState<TaskFolder[]>([])
+  const [newFolderName, setNewFolderName] = useState('')
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({})
+  const [folderMode, setFolderMode] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem('admin-tasks-filters') ?? '{}').folderMode ?? false } catch { return false }
+  })
+
   // AI 課題生成
   const [aiOpen, setAiOpen] = useState(false)
   const [aiCourse, setAiCourse] = useState<string>(() => {
@@ -215,14 +230,16 @@ export default function AdminTasksPage() {
           { data: initList },
           { data: courseList },
           { data: assignList },
+          { data: folderList },
         ] = await Promise.all([
           supabase
             .from('tasks')
-            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, is_public, created_at, progress_number, allow_image_attachment')
+            .select('id, title, description, description_is_markdown, target_course, target_stage, is_active, is_public, created_at, progress_number, allow_image_attachment, folder_id')
             .order('created_at', { ascending: false }),
           supabase.from('course_initial_tasks').select('course, task_id'),
           supabase.from('task_courses').select('id, name, target_course, target_stage, created_at').order('created_at'),
           supabase.from('task_course_assignments').select('task_course_id, task_id, sort_order').order('sort_order'),
+          supabase.from('task_folders').select('id, name, created_at').order('created_at'),
         ])
         if (listError) throw listError
         if (mounted) {
@@ -240,6 +257,7 @@ export default function AdminTasksPage() {
           }
           setCourseTaskOrders(orderMap)
           setTaskCourseMap(tcMap)
+          setFolders(folderList ?? [])
         }
       } catch (err: any) {
         const msg = err?.message ?? err?.details ?? JSON.stringify(err)
@@ -257,10 +275,10 @@ export default function AdminTasksPage() {
   useEffect(() => {
     try {
       localStorage.setItem('admin-tasks-filters', JSON.stringify({
-        filterText, filterCourse, filterStage, filterActive, filterCustomCourse,
+        filterText, filterCourse, filterStage, filterActive, filterCustomCourse, folderMode,
       }))
     } catch {}
-  }, [filterText, filterCourse, filterStage, filterActive, filterCustomCourse])
+  }, [filterText, filterCourse, filterStage, filterActive, filterCustomCourse, folderMode])
 
   useEffect(() => {
     try {
@@ -646,6 +664,34 @@ export default function AdminTasksPage() {
       })
       if (filterCustomCourse === courseId) setFilterCustomCourse('')
       setCourseExpandedId(null)
+    }
+  }
+
+  async function handleCreateFolder() {
+    const name = newFolderName.trim()
+    if (!name) return
+    const { data: created, error } = await supabase
+      .from('task_folders')
+      .insert({ name })
+      .select('id, name, created_at')
+      .single()
+    if (!error && created) {
+      setFolders(prev => [...prev, created])
+      setNewFolderName('')
+    }
+  }
+
+  async function handleFolderAssign(taskId: string, folderId: string) {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, folder_id: folderId || null } : t))
+    await supabase.from('tasks').update({ folder_id: folderId || null }).eq('id', taskId)
+  }
+
+  async function handleDeleteFolder(folderId: string, folderName: string) {
+    if (!window.confirm(`フォルダ「${folderName}」を削除しますか？\n中の課題は未分類に戻ります（課題自体は削除されません）。`)) return
+    const { error } = await supabase.from('task_folders').delete().eq('id', folderId)
+    if (!error) {
+      setFolders(prev => prev.filter(f => f.id !== folderId))
+      setTasks(prev => prev.map(t => t.folder_id === folderId ? { ...t, folder_id: null } : t))
     }
   }
 
@@ -1193,6 +1239,68 @@ export default function AdminTasksPage() {
         <div className="game-card" style={{ padding: '24px 28px' }}>
           <h2 className="game-title" style={{ fontSize: 22, marginBottom: 16 }}>課題一覧</h2>
 
+          {/* フォルダ整理 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                className="game-input"
+                type="text"
+                placeholder="新しいフォルダ名…"
+                value={newFolderName}
+                onChange={e => setNewFolderName(e.target.value)}
+                style={{ fontSize: 13, flex: 1, minWidth: 140 }}
+              />
+              <button
+                className="game-button"
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+                style={{ fontSize: 13, padding: '8px 14px', whiteSpace: 'nowrap' }}
+              >
+                フォルダを作成
+              </button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                <div
+                  onClick={() => setFolderMode(!folderMode)}
+                  style={{
+                    width: 36, height: 20, borderRadius: 10, position: 'relative', transition: 'background 0.2s',
+                    background: folderMode ? '#6aac14' : '#ccc', flexShrink: 0,
+                  }}
+                >
+                  <div style={{
+                    position: 'absolute', top: 2, left: folderMode ? 18 : 2, width: 16, height: 16,
+                    borderRadius: '50%', background: 'white', transition: 'left 0.2s',
+                  }} />
+                </div>
+                <span style={{ fontSize: 13, color: folderMode ? '#2d5500' : '#888', fontWeight: folderMode ? 'bold' : 'normal', whiteSpace: 'nowrap' }}>
+                  フォルダ整理
+                </span>
+              </label>
+            </div>
+            {folderMode && folders.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {folders.map(f => (
+                  <span
+                    key={f.id}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      fontSize: 12, color: '#2d5500', background: '#e8ffd4',
+                      border: '1px solid #6aac14', borderRadius: 12, padding: '3px 10px',
+                    }}
+                  >
+                    📁 {f.name}
+                    <button
+                      onClick={() => handleDeleteFolder(f.id, f.name)}
+                      style={{ border: 'none', background: 'none', color: '#c0392b', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1 }}
+                      title="フォルダを削除"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* フィルター */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
             <input
@@ -1259,9 +1367,7 @@ export default function AdminTasksPage() {
             if (filtered.length === 0) return (
               <p style={{ color: '#6aac14', textAlign: 'center', padding: 24 }}>該当する課題がありません</p>
             )
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {filtered.map(task => {
+            const renderTaskCard = (task: Task) => {
                   const isExpanded = expandedId === task.id
                   const isEditing = editingId === task.id
                   return (
@@ -1477,6 +1583,21 @@ export default function AdminTasksPage() {
                                   ))}
                                 </select>
                               </div>
+                              {/* フォルダ割り当て */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <label className="game-label" style={{ fontSize: 12, marginBottom: 0, whiteSpace: 'nowrap' }}>フォルダ</label>
+                                <select
+                                  className="game-input"
+                                  style={{ fontSize: 13, flex: 1 }}
+                                  value={task.folder_id ?? ''}
+                                  onChange={e => handleFolderAssign(task.id, e.target.value)}
+                                >
+                                  <option value="">（なし）</option>
+                                  {folders.map(f => (
+                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                  ))}
+                                </select>
+                              </div>
                               {task.description ? (
                                 task.description_is_markdown
                                   ? <MarkdownContent content={task.description} />
@@ -1490,7 +1611,44 @@ export default function AdminTasksPage() {
                       )}
                     </div>
                   )
-                })}
+                }
+            if (folderMode) {
+              const groups = [...folders, { id: '', name: '未分類', created_at: '' }]
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {groups.map(folder => {
+                    const group = filtered.filter(t => (t.folder_id ?? '') === folder.id)
+                    if (folder.id === '' && group.length === 0) return null
+                    const isCollapsed = !!collapsedFolders[folder.id]
+                    return (
+                      <div key={folder.id || 'uncategorized'}>
+                        <h3
+                          onClick={() => setCollapsedFolders(prev => ({ ...prev, [folder.id]: !prev[folder.id] }))}
+                          style={{
+                            fontSize: 14, fontWeight: 'bold', color: '#2d5500', background: '#e8ffd4',
+                            border: '1px solid #6aac14', borderRadius: 8, padding: '6px 12px',
+                            margin: isCollapsed ? 0 : '0 0 8px 0',
+                            cursor: 'pointer', userSelect: 'none',
+                            display: 'flex', alignItems: 'center', gap: 8,
+                          }}
+                        >
+                          <span style={{ fontSize: 11 }}>{isCollapsed ? '▶' : '▼'}</span>
+                          {isCollapsed ? '📁' : '📂'} {folder.name}（{group.length}）
+                        </h3>
+                        {!isCollapsed && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {group.map(renderTaskCard)}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {filtered.map(renderTaskCard)}
               </div>
             )
           })()}
